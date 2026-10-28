@@ -274,20 +274,36 @@ details.sub .body { padding: 2px 0 12px; }
 .pf-ctl input[type=range] { width: auto; flex: 1; min-width: 0; }
 .pf-ctl .btn { min-width: 44px; padding: 0 10px; }
 .field input.numbox { width: 6em; }
-canvas.photo { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--field); touch-action: manipulation; margin-top: 8px; }
-.ph-block { padding: 12px 14px; border-top: 1px solid var(--line); }
-.ph-block h3 { font-size: 16px; margin-bottom: 6px; }
+canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--field); touch-action: none; margin-top: 8px; cursor: crosshair; }
+.ph-block { padding: 12px 14px; }
+.ph-block + .ph-block { border-top: 1px solid var(--line); }
 .ph-block input[type=file] { max-width: 100%; font-size: 14px; }
 .ph-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .ph-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
-.ph-row input[type=number] { width: 8em; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 40px; color: var(--ink); }
+.ph-row input[type=number], .ph-row input[type=text] { width: 8em; max-width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 40px; color: var(--ink); }
 .ph-row select { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 40px; max-width: 100%; color: var(--ink); }
-.ph-how { margin: 8px 0 0; min-height: 4.4em; }
+.ph-how { margin: 8px 0 0; min-height: 2.9em; }
 .ph-info { font-size: 13px; color: var(--muted); margin-top: 6px; }
-svg.ov { display: block; width: 100%; height: auto; }
-.ov-cap { font: 600 13px/1 var(--cond); color: var(--muted); margin: 8px 0 2px; }
-.ov-body { fill: none; stroke: var(--line); stroke-width: 9; stroke-linejoin: round; }
-.ov-txt { fill: var(--muted); font: 600 68px var(--cond); }
+.lay-file { margin-top: 8px; font-size: 14px; color: var(--muted); }
+.lay-run { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px 14px 10px; border-top: 1px solid var(--line); }
+.lay-run:first-child { border-top: 0; }
+.lay-run.sel { background: color-mix(in srgb, var(--blue) 10%, var(--panel)); }
+.lay-run.found { box-shadow: inset 4px 0 0 var(--amber); }
+.lay-pick { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 10px; align-items: center; text-align: left; min-height: 44px; background: none; border: 0; padding: 0; cursor: pointer; width: 100%; }
+.lay-pick .sw { width: 14px; height: 14px; border-radius: 3px; grid-row: span 2; }
+.lay-pick b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lay-pick .note { margin: 0; font-size: 13px; }
+.lay-conn { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); padding-left: 24px; }
+.lay-conn select { flex: 1; min-width: 0; max-width: 16em; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 38px; color: var(--ink); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.field .chips { grid-column: 1 / -1; }
+.lay-chain { padding: 10px 14px; border-top: 1px solid var(--line); }
+.lay-chain:first-child { border-top: 0; }
+.lay-chain h3 { font-size: 16px; }
+.lay-warn { font-size: 13px; color: var(--warn); margin: 3px 0 0; }
+.lay-warn.bad { color: var(--bad); font-weight: 600; }
+.lay-empty { padding: 12px 14px; margin: 0; }
+.arrowtxt { font: 600 18px/1 var(--cond); }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); margin-top: 6px; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
 .dimnote { color: var(--warn); font-weight: 600; }
@@ -367,12 +383,52 @@ svg.ov { display: block; width: 100%; height: auto; }
 
   <!-- strips -->
   <section class="tab" id="tab-strips">
-    <p class="note">Each output drives one chain of LEDs. Pick the LED chip, split the chain into segments and give each a job. Add a position to a segment to use the position-based underglow effects (the Map tab helps). Changes apply when you tap Apply.</p>
+    <p class="note">Each output drives one chain of LEDs. Pick the LED chip, split the chain into segments and give each a job. Draw your strips on photos of the bike in the Map tab's Layout: that is the easy way to set segments and positions for the position-based underglow effects. The segment editor under each strip is for fine tuning. Changes apply when you tap Apply.</p>
     <div id="stripCards"></div>
   </section>
 
   <!-- map -->
   <section class="tab" id="tab-map">
+    <h2>Layout</h2>
+    <div class="panel">
+      <div class="ph-block">
+        <div class="ph-steps" id="layTabs" role="group" aria-label="Which photo">
+          <button class="btn small" data-layview="side" aria-pressed="true">Side view</button>
+          <button class="btn small" data-layview="rear" aria-pressed="false">Rear view</button>
+        </div>
+        <div class="lay-file" data-fileview="side"><label>Side view photo <input type="file" id="layFile-side" data-photo="side" accept="image/*" capture="environment"></label></div>
+        <div class="lay-file" data-fileview="rear" hidden><label>Rear view photo <input type="file" id="layFile-rear" data-photo="rear" accept="image/*" capture="environment"></label></div>
+        <div id="layCal"></div>
+        <p class="note ph-how" id="layHow"></p>
+        <canvas class="lay" id="layCanvas" role="img" aria-label="Photo of the bike with the LED strips drawn on it"></canvas>
+        <div class="ph-row" id="layTools">
+          <button class="btn small" id="layAdd">Add run</button>
+          <button class="btn small" id="layDone" disabled>Done</button>
+          <button class="btn small" id="layUndo" disabled>Undo point</button>
+          <button class="btn small" id="layZoom" aria-pressed="false">2× zoom</button>
+          <button class="btn small" id="layRemovePhoto" disabled>Remove photo</button>
+        </div>
+        <div class="legend">
+          <span><i style="background:#e8352b"></i>Tail / brake</span>
+          <span><i style="background:#ffa41b"></i>Turn</span>
+          <span><i style="background:#3b82ff"></i>Underglow</span>
+          <span><i style="background:#8a949e"></i>Unused</span>
+        </div>
+        <p class="ph-info">Hollow dot: first pixel. Filled dot: last pixel. Arrows show the data direction.</p>
+      </div>
+    </div>
+    <h2>Runs</h2>
+    <div class="panel" id="layRuns"></div>
+    <div class="panel" id="layEditor" hidden></div>
+    <h2>Chains and outputs</h2>
+    <div class="panel" id="layChains"></div>
+    <div class="btns">
+      <button class="btn primary" id="laySend">Send layout to board</button>
+      <button class="btn" id="layImport">Import from board</button>
+      <button class="btn" id="layClear">Clear layout</button>
+    </div>
+    <p class="note" id="layNote">A run is one strip drawn on a photo; each straight stretch between two taps becomes one segment. Chain runs that share a wire and give each chain an output. Positions are saved on this phone, not on the board, until you send them.</p>
+
     <h2>Pixel finder</h2>
     <div class="panel">
       <div class="field"><label for="pfStrip">Strip</label><select id="pfStrip"></select></div>
@@ -393,27 +449,6 @@ svg.ov { display: block; width: 100%; height: auto; }
       </div>
     </div>
     <p class="note">Marks go into the strip's draft on the Strips tab. Tap Apply there to send them.</p>
-
-    <h2>Photo mapping</h2>
-    <div class="panel">
-      <div class="field"><label for="phStrip">Strip</label><select id="phStrip"></select></div>
-      <div class="field"><label for="phSeg">Segment</label><select id="phSeg"></select><div class="hint" id="phNow"></div></div>
-      <div id="photoBlocks"></div>
-    </div>
-
-    <h2>Bike overview</h2>
-    <div class="panel pad">
-      <div class="ov-cap">Top (front on the left)</div>
-      <svg class="ov" id="ovTop" role="img" aria-label="Top view of the bike with mapped segments"></svg>
-      <div class="ov-cap">Side (front on the left)</div>
-      <svg class="ov" id="ovSide" role="img" aria-label="Side view of the bike with mapped segments"></svg>
-      <div class="legend">
-        <span><i style="background:#e8352b"></i>Tail / brake</span>
-        <span><i style="background:#ffa41b"></i>Turn</span>
-        <span><i style="background:#3b82ff"></i>Underglow</span>
-      </div>
-      <p class="note" id="ovNote"></p>
-    </div>
 
     <h2>Test flow</h2>
     <div class="panel pad">
@@ -582,12 +617,28 @@ function chipOf(st, prefer) {
   const hit = CHIPS.find(c => m(c[0]));
   return hit ? hit[0] : "custom";
 }
-// Segment = [start, count, role, reverse] or [..., [x0,y0,z0], [x1,y1,z1]] (mm; x front->rear, y left(-)->right(+), z up).
-const isMapped = g => [g[4], g[5]].some(p => Array.isArray(p) && p.some(v => Number(v) !== 0));
-const segPos = (g, n) => Array.isArray(g[4 + n]) ? g[4 + n] : [0, 0, 0];
+// Segment = [start, count, role, reverse] plus, in any order, two [x,y,z] mm arrays (first pixel, last pixel;
+// x front->rear, y left(-)->right(+), z up) and one {idle, rgb} object (safety roles only).
+const MAX_SEGS = 12;
+const rnd = v => Math.round(Number(v) || 0);
+const segArrs = g => g.slice(4).filter(Array.isArray);
+const isMapped = g => { const q = segArrs(g); return q.length >= 2 && [q[0], q[1]].some(p => p.some(v => Number(v) !== 0)); };
+const segPos = (g, n) => segArrs(g)[n] || [0, 0, 0];
+const segIdleOf = g => { const o = g.slice(4).find(e => e && typeof e === "object" && !Array.isArray(e)); return o && (o.idle === "accent" || o.idle === "color") ? o : null; };
+const idleOk = role => role !== "accent" && role !== "none";   // accent/none have no idle look
+const idleObj = (mode, rgb) => mode === "color" ? { idle: "color", rgb: (rgb || [0, 0, 255]).map(v => clamp(rnd(v), 0, 255)) }
+                             : mode === "accent" ? { idle: "accent" } : null;
 const segOut = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
-  if (isMapped(g)) o.push(segPos(g, 0).map(v => Math.round(Number(v) || 0)), segPos(g, 1).map(v => Math.round(Number(v) || 0)));
+  if (isMapped(g)) o.push(segPos(g, 0).map(rnd), segPos(g, 1).map(rnd));
+  const idl = idleOk(g[2]) && segIdleOf(g);
+  if (idl) o.push(idleObj(idl.idle, idl.rgb));
+  return o;
+};
+// Draft form used by the Strips tab: positions always present as arrays, idle object last.
+const canonSeg = g => {
+  const o = [g[0] | 0, g[1] | 0, g[2], !!g[3], segPos(g, 0).slice(), segPos(g, 1).slice()];
+  const i = segIdleOf(g); if (i) o.push(idleObj(i.idle, i.rgb));
   return o;
 };
 const ROLE_LINE = { tail: "#e8352b", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
@@ -680,18 +731,17 @@ const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp3 = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
 
-// Segments from a `set` patch: 4 elements, or 6 when mapped (all-zero positions are dropped, like the firmware).
-function parseSegs(list) {
+// One segment from a `set` patch, in the board's echo form: all-zero positions are dropped, idle only on safety roles.
+function parseSeg(g) {
   const pt = a => [0, 1, 2].map(j => Math.round(Number(a && a[j]) || 0));
-  return (Array.isArray(list) ? list : []).slice(0, 6).map(g => {
-    const o = [g[0] | 0, g[1] | 0, ROLE_LINE[g[2]] ? g[2] : "none", !!g[3]];
-    if (Array.isArray(g[4]) && Array.isArray(g[5])) {
-      const p0 = pt(g[4]), p1 = pt(g[5]);
-      if ([...p0, ...p1].some(v => v)) o.push(p0, p1);
-    }
-    return o;
-  });
+  const o = [g[0] | 0, g[1] | 0, ROLE_LINE[g[2]] ? g[2] : "none", !!g[3]];
+  const arrs = segArrs(g);
+  if (arrs.length >= 2) { const p0 = pt(arrs[0]), p1 = pt(arrs[1]); if ([...p0, ...p1].some(v => v)) o.push(p0, p1); }
+  const ob = segIdleOf(g);
+  if (ob && idleOk(o[2])) o.push(idleObj(ob.idle, Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null));
+  return o;
 }
+const parseSegs = list => (Array.isArray(list) ? list : []).slice(0, MAX_SEGS).map(parseSeg);
 
 // Bounding box of every mapped segment (the position-based effects normalise over it).
 function posBounds(strips) {
@@ -751,6 +801,18 @@ function applyPatch(s, p) {
         for (const [sk, sv] of Object.entries(e)) {
           if (sk === "chip") continue;
           if (sk === "seg") st.seg = parseSegs(sv);
+          else if (sk === "segi") {
+            (Array.isArray(sv) ? sv : []).forEach(a => {
+              const idx = Array.isArray(a) ? a[0] | 0 : -1;
+              if (idx < 0 || idx >= MAX_SEGS || a.length < 4) return;
+              while (st.seg.length <= idx) st.seg.push([0, 0, "none", false]);
+              st.seg[idx] = parseSeg(a.slice(1));
+            });
+          } else if (sk === "nseg") {
+            const n = clamp(sv | 0, 0, MAX_SEGS);
+            if (st.seg.length > n) st.seg.length = n;
+            while (st.seg.length < n) st.seg.push([0, 0, "none", false]);
+          }
           else if (sk === "timing") { if (sv === "800k" || sv === "400k") st.timing = sv; }
           else if (sk === "order") { if (ORDERS.includes(sv)) st.order = sv; }
           else if (sk === "rgbw" || sk === "sum") st[sk] = !!sv;
@@ -810,6 +872,32 @@ function segRgb(s, role, st) {
     case "accent": return s.accent.on ? pct(s.accent.rgb, s.accent.pct) : BLACK;
     default: return BLACK;
   }
+}
+
+// Is a safety segment free for its idle look right now? (mirrors drawSegment/drawIdle in core/render.cpp)
+function segFree(s, role, st) {
+  if (!st.v) return false;
+  const running = st.head && st.head !== "off";
+  switch (role) {
+    case "tail": return !st.brk && !(running || s.tail_always);
+    case "brake": return !st.brk;
+    case "turn_l": case "turn_r": return !(role === "turn_l" ? st.l : st.r) && !(running && s.marker_pct);
+    case "tail_turn_l": case "tail_turn_r": return !(role === "tail_turn_l" ? st.l : st.r) && !st.brk && !(running || s.tail_always);
+    default: return false;
+  }
+}
+// One pixel of a segment in the demo: {c: rgb, acc: true when it is an underglow-class pixel (subject to the budget)}.
+function segPixel(s, g, k, n, st, bnd, now, scale) {
+  const role = g[2];
+  const pos = () => isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
+  if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale), acc: true };
+  const idl = idleOk(role) && segIdleOf(g);
+  if (idl && segFree(s, role, st)) {
+    if (!s.accent.on || !s.accent.pct) return { c: [0, 0, 0], acc: false };
+    if (idl.idle === "color") return { c: (idl.rgb || [0, 0, 255]).map(v => Math.round(v * s.accent.pct / 100 * scale)), acc: true };
+    return { c: accentPix(s, k, n, pos(), bnd, now, scale), acc: true };
+  }
+  return { c: segRgb(s, role, st), acc: false };
 }
 
 class DemoLink {
@@ -889,11 +977,11 @@ class DemoLink {
       let base = sp.px, acc = 0;
       for (const g of sp.seg) {
         const n = g[1]; if (n <= 0) continue;
-        if (g[2] === "accent") {
-          const mapped = isMapped(g);
-          for (let k = 0; k < n; k++)
-            acc += sp.px_ma * frac(accentPix(s, k, n, mapped ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null, bnd, now, 1), sp);
-        } else base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp);
+        if (g[2] !== "accent" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp); continue; }
+        for (let k = 0; k < n; k++) {
+          const r = segPixel(s, g, k, n, st, bnd, now, 1), f = sp.px_ma * frac(r.c, sp);
+          if (r.acc) acc += f; else base += f;
+        }
       }
       if (this.find && this.find.strip === i) base += sp.px_ma;
       return { base, acc };
@@ -992,7 +1080,31 @@ function patchMany(objs) {
   lines.forEach(send); send("get");
 }
 const patch = obj => patchMany([obj]);
+// A `set` for one strip: nulls pad the strips before it.
+const stripWrap = (i, o) => ({ strips: [...Array(i).fill(null), o] });
+// Longest `set <json>` line we send; with the newline that is 480 bytes, well inside one BLE write.
+const SET_LIMIT = 479;
+const byteLen = t => new TextEncoder().encode(t).length;
+// Patches that replace strip i's segments without ever sending one long line: `segi` entries in chunks, then `nseg`.
+function segPatches(i, segs) {
+  const out = []; let cur = [];
+  const fits = list => byteLen("set " + JSON.stringify(stripWrap(i, { segi: list }))) <= SET_LIMIT;
+  segs.forEach((g, k) => {
+    const entry = [k, ...g];
+    if (cur.length && !fits([...cur, entry])) { out.push(stripWrap(i, { segi: cur })); cur = []; }
+    cur.push(entry);
+  });
+  if (cur.length) out.push(stripWrap(i, { segi: cur }));
+  out.push(stripWrap(i, { nseg: segs.length }));
+  return out;
+}
 function setReply(j) {
+  const P = app.pending;
+  if (P) {   // replies to a batch we are tracking (Send layout)
+    if (!j.ok) P.bad.push(j.notes || "error"); else if (j.notes) P.notes.push(j.notes);
+    if (--P.left <= 0) { app.pending = null; clearTimeout(P.timer); P.done(P); }
+    return;
+  }
   if (!j.ok) toast("Not applied: " + (j.notes || "error"), true);
   else if (j.notes) toast("Applied, with notes: " + j.notes, true);
   else toast("Applied");
@@ -1027,6 +1139,7 @@ async function start(demo) {
   setLink(app.link.name(), true);
   $("linkBtn").textContent = "Disconnect"; $("linkBtn").hidden = false;
   document.querySelectorAll("nav button").forEach(b => b.disabled = false);
+  layUse(demo); layRenderAll();
   buildWires();
   showTab("live");
   send("info"); send("get");
@@ -1264,6 +1377,7 @@ const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
 function normStrip(d) {
   d.chip = d.chip || "custom"; d.timing = d.timing || "800k"; d.rgbw = !!d.rgbw;
   d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18;
+  d.seg = d.seg.map(canonSeg);
   return d;
 }
 function draftFor(i) {
@@ -1407,7 +1521,17 @@ function buildStrips() {
       const key = `${i}.${k}`;
       const ensure = () => { if (!Array.isArray(g[4])) g[4] = [0, 0, 0]; if (!Array.isArray(g[5])) g[5] = [0, 0, 0]; };
       const status = el("span", { class: "note" });
-      const upd = () => { status.textContent = isMapped(g) ? "mapped" : "not mapped"; };
+      const upd = () => { status.textContent = (isMapped(g) ? "mapped" : "not mapped") + (segIdleOf(g) && idleOk(g[2]) ? ", idle look" : ""); };
+      // idle look: what a safety segment shows while its own function is off
+      const cur = idleOk(g[2]) && segIdleOf(g);
+      const idleSel = el("select", { "aria-label": "Idle look", "data-idle": key, disabled: !idleOk(g[2]) },
+        ...[["off", "Off"], ["accent", "Join underglow"], ["color", "Colour"]].map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
+      const idleCol = el("input", { type: "color", "aria-label": "Idle colour", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
+      const setIdle = () => {
+        g.length = 6; const o = idleObj(idleSel.value, unhex(idleCol.value)); if (o) g.push(o);
+        idleCol.hidden = idleSel.value !== "color"; upd(); redraw();
+      };
+      idleSel.onchange = setIdle; idleCol.onchange = setIdle;
       const mk = (r, c) => {
         const inp = el("input", { type: "number", step: 1, min: -9999, max: 9999, inputmode: "numeric", value: segPos(g, r)[c],
                                   "aria-label": `${r ? "Last" : "First"} pixel ${"xyz"[c]} (mm)`, "data-pos": `${r}${"xyz"[c]}` });
@@ -1424,8 +1548,12 @@ function buildStrips() {
       } }, side ? `Mirror from ${side}` : "Mirror from left/right");
       const clear = el("button", { class: "btn small", "data-clear": key, onclick: () => { g[4] = [0, 0, 0]; g[5] = [0, 0, 0]; drawRows(); redraw(); } }, "Clear");
       const det = el("details", { class: "sub", open: app.open.has(key) },
-        el("summary", {}, "Position ", status),
+        el("summary", {}, "Position and idle look ", status),
         el("div", { class: "body" },
+          el("div", { class: "ph-row", style: "margin:0 0 6px" }, el("label", { class: "note" }, "Idle look "), idleSel, idleCol),
+          el("p", { class: "note", style: "margin:0 0 8px" }, idleOk(g[2])
+            ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Colour: a steady colour then. Both follow underglow on/off."
+            : "Only tail, brake and turn segments have an idle look."),
           el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x mm"), el("span", { class: "pos-head" }, "y mm"), el("span", { class: "pos-head" }, "z mm")),
           row(0, "First pixel"), row(1, "Last pixel"),
           el("p", { class: "note" }, "x: front 0 → rear. y: left − → right +. z: up. Millimetres on the bike."),
@@ -1443,7 +1571,7 @@ function buildStrips() {
         const rv = el("input", { type: "checkbox", checked: !!g[3], "aria-label": "Reverse sweep direction" });
         s0.oninput = () => { g[0] = s0.value | 0; redraw(); };
         s1.oninput = () => { g[1] = s1.value | 0; redraw(); };
-        r.onchange = () => { g[2] = r.value; drawRows(); redraw(); };
+        r.onchange = () => { g[2] = r.value; if (!idleOk(g[2])) g.length = 6; drawRows(); redraw(); };
         rv.onchange = () => { g[3] = rv.checked; redraw(); };
         tb.append(el("tr", {}, el("td", {}, s0), el("td", {}, s1), el("td", {}, r), el("td", {}, rv),
           el("td", {}, el("button", { class: "x", "aria-label": "Remove segment", onclick: () => {
@@ -1453,22 +1581,28 @@ function buildStrips() {
         tb.append(posRow(g, k));
       });
     };
-    table.append(tb); card.append(table);
+    table.append(tb);
     const add = el("button", { class: "btn", onclick: () => {
-      if (draft.seg.length >= 6) { toast("Six segments per strip at most", true); return; }
+      if (draft.seg.length >= MAX_SEGS) { toast("Twelve segments per strip at most", true); return; }
       const end = draft.seg.reduce((m, g) => Math.max(m, g[0] + g[1]), 0);
-      draft.seg.push([Math.min(end, Math.max(0, draft.px - 1)), Math.max(0, draft.px - end), "accent", false]);
+      draft.seg.push([Math.min(end, Math.max(0, draft.px - 1)), Math.max(0, draft.px - end), "accent", false, [0, 0, 0], [0, 0, 0]]);
       drawRows(); redraw(); } }, "Add segment");
     const apply = el("button", { class: "btn primary", "data-apply": i, onclick: () => {
       const core = { px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma };
       // A preset is sent by name (the board fills in the rest); Custom sends every field.
       if (draft.chip !== "custom") core.chip = draft.chip;
       else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
-      const wrap = o => { const a = [null, null, null, null].slice(0, i); a.push(o); return { strips: a }; };
       delete app.drafts[i];
-      patchMany([wrap(core), wrap({ seg: draft.seg.map(segOut) })]); } }, `Apply to strip ${i + 1}`);
+      patchMany([stripWrap(i, core), ...segPatches(i, draft.seg.map(segOut))]); } }, `Apply to strip ${i + 1}`);
     const reset = el("button", { class: "btn", onclick: () => { delete app.drafts[i]; buildStrips(); } }, "Discard changes");
-    card.append(el("div", { class: "strip-actions" }, apply, add, reset));
+    const advKey = "adv." + i;
+    const adv = el("details", { class: "sub", "data-adv": i, open: app.open.has(advKey) },
+      el("summary", {}, "Segments ", el("span", { class: "note" }, "advanced")),
+      el("div", { class: "body" },
+        el("p", { class: "note" }, "The Map tab's Layout is the easy way to set segments, positions and idle looks: draw the strips on photos of the bike. Edit here only to fine-tune."),
+        table, el("div", { class: "strip-actions", style: "padding:8px 0 0" }, add)));
+    adv.addEventListener("toggle", () => { adv.open ? app.open.add(advKey) : app.open.delete(advKey); });
+    card.append(adv, el("div", { class: "strip-actions" }, apply, reset));
     box.append(card);
     drawRows();
     card.querySelector(".map").replaceChildren(...mapNodes(draft));
@@ -1555,10 +1689,9 @@ const segOpts = i => { const st = effStrip(i); return st.seg.length ? st.seg.map
 function buildMap() {
   if (!app.settings) return;
   const strips = [0, 1, 2, 3].map(i => [i, `Strip ${i + 1} (${effStrip(i).px} px)`]);
-  fillSelect($("pfStrip"), strips, true); fillSelect($("phStrip"), strips, true);
+  fillSelect($("pfStrip"), strips, true);
   fillSelect($("pfSeg"), segOpts(pfStrip()), true);
-  fillSelect($("phSeg"), segOpts(+$("phStrip").value || 0), true);
-  finderRange(); phNow(); budgetUi(); buildOverview(); tfPaint();
+  finderRange(); budgetUi(); layRenderAll(); tfPaint();
   paintTotals(app.status || {});
 }
 
@@ -1589,13 +1722,13 @@ function finderSet(n) {
   finder.timer = setTimeout(() => {
     finder.strip = pfStrip(); finder.n = n; finder.active = true;
     send(`find ${finder.strip + 1} ${n}`);
-    finderUi(); ovFind();
+    finderUi(); layFindUpdate();
   }, 100);
 }
 function finderStop() {
   clearTimeout(finder.timer);
   if (finder.active) send("find off");
-  finder.active = false; finderUi(); ovFind();
+  finder.active = false; finderUi(); layFindUpdate();
 }
 function pfMark(which) {
   const i = pfStrip(), k = +$("pfSeg").value, n = +$("pfNum").value | 0;
@@ -1617,210 +1750,836 @@ $("pfStart").onclick = () => pfMark("start");
 $("pfEnd").onclick = () => pfMark("end");
 $("pfStop").onclick = finderStop;
 
-// ---- photo mapping ----
-const photos = {};
-const sideReady = () => !!(photos.side && photos.side.img && photos.side.scale && photos.side.origin);
-function phNow() {
-  const i = +$("phStrip").value || 0, k = +$("phSeg").value;
-  const g = app.settings && effStrip(i).seg[k];
-  $("phNow").textContent = !g ? "Add a segment on the Strips tab first."
-    : isMapped(g) ? `First pixel (${segPos(g, 0).join(", ")}) · last pixel (${segPos(g, 1).join(", ")}) mm` : "Not mapped yet.";
+// ---- layout: draw the strips on photos of the bike -------------------------------
+// A run is one strip drawn as a polyline on a photo. Points are stored as [x,y,z] mm on the bike (x front->rear,
+// y left(-)->right(+), z up): the photo only supplies the two in-plane coordinates, the run's depth supplies the third.
+const VIEWS = {
+  side: { label: "Side view", hi: 0, vi: 2, di: 1 },   // photo shows x (across) and z (up); depth is y
+  rear: { label: "Rear view", hi: 1, vi: 2, di: 0 },   // photo shows y (across) and z (up); depth is x
+};
+const RUN_ROLES = [["accent", "Underglow"], ["tail", "Tail"], ["brake", "Brake"], ["turn_l", "Turn L"], ["turn_r", "Turn R"],
+                   ["tail_turn_l", "Tail + Turn L"], ["tail_turn_r", "Tail + Turn R"], ["none", "Unused"]];
+const DENSITIES = [144, 96, 60, 30];
+const IDLE_MODES = [["off", "Off"], ["accent", "Join underglow"], ["color", "Colour"]];
+const CAL_PRESETS = [["", "Preset…"], ["wheel", "Wheel diameter"], ["wheelbase", "Wheelbase"], ["bars", "Handlebar width"]];
+const CAL_TYPICAL = { wheel: 700, wheelbase: 1450, bars: 780 };   // typical values; a typed number always wins
+const LS = { cal: "rcr.lay.cal.v1", runs: "rcr.lay.runs.v1", runsDemo: "rcr.lay.runs.demo.v1", img: v => "rcr.lay.img." + v };
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
+  del(k) { try { localStorage.removeItem(k); } catch (e) { /* ignore */ } },
+};
+const newCal = () => ({ zero: null, a: null, b: null, mm: 0, front: "right", preset: "", typed: false, snap: null });
+const lay = {
+  view: "side", mode: "none", sel: null, drawing: null, demoKey: false,
+  runs: [], nextId: 1, lastChip: "ws2815", find: null, cam: null, g: null, lastTap: null,
+  photo: { side: null, rear: null },                       // {img, url, W, H}
+  cal: { side: newCal(), rear: newCal() },
+  vw: { side: { z: 1, cx: 0, cy: 0 }, rear: { z: 1, cx: 0, cy: 0 } },
+};
+
+// ---- geometry ----
+const rnd1 = v => Math.round(v * 10) / 10;
+const dist3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const runById = id => lay.runs.find(r => r.id === id) || null;
+const runLen = r => { let L = 0; for (let i = 1; i < r.pts.length; i++) L += dist3(r.pts[i - 1], r.pts[i]); return L; };
+const lppOf = r => (CHIP_BY[r.chip] ? CHIP_BY[r.chip].f.lpp : 1);
+// Pixel count from the drawn length: round(length_mm / 1000 x LEDs per metre / LEDs per pixel). An edited count sticks.
+function layAutoCount(r) { if (!r.countEdited) r.count = Math.max(0, Math.round(runLen(r) / 1000 * (r.dens || 0) / lppOf(r))); }
+function splitCounts(total, lens) {   // integers proportional to length, summing to total
+  const L = lens.reduce((a, b) => a + b, 0), raw = lens.map(l => L > 0 ? total * l / L : total / lens.length);
+  const out = raw.map(Math.floor); let left = total - out.reduce((a, b) => a + b, 0);
+  raw.map((v, i) => [v - Math.floor(v), i]).sort((a, b) => b[0] - a[0] || a[1] - b[1]).forEach(([, i]) => { if (left > 0) { out[i]++; left--; } });
+  return out;
 }
-$("phStrip").onchange = () => { fillSelect($("phSeg"), segOpts(+$("phStrip").value || 0), false); phNow(); };
-$("phSeg").onchange = phNow;
-
-function photoBlock(host, kind, title) {
-  const ph = { kind, img: null, pts: [], scale: null, origin: null, mode: "scale", marks: {}, frontLeft: true, view: "top_up" };
-  const file = el("input", { type: "file", accept: "image/*", capture: "environment", "aria-label": title, "data-photo": kind });
-  const canvas = el("canvas", { class: "photo", hidden: true, "data-photo-canvas": kind });
-  const tools = el("div", { hidden: true });
-  const how = el("p", { class: "note ph-how" });
-  const info = el("p", { class: "ph-info" });
-  const steps = [["scale", "1 Scale"], ["origin", "2 Origin"], ["start", "3 First pixel"], ["end", "4 Last pixel"]];
-  const stepBtns = {};
-  const stepRow = el("div", { class: "ph-steps" }, ...steps.map(([m, t]) => {
-    const b = el("button", { class: "btn small", "aria-pressed": "false", "data-step": `${kind}.${m}`, onclick: () => { ph.mode = m; paint(); } }, t);
-    stepBtns[m] = b; return b;
-  }));
-  const mm = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", "data-mm": kind,
-                           placeholder: kind === "side" ? "wheelbase, mm" : "known distance, mm", "aria-label": "Real distance between the two points, mm" });
-  const orient = kind === "side"
-    ? el("button", { class: "btn small", "data-front": kind, onclick: () => { ph.frontLeft = !ph.frontLeft; paint(); draw(); } })
-    : el("select", { "aria-label": "What the photo shows", "data-view": kind, onchange: () => { ph.view = orient.value; paint(); } },
-        ...[["top_up", "Top view, front at the top"], ["top_down", "Top view, front at the bottom"], ["rear", "Rear view, from behind"]]
-          .map(([v, t]) => el("option", { value: v }, t)));
-  const scaleRow = el("div", { class: "ph-row" }, el("label", { class: "note" }, "Real distance (mm) ", mm), orient);
-
-  const HOW = {
-    scale: kind === "side" ? "Tap the centres of both wheels, then type the wheelbase in mm."
-                           : "Tap two points a known distance apart (wheelbase from above, handlebar width from behind), then type it in mm.",
-    origin: kind === "side" ? "Tap the ground directly under the very front of the bike. That is x 0, z 0."
-                            : "Tap the bike's centreline at the very front (top view) or anywhere on it (rear view). That is y 0.",
-    start: "Tap where the selected segment's first pixel is.",
-    end: "Tap where the selected segment's last pixel is.",
-  };
-  const paint = () => {
-    for (const [m] of steps) stepBtns[m].setAttribute("aria-pressed", String(ph.mode === m));
-    how.textContent = HOW[ph.mode];
-    if (kind === "side") orient.textContent = `Front of the bike is on the ${ph.frontLeft ? "LEFT" : "RIGHT"} of the photo (tap to flip)`;
-    info.textContent = (ph.scale ? `Scale: 1 px = ${ph.scale.toFixed(2)} mm. ` : "Scale not set. ") + (ph.origin ? "Origin set." : "Origin not set.");
-  };
-  const draw = () => {
-    if (!ph.img) return;
-    const c = canvas, x = c.getContext("2d"), r = Math.max(7, c.width / 80);
-    x.clearRect(0, 0, c.width, c.height); x.drawImage(ph.img, 0, 0, c.width, c.height);
-    x.lineWidth = Math.max(2, c.width / 400);
-    x.strokeStyle = x.fillStyle = "#00d0ff";
-    if (ph.pts.length === 2) { x.beginPath(); x.moveTo(...ph.pts[0]); x.lineTo(...ph.pts[1]); x.stroke(); }
-    ph.pts.forEach(p => { x.beginPath(); x.arc(p[0], p[1], r / 2, 0, 7); x.fill(); });
-    if (ph.origin) {
-      x.strokeStyle = "#2fbf68"; x.beginPath();
-      x.moveTo(ph.origin[0] - r * 1.5, ph.origin[1]); x.lineTo(ph.origin[0] + r * 1.5, ph.origin[1]);
-      x.moveTo(ph.origin[0], ph.origin[1] - r * 1.5); x.lineTo(ph.origin[0], ph.origin[1] + r * 1.5); x.stroke();
-    }
-    x.font = `600 ${Math.round(r * 1.3)}px sans-serif`; x.textAlign = "center"; x.textBaseline = "middle";
-    for (const m of Object.values(ph.marks)) {
-      x.fillStyle = "#ffa41b"; x.beginPath(); x.arc(m.x, m.y, r, 0, 7); x.fill();
-      x.fillStyle = "#1b1300"; x.fillText(m.label, m.x, m.y + 1);
-    }
-  };
-  const recalc = () => {
-    if (ph.pts.length === 2) {
-      const d = Math.hypot(ph.pts[0][0] - ph.pts[1][0], ph.pts[0][1] - ph.pts[1][1]), v = Number(mm.value);
-      ph.scale = v > 0 && d > 2 ? v / d : null;
-    } else ph.scale = null;
-    paint();
-  };
-  mm.addEventListener("input", () => { recalc(); draw(); });
-  mm.addEventListener("change", () => { if (ph.scale && !ph.origin && ph.mode === "scale") { ph.mode = "origin"; paint(); } });
-  const place = (which, x, y) => {
-    if (!ph.scale || !ph.origin) { toast("Set the scale (1) and origin (2) first", true); return; }
-    const i = +$("phStrip").value || 0, k = +$("phSeg").value;
-    if (!app.settings || !effStrip(i).seg[k]) { toast("Pick a segment above first", true); return; }
-    const g = draftFor(i).seg[k];
-    if (!Array.isArray(g[4])) g[4] = [0, 0, 0];
-    if (!Array.isArray(g[5])) g[5] = [0, 0, 0];
-    const p = g[which === "end" ? 5 : 4];
-    const dx = (x - ph.origin[0]) * ph.scale, dy = (y - ph.origin[1]) * ph.scale;
-    if (kind === "side") { p[0] = Math.round(ph.frontLeft ? dx : -dx) || 0; p[2] = Math.round(-dy) || 0; }
-    else {
-      p[1] = Math.round(ph.view === "top_down" ? -dx : dx) || 0;
-      if (ph.view !== "rear" && !sideReady()) p[0] = Math.round(ph.view === "top_up" ? dy : -dy) || 0;
-    }
-    ph.marks[`${i}.${k}.${which}`] = { x, y, label: which === "start" ? "S" : "E" };
-    ph.mode = which === "start" ? "end" : "start";
-    buildStrips(); buildMap(); paint();
-    toast(`Strip ${i + 1}, segment ${k + 1}, ${which === "start" ? "first" : "last"} pixel: (${p.join(", ")}) mm`);
-  };
-  canvas.addEventListener("click", ev => {
-    const r = canvas.getBoundingClientRect();
-    const x = (ev.clientX - r.left) * canvas.width / r.width, y = (ev.clientY - r.top) * canvas.height / r.height;
-    if (ph.mode === "scale") { if (ph.pts.length >= 2) ph.pts = []; ph.pts.push([x, y]); recalc(); }
-    else if (ph.mode === "origin") { ph.origin = [x, y]; ph.mode = "start"; }
-    else place(ph.mode, x, y);
-    paint(); draw();
-  });
-  file.addEventListener("change", () => {
-    const f = file.files && file.files[0]; if (!f) return;
-    const url = URL.createObjectURL(f), img = new Image();
-    img.onload = () => {
-      const k = Math.min(1, 1000 / img.naturalWidth);
-      canvas.width = Math.max(1, Math.round(img.naturalWidth * k)); canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
-      Object.assign(ph, { img, pts: [], scale: null, origin: null, mode: "scale", marks: {} });
-      canvas.hidden = false; tools.hidden = false; URL.revokeObjectURL(url);
-      paint(); draw();
-    };
-    img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that photo", true); };
-    img.src = url;
-  });
-  tools.append(stepRow, how, scaleRow, info);
-  host.append(el("div", { class: "ph-block" }, el("h3", {}, title), file, tools, canvas));
-  paint();
-  return ph;
+const runSegCounts = r => {
+  if (r.pts.length < 2 || r.count <= 0) return [];
+  return splitCounts(r.count | 0, r.pts.slice(1).map((p, i) => dist3(r.pts[i], p)));
+};
+// The run as board segments (zero-pixel stretches dropped). A run with fewer than two points is one unplaced segment.
+function runSegs(r) {
+  const total = r.count | 0; if (total <= 0) return [];
+  if (r.pts.length < 2) return [{ run: r, count: total, p0: null, p1: null }];
+  const out = [];
+  runSegCounts(r).forEach((c, i) => { if (c > 0) out.push({ run: r, count: c, p0: r.pts[i].map(rnd), p1: r.pts[i + 1].map(rnd) }); });
+  return out;
 }
-[["side", "Side view (gives x and z)"], ["top", "Top or rear view (gives y)"]]
-  .forEach(([kind, title]) => photos[kind] = photoBlock($("photoBlocks"), kind, title));
-
-// ---- bike overview (top and side sketches; live pixel colours in the demo) ----
-const SVGNS = "http://www.w3.org/2000/svg";
-const sv = (tag, attrs = {}) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
-const ov = { dots: [], rings: [] };
-function buildOverview() {
-  const top = $("ovTop"), side = $("ovSide");
-  top.textContent = ""; side.textContent = ""; ov.dots = []; ov.rings = [];
-  if (!app.settings) return;
-  const segs = [];
-  effStrips().forEach((st, i) => st.seg.forEach((g, k) => { if (g[1] > 0 && isMapped(g)) segs.push({ i, k, g }); }));
-  let x0 = -150, x1 = 1950, ym = 450, z0 = -80, z1 = 1300;
-  segs.forEach(({ g }) => [segPos(g, 0), segPos(g, 1)].forEach(p => {
-    x0 = Math.min(x0, p[0] - 80); x1 = Math.max(x1, p[0] + 80); ym = Math.max(ym, Math.abs(p[1]) + 80);
-    z0 = Math.min(z0, p[2] - 80); z1 = Math.max(z1, p[2] + 80);
-  }));
-  top.setAttribute("viewBox", `${x0} ${-ym} ${x1 - x0} ${2 * ym}`);          // svg y = -world y: left side is at the bottom
-  side.setAttribute("viewBox", `${x0} ${-z1} ${x1 - x0} ${z1 - z0}`);        // svg y = -world z
-  // sketch of the bike: 2 wheels and a body (front on the left, x = 0)
-  const body = (tag, a) => sv(tag, { class: "ov-body", ...a });
-  top.append(body("rect", { x: -30, y: -45, width: 660, height: 90, rx: 45 }), body("rect", { x: 1020, y: -45, width: 660, height: 90, rx: 45 }),
-             body("rect", { x: 250, y: -130, width: 1200, height: 260, rx: 70 }), body("line", { x1: 250, y1: -330, x2: 250, y2: 330 }));
-  side.append(body("circle", { cx: 300, cy: -330, r: 330 }), body("circle", { cx: 1350, cy: -330, r: 330 }),
-              body("rect", { x: 380, y: -780, width: 900, height: 300, rx: 60 }), body("line", { x1: 320, y1: -330, x2: 200, y2: -1050 }),
-              body("line", { x1: 120, y1: -1050, x2: 330, y2: -1050 }), body("rect", { x: 900, y: -840, width: 520, height: 60, rx: 30 }));
-  const lbl = (svg, x, y, t) => { const e = sv("text", { x, y, class: "ov-txt" }); e.textContent = t; svg.append(e); };
-  lbl(top, x0 + 20, -ym + 90, "right"); lbl(top, x0 + 20, ym - 30, "left"); lbl(top, x1 - 260, -ym + 90, "rear"); lbl(top, x0 + 20, 16, "front");
-  lbl(side, x1 - 260, -z1 + 90, "rear"); lbl(side, x0 + 20, -z1 + 90, "front");
-  segs.forEach(({ i, k, g }) => {
-    const p0 = segPos(g, 0), p1 = segPos(g, 1), col = ROLE_LINE[g[2]] || ROLE_LINE.none;
-    [[top, p => -p[1]], [side, p => -p[2]]].forEach(([svg, fy]) => svg.append(sv("line", {
-      x1: p0[0], y1: fy(p0), x2: p1[0], y2: fy(p1), stroke: col, "stroke-width": 26, "stroke-linecap": "round",
-      opacity: app.demo ? 0.3 : 0.95, "data-seg": `${i}.${k}` })));
-  });
-  if (app.demo) segs.forEach(({ g }) => {
-    const p0 = segPos(g, 0), p1 = segPos(g, 1), n = g[1], m = Math.min(n, 96);
-    for (let j = 0; j < m; j++) {
-      const idx = m > 1 ? Math.round(j * (n - 1) / (m - 1)) : 0, pos = lerp3(p0, p1, n > 1 ? idx / (n - 1) : 0);
-      const attrs = { r: 13, fill: "rgba(128,138,150,.28)", "data-px": "" };
-      const c1 = sv("circle", { ...attrs, cx: pos[0], cy: -pos[1] }), c2 = sv("circle", { ...attrs, cx: pos[0], cy: -pos[2] });
-      top.append(c1); side.append(c2);
-      ov.dots.push({ c1, c2, g, idx, n, pos, last: "" });
-    }
-  });
-  for (const svg of [top, side]) {
-    const r = sv("circle", { r: 42, fill: "none", "stroke-width": 9, visibility: "hidden", style: "stroke:var(--ink)", "data-ring": "" });
-    svg.append(r); ov.rings.push(r);
+const runIdle = r => (idleOk(r.role) ? idleObj(r.idle, r.rgb) : null);
+function chainsOf() {
+  const byId = new Map(lay.runs.map(r => [r.id, r]));
+  const hasIn = new Set(lay.runs.map(r => r.next).filter(id => byId.has(id)));
+  const out = [], seen = new Set();
+  for (const h of lay.runs) {
+    if (hasIn.has(h.id)) continue;
+    const runs = [];
+    for (let r = h; r && !seen.has(r.id); r = byId.get(r.next)) { seen.add(r.id); runs.push(r); }
+    out.push({ head: h, runs, out: h.out | 0 });
   }
-  $("ovNote").textContent = !segs.length ? "No segments are mapped yet. Enter positions on the Strips tab, or map from photos above."
-    : app.demo ? `${segs.length} mapped segment${segs.length > 1 ? "s" : ""}, with live pixel colours (demo). Unsaved edits are included.`
-    : `${segs.length} mapped segment${segs.length > 1 ? "s" : ""} (static map). Unsaved edits are included.`;
-  ovFind(); ovUpdate();
+  return out;
 }
-function ovFind() {
-  if (!ov.rings.length) return;
-  let pos = null;
+function flattenChain(ch) {
+  const segs = []; let start = 0;
+  for (const r of ch.runs) for (const sg of runSegs(r)) { sg.start = start; start += sg.count; segs.push(sg); }
+  return { segs, px: start };
+}
+function chainInfo(ch) {
+  const fl = flattenChain(ch), first = ch.runs[0], stp = ch.out && app.settings ? app.settings.strips[ch.out - 1] : null;
+  const pxMa = CHIP_BY[first.chip] ? CHIP_BY[first.chip].f.px_ma : (stp ? stp.px_ma : 18);
+  return { ...fl, chips: [...new Set(ch.runs.map(r => r.chip))], amps: fl.px * pxMa / 1000, cap: stp ? stp.cap_ma / 1000 : null };
+}
+const chainName = ch => ch.runs.map(r => r.name).join(" → ");
+
+// ---- calibration: image px <-> bike mm in the photo's plane ----
+const calOk = c => !!(c && c.zero && c.a && c.b && c.mm > 0 && Math.hypot(c.a[0] - c.b[0], c.a[1] - c.b[1]) > 4);
+const calScale = c => c.mm / Math.hypot(c.a[0] - c.b[0], c.a[1] - c.b[1]);          // mm per image px
+const calSign = (view, c) => (view === "side" && c.front === "right" ? -1 : 1);     // front on the right: x grows leftwards
+const calP2I = (view, c, h, v) => { const s = calScale(c); return [c.zero[0] + calSign(view, c) * h / s, c.zero[1] - v / s]; };
+const calI2P = (view, c, x, y) => { const s = calScale(c); return [calSign(view, c) * (x - c.zero[0]) * s, (c.zero[1] - y) * s]; };
+const calCopy = c => ({ zero: c.zero && c.zero.slice(), a: c.a && c.a.slice(), b: c.b && c.b.slice(), mm: c.mm, front: c.front });
+// Change a calibration and keep the runs where they are on the photo (their mm follow the new scale).
+function calChange(view, fn) {
+  const c = lay.cal[view], V = VIEWS[view];
+  const before = calOk(c) ? calCopy(c) : c.snap;
+  fn(c);
+  if (calOk(c)) {
+    if (before) for (const r of lay.runs) if (r.view === view) for (const p of r.pts) {
+      const [x, y] = calP2I(view, before, p[V.hi], p[V.vi]), [h, v] = calI2P(view, c, x, y);
+      p[V.hi] = h; p[V.vi] = v;
+    }
+    c.snap = null;
+  } else if (before && !c.snap) c.snap = before;
+  saveCal(); saveRuns();
+}
+
+// ---- storage ----
+function saveCal() { store.set(LS.cal, JSON.stringify(lay.cal)); }
+function saveRuns() {
+  store.set(lay.demoKey ? LS.runsDemo : LS.runs, JSON.stringify({ v: 1, nextId: lay.nextId, sel: lay.sel, lastChip: lay.lastChip, runs: lay.runs }));
+}
+function layBoot() {
+  try {
+    const o = JSON.parse(store.get(LS.cal) || "null");
+    if (o) for (const v of Object.keys(VIEWS)) if (o[v]) Object.assign(lay.cal[v], newCal(), o[v]);
+  } catch (e) { /* start clean */ }
+  for (const v of Object.keys(VIEWS)) {
+    const url = store.get(LS.img(v));
+    if (url) layAttach(v, url, null); else lay.cal[v] = newCal();
+  }
+}
+function layAttach(view, url, done) {
+  const img = new Image();
+  img.onload = () => { lay.photo[view] = { img, url, W: img.naturalWidth, H: img.naturalHeight }; if (done) done(); layRenderAll(); };
+  img.onerror = () => { lay.cal[view] = newCal(); store.del(LS.img(view)); };
+  img.src = url;
+}
+// Photos are shrunk to 1600 px on the long side and kept as JPEG so they fit in localStorage.
+function layPickPhoto(view, file) {
+  const objUrl = URL.createObjectURL(file), im = new Image();
+  im.onload = () => {
+    const k = Math.min(1, 1600 / Math.max(im.naturalWidth, im.naturalHeight)), c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(im.naturalWidth * k)); c.height = Math.max(1, Math.round(im.naturalHeight * k));
+    const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(objUrl);
+    const url = c.toDataURL("image/jpeg", 0.85);
+    layAttach(view, url, () => {
+      lay.cal[view] = newCal(); lay.vw[view] = { z: 1, cx: 0, cy: 0 };
+      if (!store.set(LS.img(view), url)) toast("This phone has no room to keep the photo; it will be gone when you close the page", true);
+      saveCal(); lay.view = view; lay.mode = "zero"; lay.drawing = null;
+    });
+  };
+  im.onerror = () => { URL.revokeObjectURL(objUrl); toast("Couldn't read that photo", true); };
+  im.src = objUrl;
+}
+function layRemovePhoto() {
+  const v = lay.view;
+  lay.photo[v] = null; lay.cal[v] = newCal(); lay.vw[v] = { z: 1, cx: 0, cy: 0 };
+  store.del(LS.img(v)); saveCal();
+  if (lay.mode !== "none") { lay.mode = "none"; lay.drawing = null; }
+  layRenderAll();
+}
+
+// ---- runs ----
+const runDefaults = view => ({ name: "", view, pts: [], role: "accent", chip: lay.lastChip, dens: 60, densCustom: false,
+                               count: 0, countEdited: false, depth: 0, idle: "off", rgb: [0, 0, 255], next: null, out: 0 });
+function newRun(view) {
+  const r = { id: lay.nextId++, ...runDefaults(view) };
+  let n = 1; while (lay.runs.some(x => x.name === "Run " + n)) n++;
+  r.name = "Run " + n;
+  return r;
+}
+function laySanitize() {
+  const ids = new Set();
+  lay.runs = (Array.isArray(lay.runs) ? lay.runs : []).filter(r => r && VIEWS[r.view] && Array.isArray(r.pts) && !ids.has(r.id) && ids.add(r.id)).map(r => {
+    const o = { ...runDefaults(r.view), ...r };
+    o.pts = r.pts.map(p => [0, 1, 2].map(j => Number(p && p[j]) || 0));
+    if (!ROLE_LINE[o.role]) o.role = "none";
+    if (!["off", "accent", "color"].includes(o.idle)) o.idle = "off";
+    if (!Array.isArray(o.rgb) || o.rgb.length !== 3) o.rgb = [0, 0, 255];
+    o.count = Math.max(0, o.count | 0); o.dens = Number(o.dens) || 60; o.depth = Number(o.depth) || 0; o.out = (o.out | 0) >= 1 && (o.out | 0) <= 4 ? o.out | 0 : 0;
+    o.densCustom = !!o.densCustom || !DENSITIES.includes(o.dens);
+    return o;
+  });
+  lay.nextId = Math.max(lay.nextId | 0, 1, ...lay.runs.map(r => r.id + 1));
+  const seenIn = new Set();
+  for (const r of lay.runs) {
+    if (r.next != null && (!ids.has(r.next) || r.next === r.id || seenIn.has(r.next))) r.next = null;
+    if (r.next != null) seenIn.add(r.next);
+  }
+  for (const r of lay.runs) {   // break any loop
+    const seen = new Set([r.id]);
+    for (let q = runById(r.next); q; q = runById(q.next)) { if (seen.has(q.id)) { r.next = null; break; } seen.add(q.id); }
+  }
+  if (!runById(lay.sel)) lay.sel = lay.runs.length ? lay.runs[0].id : null;
+}
+// Rebuild runs from strip settings: one run per contiguous same-role stretch that is also continuous in space;
+// runs from one strip are chained in pixel order and given that strip's output.
+function runsFromStrips(strips) {
+  const tmp = { nextId: 1 }, runs = [];
+  const mk = (view, name, st, g) => ({ id: tmp.nextId++, name, view, pts: [], role: g.role, chip: st.chip || "custom", dens: 60, densCustom: false,
+                                       count: 0, countEdited: true, depth: 0, idle: g.idle ? g.idle.idle : "off", rgb: (g.idle && g.idle.rgb) || [0, 0, 255], next: null, out: 0 });
+  strips.forEach((st, i) => {
+    const segs = (st.seg || []).filter(g => g[1] > 0).sort((a, b) => a[0] - b[0]).map(g => ({
+      start: g[0], count: g[1], role: g[2], idle: idleOk(g[2]) ? segIdleOf(g) : null,
+      p0: isMapped(g) ? segPos(g, 0) : null, p1: isMapped(g) ? segPos(g, 1) : null }));
+    const made = []; let cur = null;
+    for (const sg of segs) {
+      const sameIdle = cur && (cur.idle ? cur.idle.idle : "off") === (sg.idle ? sg.idle.idle : "off") &&
+                       JSON.stringify(cur.idle && cur.idle.rgb) === JSON.stringify(sg.idle && sg.idle.rgb);
+      const joins = cur && cur.role === sg.role && sameIdle && cur.end === sg.start &&
+                    (sg.p0 ? cur.pts.length && dist3(cur.pts[cur.pts.length - 1], sg.p0) <= 2 : !cur.pts.length);
+      if (joins) {
+        cur.count += sg.count; cur.end += sg.count;
+        if (sg.p1) cur.pts.push(sg.p1.slice());
+      } else {
+        cur = { role: sg.role, idle: sg.idle, count: sg.count, end: sg.start + sg.count, pts: sg.p0 ? [sg.p0.slice(), sg.p1.slice()] : [] };
+        made.push(cur);
+      }
+    }
+    const list = made.map(m => {
+      const xs = m.pts.map(p => p[0]), ys = m.pts.map(p => p[1]);
+      const span = a => a.length ? Math.max(...a) - Math.min(...a) : 0;
+      const view = m.pts.length && span(ys) > 20 && span(xs) <= 20 ? "rear" : "side";
+      const r = mk(view, "Run " + tmp.nextId, st, m);
+      r.pts = m.pts; r.count = m.count;
+      r.depth = m.pts.length ? m.pts[0][VIEWS[view].di] : 0;
+      const len = runLen(r), lpp = CHIP_BY[r.chip] ? CHIP_BY[r.chip].f.lpp : (st.lpp || 1);
+      r.dens = len > 0 ? Math.round(r.count * lpp / (len / 1000)) || 60 : 60;
+      r.densCustom = !DENSITIES.includes(r.dens);
+      return r;
+    });
+    list.forEach((r, k) => { if (k + 1 < list.length) r.next = list[k + 1].id; });
+    if (list.length) list[0].out = i + 1;
+    runs.push(...list);
+  });
+  return { runs, nextId: tmp.nextId };
+}
+function layUse(demo) {   // pick this mode's runs (the demo keeps its own, seeded from the demo bike)
+  lay.demoKey = demo; lay.mode = "none"; lay.drawing = null; lay.find = null;
+  let o = null;
+  try { o = JSON.parse(store.get(demo ? LS.runsDemo : LS.runs) || "null"); } catch (e) { /* none */ }
+  if (o && Array.isArray(o.runs)) { lay.runs = o.runs; lay.nextId = o.nextId | 0; lay.sel = o.sel; if (CHIP_BY[o.lastChip]) lay.lastChip = o.lastChip; }
+  else {
+    const seed = demo ? runsFromStrips(DEFAULTS.strips) : { runs: [], nextId: 1 };
+    lay.runs = seed.runs; lay.nextId = seed.nextId; lay.sel = null;
+  }
+  laySanitize(); if (demo && !o) saveRuns();
+}
+
+// ---- drawing surface ----
+// The frame is where taps land: the photo in image pixels once calibrated, or a plain mm schematic when there is no photo.
+function layFrame(view) {
+  const ph = lay.photo[view], c = lay.cal[view], V = VIEWS[view];
+  if (ph) {
+    const ok = calOk(c);
+    return { kind: "photo", W: ph.W, H: ph.H, ok, p2f: ok ? (h, v) => calP2I(view, c, h, v) : null, f2p: ok ? (x, y) => calI2P(view, c, x, y) : null };
+  }
+  let h0 = view === "side" ? -250 : -500, h1 = view === "side" ? 1800 : 500, v0 = -80, v1 = 1300;
+  for (const r of lay.runs) if (r.view === view) for (const p of r.pts) {
+    h0 = Math.min(h0, Math.floor((p[V.hi] - 100) / 100) * 100); h1 = Math.max(h1, Math.ceil((p[V.hi] + 100) / 100) * 100);
+    v0 = Math.min(v0, Math.floor((p[V.vi] - 100) / 100) * 100); v1 = Math.max(v1, Math.ceil((p[V.vi] + 100) / 100) * 100);
+  }
+  const k = 0.5;
+  return { kind: "schem", W: (h1 - h0) * k, H: (v1 - v0) * k, ok: true, h0, h1, v0, v1,
+           p2f: (h, v) => [(h - h0) * k, (v1 - v) * k], f2p: (x, y) => [x / k + h0, v1 - y / k] };
+}
+function layRunGs(r) {   // the run as demo/board segments [start,count,role,rev,p0,p1,idle?] with unrounded positions
+  const out = []; const idl = runIdle(r);
+  runSegCounts(r).forEach((c, i) => { if (c > 0) out.push([0, c, r.role, false, r.pts[i], r.pts[i + 1], ...(idl ? [idl] : [])]); });
+  return out;
+}
+function layDraw() {
+  const cv = $("layCanvas"), cssW = cv.clientWidth;
+  if (!cssW) return;
+  const view = lay.view, V = VIEWS[view], fr = layFrame(view), vw = lay.vw[view], ph = lay.photo[view];
+  const dpr = Math.min(2, window.devicePixelRatio || 1), z = vw.z === 2 ? 2 : 1;
+  const cw = Math.max(1, Math.round(cssW * dpr)), chh = Math.max(1, Math.round(cw * fr.H / fr.W));
+  if (cv.width !== cw) cv.width = cw;
+  if (cv.height !== chh) cv.height = chh;
+  const visW = fr.W / z, visH = fr.H / z;
+  vw.cx = clamp(vw.cx || fr.W / 2, visW / 2, fr.W - visW / 2); vw.cy = clamp(vw.cy || fr.H / 2, visH / 2, fr.H - visH / 2);
+  const k = cw / visW, ox = vw.cx - visW / 2, oy = vw.cy - visH / 2;
+  const C = (fx, fy) => [(fx - ox) * k, (fy - oy) * k];
+  const P = (h, v) => C(...fr.p2f(h, v));
+  const cam = lay.cam = { k, ox, oy, dpr, fr, visW, visH, C, P, view, toFrame: p => [ox + p.x / k, oy + p.y / k] };
+  const x = cv.getContext("2d"), cs = getComputedStyle(cv), muted = cs.getPropertyValue("--muted").trim() || "#667", ink = cs.getPropertyValue("--ink").trim() || "#111";
+  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cw, chh);
+  x.lineCap = "round"; x.lineJoin = "round";
+  if (ph) x.drawImage(ph.img, ox, oy, visW, visH, 0, 0, cw, chh);
+  const text = (t, px, py, col, align) => {
+    x.font = `600 ${Math.round(11 * dpr)}px sans-serif`; x.textAlign = align || "left"; x.textBaseline = "top";
+    x.lineWidth = 3 * dpr; x.strokeStyle = "rgba(0,0,0,.55)"; x.strokeText(t, px, py); x.fillStyle = col; x.fillText(t, px, py);
+  };
+
+  // mm grid, every 100 mm (every 1000 mm when zoomed far out)
+  if (fr.ok) {
+    const a = fr.f2p(ox, oy), b = fr.f2p(ox + visW, oy + visH);
+    const h0 = Math.min(a[0], b[0]), h1 = Math.max(a[0], b[0]), v0 = Math.min(a[1], b[1]), v1 = Math.max(a[1], b[1]);
+    let step = 100;
+    if ((h1 - h0) / step > 70 || (v1 - v0) / step > 70) step = 1000;
+    if ((h1 - h0) / step <= 70 && (v1 - v0) / step <= 70) {
+      const line = (x0, y0, x1, y1, major) => {
+        x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1);
+        if (ph) { x.strokeStyle = "rgba(0,0,0,.25)"; x.lineWidth = (major ? 3 : 2) * dpr; x.stroke(); }
+        x.strokeStyle = ph ? `rgba(255,255,255,${major ? .75 : .45})` : `rgba(140,150,160,${major ? .55 : .25})`; x.lineWidth = (major ? 1.5 : 1) * dpr; x.stroke();
+      };
+      for (let h = Math.ceil(h0 / step) * step; h <= h1; h += step) {
+        const px = P(h, 0)[0], major = h % (step * 5) === 0;
+        line(px, 0, px, chh, major);
+        if (major) text(h + (h === 0 ? " " + (view === "side" ? "x" : "y") : ""), px + 3 * dpr, 2 * dpr, "#fff");
+      }
+      for (let v = Math.ceil(v0 / step) * step; v <= v1; v += step) {
+        const py = P(0, v)[1], major = v % (step * 5) === 0;
+        line(0, py, cw, py, major);
+        if (major) text(v + (v === 0 ? " z" : ""), 3 * dpr, py + 2 * dpr, "#fff");
+      }
+    }
+  }
+  if (fr.kind === "schem") {
+    text("no photo yet — add one", cw / 2, chh * 0.42, ink, "center");
+    text(view === "side" ? "front" : "left", 6 * dpr, chh * 0.55, "#fff");
+    text(view === "side" ? "rear" : "right", cw - 6 * dpr, chh * 0.55, "#fff", "right");
+  }
+
+  // calibration marks
+  const c = lay.cal[view];
+  if (ph) {
+    const r0 = 7 * dpr;
+    if (c.a && c.b) { x.beginPath(); x.moveTo(...C(...c.a)); x.lineTo(...C(...c.b)); x.strokeStyle = "#00d0ff"; x.lineWidth = 2 * dpr; x.stroke(); }
+    [c.a, c.b].forEach(p => { if (!p) return; const q = C(...p); x.beginPath(); x.arc(q[0], q[1], r0 / 2, 0, 7); x.fillStyle = "#00d0ff"; x.fill(); });
+    if (c.a && c.b && c.mm > 0) { const m = C((c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2); text(c.mm + " mm", m[0], m[1] + 6 * dpr, "#00d0ff", "center"); }
+    if (c.zero) {
+      const q = C(...c.zero); x.beginPath();
+      x.moveTo(q[0] - r0 * 1.8, q[1]); x.lineTo(q[0] + r0 * 1.8, q[1]); x.moveTo(q[0], q[1] - r0 * 1.8); x.lineTo(q[0], q[1] + r0 * 1.8);
+      x.strokeStyle = "#2fbf68"; x.lineWidth = 2.5 * dpr; x.stroke();
+    }
+  }
+
+  if (fr.ok) {
+    const runs = lay.runs.filter(r => r.view === view && r.pts.length);
+    // wires between chained runs
+    x.setLineDash([6 * dpr, 5 * dpr]); x.lineWidth = 2 * dpr; x.strokeStyle = "rgba(220,225,230,.85)";
+    for (const r of runs) {
+      const n = runById(r.next);
+      if (n && n.view === view && n.pts.length) { x.beginPath(); x.moveTo(...P(r.pts[r.pts.length - 1][V.hi], r.pts[r.pts.length - 1][V.vi])); x.lineTo(...P(n.pts[0][V.hi], n.pts[0][V.vi])); x.stroke(); }
+    }
+    x.setLineDash([]);
+    const live = app.demo && app.settings && app.status;
+    const bnd = live ? posBounds([{ seg: lay.runs.flatMap(layRunGs) }]) : null, now = performance.now();
+    const scale = live ? (typeof app.status.bud === "number" ? app.status.bud : 100) / 100 : 1;
+    for (const r of runs) {
+      const pts = r.pts.map(p => P(p[V.hi], p[V.vi])), col = ROLE_LINE[r.role] || ROLE_LINE.none, sel = r.id === lay.sel;
+      const path = () => { x.beginPath(); pts.forEach((q, i) => i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1])); };
+      if (pts.length > 1) {
+        path(); x.strokeStyle = sel ? "rgba(255,255,255,.9)" : "rgba(0,0,0,.45)"; x.lineWidth = (sel ? 7 : 5.5) * dpr; x.stroke();
+        path(); x.strokeStyle = col; x.lineWidth = 3.5 * dpr; x.stroke();
+        for (let i = 0; i + 1 < pts.length; i++) {   // data direction
+          const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+          if (len < 44 * dpr) continue;
+          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, s = 6 * dpr;
+          x.beginPath(); x.moveTo(mx + Math.cos(ang) * s, my + Math.sin(ang) * s);
+          x.lineTo(mx + Math.cos(ang + 2.5) * s, my + Math.sin(ang + 2.5) * s); x.lineTo(mx + Math.cos(ang - 2.5) * s, my + Math.sin(ang - 2.5) * s); x.closePath();
+          x.fillStyle = "#fff"; x.strokeStyle = "rgba(0,0,0,.6)"; x.lineWidth = 1.5 * dpr; x.stroke(); x.fill();
+        }
+      }
+      // pixel dots: when zoomed in, and with live colours in the demo
+      if ((z > 1 || live) && r.count > 0 && pts.length > 1) {
+        const gs = layRunGs(r), s = app.settings, st = app.status;
+        gs.forEach(g => {
+          const n = g[1], a = P(g[4][V.hi], g[4][V.vi]), b = P(g[5][V.hi], g[5][V.vi]);
+          const sp = Math.hypot(b[0] - a[0], b[1] - a[1]) / Math.max(1, n - 1), step = Math.max(1, Math.ceil(3 * dpr / Math.max(sp, 0.01)));
+          const rad = clamp(sp * 0.42, 1.6 * dpr, 4.5 * dpr);
+          for (let j = 0; j < n; j += step) {
+            const t = n > 1 ? j / (n - 1) : 0;
+            let fill = col;
+            if (live) {
+              const px = segPixel(s, g, j, n, st, bnd, now, scale).c;
+              fill = Math.max(...px) > 10 ? `rgb(${px.join(",")})` : "rgba(150,160,170,.55)";
+            }
+            x.beginPath(); x.arc(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, rad, 0, 7);
+            x.fillStyle = fill; x.fill(); x.lineWidth = dpr * 0.8; x.strokeStyle = "rgba(0,0,0,.55)"; x.stroke();
+          }
+        });
+      }
+      // vertices of the selected run; first pixel hollow, last pixel filled
+      if (sel) pts.forEach((q, i) => {
+        if (i === 0 || i === pts.length - 1) return;
+        x.beginPath(); x.arc(q[0], q[1], 5 * dpr, 0, 7); x.fillStyle = "#fff"; x.fill(); x.strokeStyle = col; x.lineWidth = 2 * dpr; x.stroke();
+      });
+      const rr = (sel ? 7 : 5.5) * dpr, q0 = pts[0], q1 = pts[pts.length - 1];
+      x.beginPath(); x.arc(q0[0], q0[1], rr, 0, 7); x.strokeStyle = "rgba(0,0,0,.7)"; x.lineWidth = 5 * dpr; x.stroke();
+      x.strokeStyle = col; x.lineWidth = 2.5 * dpr; x.stroke();
+      if (pts.length > 1) {
+        x.beginPath(); x.arc(q1[0], q1[1], rr, 0, 7); x.fillStyle = col; x.fill(); x.strokeStyle = "#fff"; x.lineWidth = 2 * dpr; x.stroke();
+      }
+    }
+    // the pixel finder's pixel
+    const f = lay.find;
+    if (f && f.pos) {
+      const fr0 = runById(f.runId);
+      if (fr0 && fr0.view === view) {
+        const q = P(f.pos[V.hi], f.pos[V.vi]);
+        x.beginPath(); x.arc(q[0], q[1], 13 * dpr, 0, 7); x.strokeStyle = "rgba(0,0,0,.7)"; x.lineWidth = 6 * dpr; x.stroke();
+        x.strokeStyle = "#fff"; x.lineWidth = 3 * dpr; x.stroke();
+      }
+    }
+  }
+}
+
+// ---- pointer handling ----
+function layPt(ev) {
+  const cv = $("layCanvas"), r = cv.getBoundingClientRect();
+  if (!lay.cam || !r.width) return null;
+  return { x: (ev.clientX - r.left) * cv.width / r.width, y: (ev.clientY - r.top) * cv.height / r.height };
+}
+function layHit(p) {   // nearest vertex of any run on this view, within about a fingertip
+  const cam = lay.cam; if (!cam || cam.fr.kind !== "photo" || !cam.fr.ok) return null;
+  const V = VIEWS[cam.view]; let best = null, bd = (24 * cam.dpr) ** 2;
+  for (const r of lay.runs) if (r.view === cam.view && (lay.mode !== "draw" || r.id === lay.drawing)) r.pts.forEach((q, i) => {
+    const c = cam.P(q[V.hi], q[V.vi]), d = (c[0] - p.x) ** 2 + (c[1] - p.y) ** 2 - (r.id === lay.sel ? 40 : 0);
+    if (d < bd) { bd = d; best = { r, i }; }
+  });
+  return best;
+}
+function layTap(p, hit) {
+  const cam = lay.cam, fr = cam.fr, now = performance.now(), view = cam.view, c = lay.cal[view], V = VIEWS[view];
+  const f = cam.toFrame(p);
+  // a double-tap ends the run; only two taps while drawing the same run count
+  const dbl = lay.lastTap && lay.lastTap.run === lay.drawing && lay.mode === "draw" && now - lay.lastTap.t < 380 &&
+              Math.hypot(p.x - lay.lastTap.p.x, p.y - lay.lastTap.p.y) < 30 * cam.dpr;
+  lay.lastTap = { t: now, p, run: lay.mode === "draw" ? lay.drawing : null };
+  if (lay.mode === "zero" && fr.kind === "photo") {
+    calChange(view, () => { c.zero = f; });
+    lay.mode = c.a && c.b ? "none" : "ref"; layRenderAll();
+  } else if (lay.mode === "ref" && fr.kind === "photo") {
+    calChange(view, () => { if (!c.a || (c.a && c.b)) { c.a = f; c.b = null; } else c.b = f; });
+    if (c.a && c.b) { lay.mode = "none"; layRenderAll(); const m = document.querySelector(`[data-cal-mm="${view}"]`); if (m && !c.mm) m.focus(); }
+    else layRenderAll();
+  } else if (lay.mode === "draw") {
+    if (dbl) { layFinish(); return; }
+    const r = runById(lay.drawing);
+    if (hit || !r || fr.kind !== "photo" || !fr.ok) return;
+    const [h, v] = fr.f2p(f[0], f[1]), q = [0, 0, 0];
+    q[V.hi] = rnd1(h); q[V.vi] = rnd1(v); q[V.di] = r.depth || 0;
+    r.pts.push(q); layAutoCount(r); layChanged({});
+  } else if (hit) laySelect(hit.r.id);
+}
+function layBindPointer() {
+  const cv = $("layCanvas");
+  cv.addEventListener("pointerdown", ev => {
+    if (ev.button > 0) return;
+    const p = layPt(ev); if (!p) return;
+    ev.preventDefault();
+    try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* synthetic pointers */ }
+    lay.g = { id: ev.pointerId, p0: p, moved: false, hit: lay.mode === "zero" || lay.mode === "ref" ? null : layHit(p), pan: { ...lay.vw[lay.view] } };
+  });
+  cv.addEventListener("pointermove", ev => {
+    const g = lay.g; if (!g || g.id !== ev.pointerId) return;
+    const p = layPt(ev), cam = lay.cam; if (!p) return;
+    if (!g.moved && Math.hypot(p.x - g.p0.x, p.y - g.p0.y) > 6 * cam.dpr) g.moved = true;
+    if (!g.moved) return;
+    if (g.hit) {   // drag a vertex
+      const V = VIEWS[cam.view], f = cam.toFrame(p), [h, v] = cam.fr.f2p(f[0], f[1]), q = g.hit.r.pts[g.hit.i];
+      q[V.hi] = rnd1(h); q[V.vi] = rnd1(v); g.dragged = true;
+      if (lay.sel !== g.hit.r.id) { lay.sel = g.hit.r.id; layRenderAll(); }
+      layAutoCount(g.hit.r); layDraw();
+    } else if (lay.vw[cam.view].z === 2) {   // pan
+      const vw = lay.vw[cam.view]; vw.cx = g.pan.cx - (p.x - g.p0.x) / cam.k; vw.cy = g.pan.cy - (p.y - g.p0.y) / cam.k; layDraw();
+    }
+  });
+  const end = (ev, cancel) => {
+    const g = lay.g; if (!g || g.id !== ev.pointerId) return;
+    lay.g = null;
+    if (cancel) { layDraw(); return; }
+    if (g.dragged) { layChanged({ editor: true }); return; }
+    if (!g.moved) layTap(g.p0, g.hit);
+  };
+  cv.addEventListener("pointerup", ev => end(ev, false));
+  cv.addEventListener("pointercancel", ev => end(ev, true));
+}
+
+// ---- actions ----
+function layChanged(o) {
+  o = o || {};
+  saveRuns(); layRenderRuns(); layRenderChains(); layRenderTools();
+  if (o.editor) layRenderEditor(); else edDerived();
+  layDraw();
+}
+function laySetView(view) {
+  if (lay.mode === "draw") layFinish(true);
+  lay.view = view; if (lay.mode !== "none") lay.mode = "none";
+  layRenderAll();
+}
+function laySetMode(m) {
+  if (lay.mode === "draw" && m !== "draw") { layFinish(true); }
+  lay.mode = m; layRenderCal(); layRenderTools(); layHow(); layDraw();
+}
+function laySelect(id) {
+  const r = runById(id); if (!r) return;
+  if (lay.mode === "draw" && lay.drawing !== id) layFinish(true);
+  lay.sel = id;
+  if (r.view !== lay.view) { lay.view = r.view; lay.mode = "none"; layRenderAll(); return; }
+  layChanged({ editor: true });
+}
+function layAddRun() {
+  const view = lay.view, fr = layFrame(view);
+  if (lay.mode === "draw") layFinish(true);
+  if (!lay.photo[view]) { toast("Add a photo of the " + VIEWS[view].label.toLowerCase().split(" ")[0] + " first", true); return; }
+  if (!fr.ok) { toast("Calibrate the photo first: zero point, two scale points and their distance", true); return; }
+  const r = newRun(view);
+  lay.runs.push(r); lay.sel = r.id; lay.drawing = r.id; lay.mode = "draw";
+  saveRuns(); layRenderAll();
+}
+function layDrawOn(r) {   // add points to an existing run
+  if (r.view !== lay.view) { lay.view = r.view; }
+  if (!layFrame(r.view).ok || !lay.photo[r.view]) { toast("Add and calibrate the " + VIEWS[r.view].label.toLowerCase() + " photo first", true); layRenderAll(); return; }
+  lay.sel = r.id; lay.drawing = r.id; lay.mode = "draw"; layRenderAll();
+}
+function layFinish(quiet) {
+  const r = runById(lay.drawing);
+  lay.mode = "none"; lay.drawing = null;
+  if (r && !r.pts.length) { layDelete(r.id, true); return; }
+  if (r && r.pts.length < 2 && !quiet) toast("A run needs at least two points", true);
+  layRenderAll();
+}
+function layUndo() {
+  const r = runById(lay.sel); if (!r || !r.pts.length) return;
+  r.pts.pop(); layAutoCount(r); layChanged({ editor: true });
+}
+function layDelete(id, silent) {
+  const r = runById(id); if (!r) return;
+  const prev = lay.runs.find(p => p.next === id), nxt = runById(r.next);
+  if (prev) prev.next = nxt ? nxt.id : null;
+  else if (nxt) nxt.out = r.out;   // the next run becomes the head: keep the output
+  lay.runs = lay.runs.filter(x => x.id !== id);
+  if (lay.drawing === id) { lay.drawing = null; lay.mode = "none"; }
+  if (lay.sel === id) lay.sel = lay.runs.length ? lay.runs[lay.runs.length - 1].id : null;
+  saveRuns(); layRenderAll();
+  if (!silent) toast(`${r.name} deleted`);
+}
+function layConnect(aId, bId) {   // wire the end of A to the start of B
+  const A = runById(aId); if (!A) return;
+  const old = runById(A.next); if (old) old.out = 0;
+  if (bId == null) A.next = null;
+  else {
+    const B = runById(bId); if (!B) return;
+    let head = A; for (let p; (p = lay.runs.find(x => x.next === head.id)); ) head = p;
+    if (!head.out && B.out) head.out = B.out;
+    B.out = 0; A.next = B.id;
+  }
+  layChanged({});
+}
+function layMirror(r) {   // copy on the other side of the bike: y negated, left/right roles swapped
+  const m = JSON.parse(JSON.stringify(r));
+  m.id = lay.nextId++; m.name = r.name + " (mirror)"; m.next = null; m.out = 0;
+  m.pts = r.pts.map(p => [p[0], p[1] ? -p[1] : 0, p[2]]);
+  m.role = MIRROR_ROLE[r.role] || r.role;
+  if (r.view === "side") m.depth = r.depth ? -r.depth : 0;
+  lay.runs.push(m); lay.sel = m.id; saveRuns(); layRenderAll(); toast(`${m.name} added`);
+}
+function layReverse(r) { r.pts.reverse(); layChanged({ editor: true }); }
+
+// ---- panels ----
+function layHow() {
+  const view = lay.view, c = lay.cal[view], ph = lay.photo[view], t = $("layHow");
+  let msg;
+  if (!ph) msg = "No photo yet: this is a plain schematic of the runs. Add a photo of the bike, taken square-on, to draw on it.";
+  else if (lay.mode === "zero") msg = view === "side" ? "Tap the ground directly under the front axle. That is x 0, z 0." : "Tap the ground on the bike's centreline. That is y 0, z 0.";
+  else if (lay.mode === "ref") msg = c.a && !c.b ? "Now tap the second point." : "Tap two points a known distance apart (wheel top and bottom, wheelbase, handlebar ends), then type the distance.";
+  else if (lay.mode === "draw") msg = "Tap along the strip from the first pixel to the last. Double-tap or Done ends the run. Drag a dot to move it.";
+  else if (!calOk(c)) msg = "Calibrate: " + [!c.zero && "tap the zero point", !(c.a && c.b) && "tap two scale points", !(c.mm > 0) && "type their distance in mm"].filter(Boolean).join(", ") + ".";
+  else msg = `Calibrated: 1 photo pixel = ${calScale(c).toFixed(2)} mm. The grid is every 100 mm: check it against something you know. Tap Add run to draw a strip.`;
+  t.textContent = msg;
+}
+function layRenderTools() {
+  const v = lay.view, r = runById(lay.sel);
+  $("layDone").disabled = lay.mode !== "draw";
+  $("layUndo").disabled = !(r && r.view === v && r.pts.length);
+  $("layZoom").setAttribute("aria-pressed", String(lay.vw[v].z === 2));
+  $("layRemovePhoto").disabled = !lay.photo[v];
+  $("layAdd").setAttribute("aria-pressed", String(lay.mode === "draw"));
+}
+function layRenderCal() {
+  const view = lay.view, c = lay.cal[view], ph = lay.photo[view], box = $("layCal");
+  $("layTabs").querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.layview === view)));
+  document.querySelectorAll("[data-fileview]").forEach(d => { d.hidden = d.dataset.fileview !== view; });
+  box.textContent = "";
+  if (!ph) return;
+  const step = (mode, text, done) => el("button", { class: "btn small", "data-cal": mode, "aria-pressed": String(lay.mode === mode),
+    onclick: () => laySetMode(lay.mode === mode ? "none" : mode) }, text + (done ? " ✓" : ""));
+  const mm = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", "data-cal-mm": view, "aria-label": "Real distance between the two scale points, mm", placeholder: "mm", value: c.mm || "" });
+  const preset = el("select", { "aria-label": "Measurement preset", "data-cal-preset": view }, ...CAL_PRESETS.map(([v, t]) => el("option", { value: v, selected: v === c.preset }, t)));
+  const info = el("p", { class: "ph-info", "data-cal-info": view });
+  const showInfo = () => {
+    info.textContent = (calOk(c) ? `Scale: 1 px = ${calScale(c).toFixed(2)} mm. ` : "Not calibrated yet. ") +
+      (c.preset && !c.typed ? "The preset is a typical value: type your own if yours differs." : "");
+  };
+  mm.addEventListener("input", () => {
+    c.typed = true;
+    calChange(view, () => { c.mm = Number(mm.value) > 0 ? Number(mm.value) : 0; });
+    showInfo(); layHow(); layDraw(); layChanged({});
+  });
+  preset.addEventListener("change", () => {
+    c.preset = preset.value;
+    if (preset.value && !c.typed) { mm.value = CAL_TYPICAL[preset.value]; calChange(view, () => { c.mm = CAL_TYPICAL[preset.value]; }); layChanged({}); }
+    showInfo(); layHow(); layDraw();
+  });
+  const frontBtn = (val, text) => el("button", { class: "btn small", "data-front": val, "aria-pressed": String(c.front === val),
+    onclick: () => { calChange(view, () => { c.front = val; }); layRenderAll(); } }, text);
+  box.append(
+    el("div", { class: "ph-steps" }, step("zero", "1 Zero point", !!c.zero), step("ref", "2 Scale points", !!(c.a && c.b))),
+    el("div", { class: "ph-row" }, el("label", { class: "note" }, "Their distance, mm ", mm), preset),
+    view === "side" ? el("div", { class: "ph-row" }, el("span", { class: "note" }, "3 Front of the bike points"), frontBtn("right", "→"), frontBtn("left", "←")) : null,
+    info);
+  showInfo();
+}
+function layRenderRuns() {
+  const box = $("layRuns"); box.textContent = "";
+  if (!lay.runs.length) {
+    box.append(el("p", { class: "note lay-empty" }, "No runs yet. Add a photo, calibrate it, then tap Add run and tap along a strip. Or import what is already on the board."));
+    return;
+  }
+  const chains = chainsOf(), inChain = new Map(), hasIn = new Set(lay.runs.map(r => r.next));
+  chains.forEach(ch => ch.runs.forEach(r => inChain.set(r.id, ch)));
+  lay.runs.forEach(r => {
+    const ch = inChain.get(r.id), nsg = runSegs(r).length, f = lay.find && lay.find.runId === r.id;
+    const cand = lay.runs.filter(b => b.id !== r.id && (b.id === r.next || (!hasIn.has(b.id) && !(ch && ch.runs.includes(b)))));
+    const sel = el("select", { "data-connect": r.id, "aria-label": `Connect the end of ${r.name} to` },
+      el("option", { value: "" }, "Not connected"),
+      ...cand.map(b => el("option", { value: b.id, selected: b.id === r.next }, "→ " + b.name)));
+    sel.onchange = () => layConnect(r.id, sel.value ? +sel.value : null);
+    const meta = [VIEWS[r.view].label, `${r.count} px`, r.pts.length < 2 ? "unplaced" : `${nsg} segment${nsg === 1 ? "" : "s"}`, "○→●"];
+    if (ch && ch.out) meta.push("output " + ch.out);
+    if (f) meta.push(`pixel ${lay.find.n} is in segment ${lay.find.seg + 1}`);
+    box.append(el("div", { class: "lay-run" + (r.id === lay.sel ? " sel" : "") + (f ? " found" : ""), "data-run": r.id },
+      el("button", { class: "lay-pick", onclick: () => laySelect(r.id) },
+        el("i", { class: "sw", style: `background:${ROLE_LINE[r.role] || ROLE_LINE.none}` }), el("b", {}, r.name), el("span", { class: "note" }, meta.join(" · "))),
+      el("label", { class: "lay-conn" }, "End wired to", sel)));
+  });
+}
+const ed = { r: null, len: null, implied: null, count: null, depth: null, depthChips: [] };
+function edDerived() {
+  const r = ed.r; if (!r || !ed.len || !ed.len.isConnected) return;
+  const L = runLen(r), nsg = runSegs(r).length;
+  ed.len.textContent = r.pts.length < 2 ? "Draw at least two points to get a length." : `Length ${Math.round(L)} mm, ${nsg} segment${nsg === 1 ? "" : "s"}.`;
+  const imp = L > 0 ? Math.round(r.count * lppOf(r) / (L / 1000)) : 0;
+  ed.implied.textContent = !L ? "" : r.countEdited ? `Typed count: that is ${imp} LEDs per metre.` : `From ${r.dens} LEDs per metre.`;
+  if (ed.count && document.activeElement !== ed.count) ed.count.value = r.count;
+}
+function layRenderEditor() {
+  const box = $("layEditor"), r = runById(lay.sel), V = r && VIEWS[r.view];
+  box.textContent = ""; box.hidden = !r; ed.r = r;
+  if (!r) return;
+  const name = el("input", { type: "text", value: r.name, maxlength: 24, "aria-label": "Run name", "data-ed": "name" });
+  name.oninput = () => { r.name = name.value; layChanged({}); };
+  box.append(el("div", { class: "field" }, el("label", {}, "Name"), name));
+  const tag = (f, k) => { f.querySelector("select").setAttribute("data-ed", k); return f; };
+  box.append(
+    tag(selectField("Role", RUN_ROLES, r.role, v => { r.role = v; layChanged({ editor: true }); }), "role"),
+    tag(selectField("LED chip", CHIP_OPTIONS, r.chip, v => { r.chip = v; lay.lastChip = v; r.countEdited = false; layAutoCount(r); layChanged({ editor: true }); }), "chip"));
+  // density and pixel count
+  const densSel = el("select", { "data-ed": "dens", "aria-label": "LEDs per metre" },
+    ...DENSITIES.map(d => el("option", { value: d, selected: !r.densCustom && r.dens === d }, d + " per metre")),
+    el("option", { value: "custom", selected: r.densCustom }, "Custom"));
+  densSel.onchange = () => {
+    if (densSel.value === "custom") r.densCustom = true; else { r.densCustom = false; r.dens = +densSel.value; }
+    r.countEdited = false; layAutoCount(r); layChanged({ editor: true });
+  };
+  box.append(el("div", { class: "field" }, el("label", {}, "LED density"), densSel));
+  if (r.densCustom) {
+    const cd = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", value: r.dens, "aria-label": "Custom LEDs per metre", "data-ed": "dens-custom" });
+    cd.oninput = () => { r.dens = Number(cd.value) || 0; r.countEdited = false; layAutoCount(r); layChanged({}); };
+    box.append(el("div", { class: "field" }, el("label", {}, "LEDs per metre"), cd));
+  }
+  ed.count = el("input", { type: "number", min: 0, max: 800, step: 1, inputmode: "numeric", value: r.count, "aria-label": "Pixel count", "data-ed": "count" });
+  ed.count.oninput = () => { r.count = clamp(Math.round(Number(ed.count.value)) || 0, 0, 800); r.countEdited = true; layChanged({}); };
+  ed.len = el("div", { class: "hint" }); ed.implied = el("div", { class: "hint" });
+  const auto = el("button", { class: "btn small", "data-ed": "auto", onclick: () => { r.countEdited = false; layAutoCount(r); layChanged({ editor: true }); } }, "Use density");
+  box.append(el("div", { class: "field" }, el("label", {}, "Pixels"), ed.count, ed.len, ed.implied,
+    el("div", { class: "chips" }, auto, el("span", { class: "note" }, `${lppOf(r)} LED${lppOf(r) > 1 ? "s" : ""} per pixel on this chip`))));
+  // depth: the axis the photo cannot see
+  const side = r.view === "side";
+  const dvals = new Set(r.pts.map(p => p[V.di])), varies = dvals.size > 1;
+  ed.depth = el("input", { type: "number", step: 1, inputmode: "numeric", value: varies ? "" : r.depth, placeholder: varies ? "varies" : "mm", "aria-label": side ? "Sideways position y, mm" : "Distance from the front axle x, mm", "data-ed": "depth" });
+  const setDepth = v => { r.depth = v; for (const p of r.pts) p[V.di] = v; };
+  ed.depthChips = [];
+  const chips = side ? el("div", { class: "chips" }, ...[["Left (−150)", -150], ["Centre (0)", 0], ["Right (+150)", 150]].map(([t, v]) => {
+    const b = el("button", { class: "btn small", "data-depth": v, "aria-pressed": String(!varies && r.depth === v), onclick: () => { setDepth(v); ed.depth.value = v; syncChips(); layChanged({}); } }, t);
+    ed.depthChips.push([b, v]); return b;
+  })) : null;
+  const syncChips = () => ed.depthChips.forEach(([b, v]) => b.setAttribute("aria-pressed", String(r.depth === v)));
+  ed.depth.oninput = () => { if (ed.depth.value === "" || !isFinite(Number(ed.depth.value))) return; setDepth(Math.round(Number(ed.depth.value))); syncChips(); layChanged({}); };
+  box.append(el("div", { class: "field" }, el("label", {}, side ? "Sideways position y (mm)" : "From the front axle x (mm)"), ed.depth, chips,
+    el("div", { class: "hint" }, side ? "How far left (−) or right (+) of the centreline this strip is. The side photo cannot see it."
+                                      : "Distance from the front axle toward the rear. The rear photo cannot see it.")));
+  // idle look (safety roles only)
+  if (idleOk(r.role)) {
+    const col = el("input", { type: "color", value: hex(r.rgb), "aria-label": "Idle colour", "data-ed": "idle-color", hidden: r.idle !== "color" });
+    col.onchange = () => { r.rgb = unhex(col.value); layChanged({}); };
+    const idleBtns = IDLE_MODES.map(([v, t]) => el("button", { class: "btn small", "data-idle": v, "aria-pressed": String(r.idle === v), onclick: () => { r.idle = v; layChanged({ editor: true }); } }, t));
+    box.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Idle look"), el("div", { class: "chips" }, ...idleBtns, col),
+      el("div", { class: "hint" }, "What this strip shows while its own light is off. Join underglow and Colour follow the underglow on/off.")));
+  }
+  // direction
+  const rev = el("button", { class: "btn small", "data-ed": "reverse", onclick: () => layReverse(r) }, "Reverse");
+  box.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Direction"),
+    el("span", { class: "arrowtxt" }, "○ → ●"), el("div", { class: "chips" }, rev, el("span", { class: "note" }, "Data flows from the first tapped point (hollow) to the last (filled).")))); 
+  // actions
+  const del = el("button", { class: "btn small danger", "data-ed": "delete" }, "Delete run");
+  armed(del, "Tap again to delete", () => layDelete(r.id));
+  box.append(el("div", { class: "strip-actions" },
+    el("button", { class: "btn small", "data-ed": "more", onclick: () => layDrawOn(r) }, "Add points"),
+    el("button", { class: "btn small", "data-ed": "mirror", onclick: () => layMirror(r) }, "Mirror to other side"), del));
+  edDerived();
+}
+function layRenderChains() {
+  const box = $("layChains"); box.textContent = "";
+  const chains = chainsOf();
+  if (!chains.length) { box.append(el("p", { class: "note lay-empty" }, "Chains appear here once there are runs.")); return; }
+  const claims = {}; chains.forEach(ch => { if (ch.out) claims[ch.out] = (claims[ch.out] || 0) + 1; });
+  chains.forEach(ch => {
+    const info = chainInfo(ch), warns = [];
+    if (!ch.out) warns.push(["warn", "Not assigned to an output, so it will not be sent."]);
+    else if (claims[ch.out] > 1) warns.push(["bad", `Output ${ch.out} is claimed by more than one chain. Give each chain its own output.`]);
+    if (info.px > 800) warns.push(["bad", `${info.px} pixels: an output drives at most 800.`]);
+    if (info.segs.length > MAX_SEGS) warns.push(["bad", `${info.segs.length} segments: an output holds at most ${MAX_SEGS}. Use fewer points or shorter chains.`]);
+    if (info.chips.length > 1) warns.push(["warn", "These runs use different LED chips. One output can run only one chip: the first run's (" + info.chips[0] + ") will be sent."]);
+    if (info.cap != null && info.amps > info.cap) warns.push(["warn", `Full white would draw ${info.amps.toFixed(1)} A, over the ${info.cap.toFixed(1)} A cap: the limiter will dim underglow.`]);
+    ch.runs.forEach(r => { if (r.count > 0 && r.pts.length < 2) warns.push(["warn", `${r.name} has no drawn positions; it will be sent unmapped.`]); });
+    const sel = el("select", { "data-chain-out": ch.head.id, "aria-label": `Output for ${chainName(ch)}` },
+      el("option", { value: "" }, "Not assigned"),
+      ...[1, 2, 3, 4].map(o => el("option", { value: o, selected: ch.out === o }, `Output ${o} (${STRIP_JACK[o - 1]})`)));
+    sel.onchange = () => { ch.head.out = +sel.value || 0; layChanged({}); };
+    box.append(el("div", { class: "lay-chain", "data-chain": ch.head.id },
+      el("h3", {}, chainName(ch)),
+      el("div", { class: "kv", style: "padding:4px 0" }, el("span", {}, el("b", {}, info.px), " pixels"), el("span", {}, el("b", {}, info.segs.length), " segments"),
+        el("span", {}, "full white ", el("b", {}, info.amps.toFixed(1) + " A"), info.cap != null ? ` of ${info.cap.toFixed(1)} A cap` : "")),
+      el("div", { class: "ph-row", style: "margin-top:2px" }, el("label", { class: "note" }, "Output "), sel),
+      ...warns.map(([k, t]) => el("div", { class: "lay-warn" + (k === "bad" ? " bad" : "") }, t))));
+  });
+}
+function layRenderAll() {
+  if (!lay.runs) return;
+  layRenderCal(); layHow(); layRenderRuns(); layRenderEditor(); layRenderChains(); layRenderTools(); layDraw();
+}
+
+// ---- send to / import from the board ----
+function laySend() {
+  if (!app.link || !app.settings) { toast("Connect first (or try the demo)", true); return; }
+  const chains = chainsOf(), live = chains.filter(c => c.runs.some(r => r.count > 0));
+  const byOut = {};
+  live.filter(c => c.out).forEach(c => (byOut[c.out] = byOut[c.out] || []).push(c));
+  const dup = Object.keys(byOut).find(o => byOut[o].length > 1);
+  if (dup) { toast(`Output ${dup} is claimed by more than one chain. Give each chain its own output.`, true); return; }
+  const skipped = live.filter(c => !c.out), cmds = [], notes = [], sent = [];
+  for (const o of Object.keys(byOut).map(Number).sort()) {
+    const ch = byOut[o][0], fl = flattenChain(ch), i = o - 1, first = ch.runs[0];
+    if (fl.px > 800) { toast(`Output ${o} would have ${fl.px} pixels; the limit is 800`, true); return; }
+    if (fl.segs.length > MAX_SEGS) { toast(`Output ${o} would have ${fl.segs.length} segments; the limit is ${MAX_SEGS}`, true); return; }
+    const core = { px: fl.px }; if (CHIP_BY[first.chip]) core.chip = first.chip;
+    const segs = fl.segs.map(sg => {
+      const g = [sg.start, sg.count, sg.run.role, false];
+      if (sg.p0 && sg.p1) g.push(sg.p0, sg.p1);
+      const idl = runIdle(sg.run); if (idl) g.push(idl);
+      return segOut(g);
+    });
+    if (new Set(ch.runs.map(r => r.chip)).size > 1) notes.push(`output ${o} mixes chips, sent as ${first.chip}`);
+    cmds.push(stripWrap(i, core), ...segPatches(i, segs));
+    delete app.drafts[i]; sent.push(`output ${o}: ${fl.px} px, ${segs.length} segments`);
+  }
+  if (!cmds.length) { toast("Nothing to send: give a chain with pixels an output first", true); return; }
+  if (skipped.length) notes.push(`${skipped.length} unassigned chain${skipped.length > 1 ? "s" : ""} not sent`);
+  clearTimeout(app.pending && app.pending.timer);
+  app.pending = {
+    left: cmds.length, bad: [], notes: [],
+    timer: setTimeout(() => { app.pending = null; toast("No reply from the board yet. Check the Console tab.", true); }, 8000),
+    done(P) {
+      const all = [...P.bad.map(n => "not applied: " + n), ...P.notes, ...notes];
+      if (all.length) toast(`Layout sent (${sent.join("; ")}) with notes: ${all.join("; ")}`, true);
+      else toast(`Layout sent: ${sent.join("; ")}`);
+    },
+  };
+  patchMany(cmds);
+}
+function layImport() {
+  if (!app.settings) { toast("Connect first (or try the demo)", true); return; }
+  const res = runsFromStrips(app.settings.strips);
+  if (!res.runs.length) { toast("The board has no segments to import", true); return; }
+  lay.runs = res.runs; lay.nextId = res.nextId; lay.sel = res.runs[0].id; lay.mode = "none"; lay.drawing = null;
+  laySanitize(); saveRuns(); layRenderAll();
+  const unplaced = lay.runs.filter(r => r.pts.length < 2).length;
+  toast(`Imported ${lay.runs.length} run${lay.runs.length > 1 ? "s" : ""}` + (unplaced ? `; ${unplaced} without positions are listed as unplaced` : ""), !!unplaced);
+}
+function layFindUpdate() {   // which run, segment and spot on the photo is the pixel finder's pixel?
+  lay.find = null;
   if (finder.active && app.settings) {
-    for (const g of effStrip(finder.strip).seg)
-      if (g[1] > 0 && isMapped(g) && finder.n >= g[0] && finder.n < g[0] + g[1]) { pos = lerp3(segPos(g, 0), segPos(g, 1), g[1] > 1 ? (finder.n - g[0]) / (g[1] - 1) : 0); break; }
-  }
-  ov.rings.forEach((r, n) => {
-    r.setAttribute("visibility", pos ? "visible" : "hidden");
-    if (pos) { r.setAttribute("cx", pos[0]); r.setAttribute("cy", -pos[n ? 2 : 1]); }
-  });
-}
-function ovUpdate() {
-  if (!app.demo || !app.settings || !app.status || !ov.dots.length) return;
-  const s = app.settings, st = app.status, now = performance.now(), bnd = posBounds(effStrips());
-  const scale = (typeof st.bud === "number" ? st.bud : 100) / 100;
-  for (const d of ov.dots) {
-    const c = d.g[2] === "accent" ? accentPix(s, d.idx, d.n, d.pos, bnd, now, scale) : segRgb(s, d.g[2], st);
-    const key = c.join(",");
-    if (key !== d.last) {
-      d.last = key;
-      const f = Math.max(...c) > 8 ? `rgb(${key})` : "rgba(128,138,150,.28)";
-      d.c1.setAttribute("fill", f); d.c2.setAttribute("fill", f);
+    const ch = chainsOf().find(c => c.out === finder.strip + 1);
+    if (ch) {
+      const fl = flattenChain(ch), k = fl.segs.findIndex(s => finder.n >= s.start && finder.n < s.start + s.count);
+      if (k >= 0) {
+        const sg = fl.segs[k], t = sg.count > 1 ? (finder.n - sg.start) / (sg.count - 1) : 0;
+        lay.find = { runId: sg.run.id, seg: k, n: finder.n, pos: sg.p0 && sg.p1 ? lerp3(sg.p0, sg.p1, t) : null };
+      }
     }
   }
+  layRenderRuns(); layDraw();
 }
-setInterval(() => { if (app.tab === "map") ovUpdate(); }, 60);
 
+// ---- wiring ----
+document.querySelectorAll("#layTabs [data-layview]").forEach(b => b.onclick = () => laySetView(b.dataset.layview));
+document.querySelectorAll("input[data-photo]").forEach(inp => inp.addEventListener("change", () => {
+  const f = inp.files && inp.files[0]; if (f) layPickPhoto(inp.dataset.photo, f);
+  inp.value = "";
+}));
+$("layAdd").onclick = layAddRun;
+$("layDone").onclick = () => layFinish();
+$("layUndo").onclick = layUndo;
+$("layZoom").onclick = () => {
+  const vw = lay.vw[lay.view]; vw.z = vw.z === 2 ? 1 : 2;
+  const r = runById(lay.sel), fr = layFrame(lay.view), V = VIEWS[lay.view];
+  if (vw.z === 2 && r && r.view === lay.view && r.pts.length && fr.ok) {   // open on the selected run
+    const q = r.pts[Math.floor(r.pts.length / 2)], c = fr.p2f(q[V.hi], q[V.vi]);
+    vw.cx = c[0]; vw.cy = c[1];
+  }
+  layRenderTools(); layDraw();
+};
+armed($("layRemovePhoto"), "Tap again to remove the photo", layRemovePhoto);
+$("laySend").onclick = laySend;
+$("layImport").onclick = () => {
+  const b = $("layImport");
+  if (lay.runs.length && !b.dataset.armed) { armImport(); return; }
+  delete b.dataset.armed; b.textContent = "Import from board"; layImport();
+};
+armed($("layClear"), "Tap again to clear all runs", () => { lay.runs = []; lay.sel = null; lay.mode = "none"; lay.drawing = null; lay.find = null; saveRuns(); layRenderAll(); toast("Layout cleared"); });
+// Import replaces what is drawn: ask for a second tap when there are runs.
+function armImport() {
+  const b = $("layImport"), label = "Import from board";
+  b.dataset.armed = "1"; b.textContent = `Tap again to replace ${lay.runs.length} run${lay.runs.length > 1 ? "s" : ""}`;
+  setTimeout(() => { delete b.dataset.armed; b.textContent = label; }, 4000);
+}
+layBindPointer();
+window.addEventListener("resize", () => { if (app.tab === "map") layDraw(); });
+setInterval(() => { if (app.tab === "map" && app.demo && app.status && lay.runs.some(r => r.count > 0 && r.view === lay.view)) layDraw(); }, 80);
+layBoot();
 // ---- test flow: position-based underglow effects, previous settings restored on Stop ----
 function tfStart(mode) {
   if (!app.settings) return;
