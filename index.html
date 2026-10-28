@@ -1,0 +1,1879 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#171b20">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>RCR Lighting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --page: #e8ebee;
+  --panel: #ffffff;
+  --ink: #1b2026;
+  --muted: #5b6670;
+  --line: #c8ced4;
+  --field: #f3f5f7;
+  --cluster: #171b20;
+  --cluster-ink: #8a949e;
+  --amber: #ffa41b;
+  --red: #e8352b;
+  --blue: #3b82ff;
+  --green: #2fbf68;
+  --dim: #2a3038;
+  --ok: #1f8a4c;
+  --warn: #b26a00;
+  --bad: #c62820;
+  --focus: #3b82ff;
+  --radius-panel: 10px;
+  --radius-ctl: 6px;
+  --sans: "Barlow", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --cond: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page: #0f1317;
+    --panel: #1a2027;
+    --ink: #e4e8ec;
+    --muted: #97a2ac;
+    --line: #2f3741;
+    --field: #232a32;
+    --cluster: #0a0d10;
+    --dim: #222830;
+    --ok: #46c27a;
+    --warn: #f0a63a;
+    --bad: #ff6a5f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page: #0f1317;
+  --panel: #1a2027;
+  --ink: #e4e8ec;
+  --muted: #97a2ac;
+  --line: #2f3741;
+  --field: #232a32;
+  --cluster: #0a0d10;
+  --dim: #222830;
+  --ok: #46c27a;
+  --warn: #f0a63a;
+  --bad: #ff6a5f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--page); color: var(--ink);
+  font: 400 16px/1.45 var(--sans);
+  font-variant-numeric: tabular-nums;
+  padding-bottom: calc(68px + env(safe-area-inset-bottom));
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ---- dash band: the bike's telltales, live ---- */
+.dash {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--cluster); color: var(--cluster-ink);
+  padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+}
+.dash-row { display: grid; grid-template-columns: 52px 1fr 52px; align-items: center; max-width: 560px; margin: 0 auto; }
+.arrow { width: 44px; height: 36px; fill: var(--dim); transition: fill .04s; }
+.arrow.on { fill: var(--amber); filter: drop-shadow(0 0 6px rgba(255,164,27,.6)); }
+.arrow.right { justify-self: end; }
+.tells { display: flex; justify-content: center; gap: 18px; }
+.tell { display: flex; flex-direction: column; align-items: center; gap: 2px; font: 600 12px/1 var(--cond); letter-spacing: .02em; }
+.tell svg { width: 30px; height: 24px; fill: none; stroke: var(--dim); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.tell.on.low svg { stroke: var(--green); }
+.tell.on.high svg { stroke: var(--blue); }
+.tell.on.brake svg { stroke: var(--red); }
+.tell.on.haz svg { stroke: var(--red); }
+.tell.on { color: #d7dde2; }
+.link {
+  max-width: 560px; margin: 8px auto 0; display: flex; align-items: center; gap: 8px;
+  font: 500 14px/1.2 var(--cond); color: #aeb7bf;
+}
+.lamp { width: 8px; height: 8px; border-radius: 50%; background: #4a525b; flex: none; }
+.lamp.ok { background: var(--green); }
+.lamp.demo { background: var(--amber); }
+.link .grow { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link button {
+  background: transparent; border: 1px solid #3a434d; color: #d7dde2; border-radius: var(--radius-ctl);
+  padding: 3px 10px; font: 600 13px/1.3 var(--cond); cursor: pointer;
+}
+
+/* ---- content ---- */
+main { max-width: 560px; margin: 0 auto; padding: 12px 16px 24px; }
+.tab { display: none; }
+.tab.active { display: block; }
+h2 { font: 600 20px/1.2 var(--cond); margin: 22px 0 8px; }
+h2:first-child { margin-top: 6px; }
+h3 { font: 600 17px/1.2 var(--cond); margin: 0; }
+p { margin: 6px 0; }
+.note { color: var(--muted); font-size: 14px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-panel); }
+.panel + .panel { margin-top: 10px; }
+.pad { padding: 12px 14px; }
+
+/* connect screen */
+.hello { padding: 18px 16px; }
+.hello h3 { font-size: 22px; margin-bottom: 6px; }
+.hello ol { margin: 8px 0 14px; padding-left: 20px; color: var(--muted); font-size: 15px; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 18px; border-radius: var(--radius-ctl); border: 1px solid var(--line);
+  background: var(--field); cursor: pointer; font-weight: 600;
+}
+.btn.primary { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.btn.danger { color: var(--bad); }
+.btn[data-armed] { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.err { color: var(--bad); font-size: 14px; margin-top: 8px; }
+
+/* fuse-box legend */
+.rows { list-style: none; margin: 0; padding: 0; }
+.rows li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.rows li:first-child { border-top: 0; }
+.rows .name { font-weight: 600; }
+.rows .where { color: var(--muted); font-size: 13px; }
+.rows .amps { text-align: right; font: 600 18px/1.1 var(--cond); }
+.rows .state { text-align: right; font-size: 13px; color: var(--muted); }
+.state.ok { color: var(--ok); }
+.state.warn { color: var(--warn); }
+.state.bad { color: var(--bad); font-weight: 600; }
+.bar { grid-column: 1 / -1; height: 4px; background: var(--field); border-radius: 2px; overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--muted); }
+.bar i.lit { background: var(--ink); }
+
+/* harness inputs */
+.wires { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.wire { display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-top: 1px solid var(--line); background: none; border-left: 0; border-right: 0; border-bottom: 0; text-align: left; width: 100%; }
+.wires .wire:nth-child(-n+2) { border-top: 0; }
+.wires .wire:nth-child(odd) { border-right: 1px solid var(--line); }
+.wire .sw { width: 14px; height: 14px; border-radius: 3px; flex: none; border: 1px solid rgba(0,0,0,.25); }
+.wire .txt { flex: 1; min-width: 0; }
+.wire .txt b { display: block; font-weight: 600; font-size: 15px; }
+.wire .txt span { display: block; color: var(--muted); font-size: 12px; }
+.wire .lamp { width: 10px; height: 10px; }
+.wire.on .lamp { background: var(--green); box-shadow: 0 0 0 3px rgba(47,191,104,.2); }
+button.wire { cursor: pointer; }
+button.wire:disabled { cursor: default; }
+
+.banner { padding: 10px 14px; border-radius: var(--radius-panel); margin-bottom: 10px; font-size: 15px; border: 1px solid; }
+.banner.bad { border-color: var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--panel)); }
+.banner.warn { border-color: var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); }
+
+/* controls */
+.field { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 4px 12px; padding: 11px 14px; border-top: 1px solid var(--line); }
+.field:first-child { border-top: 0; }
+.field label, .field .lbl { font-weight: 500; }
+.field .val { font: 600 16px/1 var(--cond); color: var(--muted); min-width: 3.5em; text-align: right; }
+.field input[type=range] { grid-column: 1 / -1; width: 100%; accent-color: var(--ink); }
+.field select, .field input[type=number], .field input[type=text], .field input[type=password] {
+  background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 7px 9px; min-height: 40px; max-width: 12em;
+}
+.field input[type=color] { width: 56px; height: 40px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--field); padding: 2px; }
+.field .hint { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+.switch { position: relative; width: 52px; height: 30px; border-radius: 15px; border: 1px solid var(--line); background: var(--field); cursor: pointer; flex: none; padding: 0; }
+.switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--muted); transition: transform .15s; }
+.switch[aria-checked=true] { background: var(--ink); border-color: var(--ink); }
+.switch[aria-checked=true]::after { transform: translateX(22px); background: var(--panel); }
+.big-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.big {
+  min-height: 64px; border-radius: var(--radius-panel); border: 1px solid var(--line); background: var(--panel);
+  font: 600 18px/1.1 var(--cond); cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+}
+.big small { font: 500 13px/1 var(--sans); color: var(--muted); }
+.big[aria-pressed=true].haz { background: var(--red); color: #fff; border-color: var(--red); }
+.big[aria-pressed=true].haz small { color: #ffe1de; }
+.big[aria-pressed=true].pods { background: var(--blue); color: #fff; border-color: var(--blue); }
+.big[aria-pressed=true].pods small { color: #e2ecff; }
+
+/* headlight table */
+.grid { width: 100%; border-collapse: collapse; font-size: 15px; }
+.grid th, .grid td { padding: 8px 6px; text-align: center; border-top: 1px solid var(--line); }
+.grid th { font: 600 14px/1.2 var(--cond); color: var(--muted); }
+.grid tr:first-child th { border-top: 0; }
+.grid td:first-child, .grid th:first-child { text-align: left; padding-left: 14px; }
+.grid input { width: 22px; height: 22px; accent-color: var(--ink); }
+
+/* strips */
+.strip-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 12px 14px 4px; }
+.strip-head .note { margin: 0; }
+.map { display: flex; height: 22px; margin: 6px 14px 10px; border-radius: 4px; overflow: hidden; background: var(--field); border: 1px solid var(--line); }
+.map div { height: 100%; border-right: 1px solid var(--panel); }
+.map div.dark { opacity: .35; }
+.map div:last-child { border-right: 0; }
+.segs { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.segs col.n { width: 62px; }
+.segs col.n:first-child { width: 72px; }
+.segs col.c { width: 40px; }
+.segs col.d { width: 38px; }
+.segs th { font: 600 13px/1.2 var(--cond); color: var(--muted); text-align: left; padding: 4px 3px; }
+.segs td { padding: 4px 3px; border-top: 1px solid var(--line); }
+.segs th:first-child, .segs td:first-child { padding-left: 14px; }
+.segs input[type=number] { width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px; min-height: 38px; }
+.segs select { width: 100%; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 2px; min-height: 38px; }
+.segs input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--ink); }
+.x { background: none; border: 0; color: var(--muted); font-size: 22px; line-height: 1; cursor: pointer; padding: 4px 8px; }
+.strip-actions { display: flex; gap: 8px; padding: 10px 14px 14px; flex-wrap: wrap; }
+.strip-props { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 6px 14px; }
+.strip-props label { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.strip-props input, .strip-props select { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 7px 9px; min-height: 40px; color: var(--ink); font-size: 16px; }
+
+/* console */
+.log { margin: 0; padding: 12px 14px; height: 52vh; overflow: auto; font: 13px/1.45 ui-monospace, "SF Mono", Menlo, Consolas, monospace; white-space: pre-wrap; word-break: break-word; }
+.log .me { color: var(--muted); }
+.cmdline { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.cmdline input { flex: 1; min-width: 0; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 8px 10px; min-height: 44px; }
+
+/* bottom tabs */
+nav {
+  position: fixed; bottom: 0; left: 0; right: 0; z-index: 5;
+  background: var(--panel); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+nav .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, 1fr); }
+nav button { background: none; border: 0; min-height: 60px; font: 600 15px/1 var(--cond); color: var(--muted); cursor: pointer; border-top: 3px solid transparent; padding: 0 2px; min-width: 0; }
+nav button[aria-selected=true] { color: var(--ink); border-top-color: var(--ink); }
+nav button:disabled { opacity: .4; }
+
+/* strips: chip, estimate, positions */
+.btn.small { min-height: 38px; padding: 0 12px; }
+.btn[aria-pressed=true] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.kv { display: flex; flex-wrap: wrap; gap: 2px 14px; padding: 4px 14px 8px; font-size: 14px; color: var(--muted); }
+.kv b { color: var(--ink); font-weight: 600; }
+.est { padding: 6px 14px 2px; font-size: 14px; color: var(--muted); }
+.est.warn { color: var(--warn); }
+details.sub { border-top: 1px solid var(--line); padding: 0 14px; }
+details.sub > summary { min-height: 44px; display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 500; }
+details.sub > summary .note { margin: 0; }
+details.sub .body { padding: 2px 0 12px; }
+.helper-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.helper-grid label, .pos-grid .cap { font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.helper-grid input, .pos-grid input, .pf-ctl input[type=number] { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 40px; width: 100%; min-width: 0; color: var(--ink); }
+.pos-grid { display: grid; grid-template-columns: 4.6em repeat(3, minmax(0, 1fr)); gap: 6px; align-items: center; padding: 4px 0; }
+.pos-grid .cap { flex-direction: row; font-size: 13px; }
+.pos-head { font-size: 12px; color: var(--muted); text-align: center; }
+.segs td.posrow { padding: 0; border-top: 0; }
+.segs td.posrow details.sub { border-top: 0; padding: 0 14px 4px; }
+.segs td.posrow details.sub > summary { min-height: 34px; font-size: 14px; color: var(--muted); }
+
+/* map tab */
+.pf-ctl { display: flex; align-items: center; gap: 8px; grid-column: 1 / -1; }
+.pf-ctl input[type=range] { width: auto; flex: 1; min-width: 0; }
+.pf-ctl .btn { min-width: 44px; padding: 0 10px; }
+.field input.numbox { width: 6em; }
+canvas.photo { display: block; width: 100%; height: auto; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--field); touch-action: manipulation; margin-top: 8px; }
+.ph-block { padding: 12px 14px; border-top: 1px solid var(--line); }
+.ph-block h3 { font-size: 16px; margin-bottom: 6px; }
+.ph-block input[type=file] { max-width: 100%; font-size: 14px; }
+.ph-steps { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ph-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.ph-row input[type=number] { width: 8em; background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 40px; color: var(--ink); }
+.ph-row select { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 40px; max-width: 100%; color: var(--ink); }
+.ph-how { margin: 8px 0 0; min-height: 4.4em; }
+.ph-info { font-size: 13px; color: var(--muted); margin-top: 6px; }
+svg.ov { display: block; width: 100%; height: auto; }
+.ov-cap { font: 600 13px/1 var(--cond); color: var(--muted); margin: 8px 0 2px; }
+.ov-body { fill: none; stroke: var(--line); stroke-width: 9; stroke-linejoin: round; }
+.ov-txt { fill: var(--muted); font: 600 68px var(--cond); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; }
+.dimnote { color: var(--warn); font-weight: 600; }
+
+.toast {
+  position: fixed; left: 50%; bottom: calc(76px + env(safe-area-inset-bottom)); transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 32px)); background: var(--ink); color: var(--panel);
+  padding: 10px 14px; border-radius: var(--radius-ctl); font-size: 14px; z-index: 9; display: none;
+}
+.toast.show { display: block; }
+.toast.warn { background: var(--warn); color: #1b1300; }
+@media (prefers-reduced-motion: reduce) { .switch::after { transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="dash" aria-label="Bike status">
+  <div class="dash-row">
+    <svg class="arrow" id="tL" viewBox="0 0 44 36" aria-label="Left turn"><path d="M2 18 L20 3 V12 H42 V24 H20 V33 Z"/></svg>
+    <div class="tells">
+      <div class="tell low" id="tLow"><svg viewBox="0 0 30 24"><path d="M12 4 C4 4 4 20 12 20 Z"/><path d="M16 7 L27 10 M16 12 L27 15 M16 17 L27 20"/></svg>Low</div>
+      <div class="tell high" id="tHigh"><svg viewBox="0 0 30 24"><path d="M12 4 C4 4 4 20 12 20 Z"/><path d="M16 6 H28 M16 12 H28 M16 18 H28"/></svg>High</div>
+      <div class="tell brake" id="tBrake"><svg viewBox="0 0 30 24"><circle cx="15" cy="12" r="7"/><path d="M6 4 C2 9 2 15 6 20 M24 4 C28 9 28 15 24 20 M15 8 V12.5 M15 15.5 V16"/></svg>Brake</div>
+      <div class="tell haz" id="tHaz"><svg viewBox="0 0 30 24"><path d="M15 3 L27 21 H3 Z"/><path d="M15 9 L21 18 H9 Z"/></svg>Hazard</div>
+    </div>
+    <svg class="arrow right" id="tR" viewBox="0 0 44 36" aria-label="Right turn"><path d="M42 18 L24 3 V12 H2 V24 H24 V33 Z"/></svg>
+  </div>
+  <div class="link">
+    <span class="lamp" id="linkLamp"></span>
+    <span class="grow" id="linkText">Not connected</span>
+    <button id="linkBtn" hidden>Disconnect</button>
+  </div>
+</header>
+
+<main>
+  <!-- not connected -->
+  <section class="tab active" id="tab-connect">
+    <div class="panel hello">
+      <h3>Connect to the controller</h3>
+      <ol>
+        <li>Switch the key on. The first phone can pair in the 2 minutes after power-up; to add another phone later, use Add a phone on Setup from a phone that's already paired.</li>
+        <li>Tap Connect and pick “RCR Lighting”. Android asks to pair the first time.</li>
+      </ol>
+      <div class="btns">
+        <button class="btn primary" id="btnConnect">Connect</button>
+        <button class="btn" id="btnDemo">Try the demo</button>
+      </div>
+      <p class="err" id="connectErr" hidden></p>
+    </div>
+    <p class="note" style="margin:14px 2px">The demo runs a simulated controller in this page. Tap the bike inputs on the Live tab to work the switches.</p>
+  </section>
+
+  <!-- live -->
+  <section class="tab" id="tab-live">
+    <div id="alerts"></div>
+    <h2>Outputs</h2>
+    <ul class="panel rows" id="outRows"></ul>
+    <h2>Bike inputs</h2>
+    <div class="panel wires" id="wires"></div>
+    <p class="note" id="liveFoot"></p>
+  </section>
+
+  <!-- lights -->
+  <section class="tab" id="tab-lights">
+    <h2>Quick</h2>
+    <div class="big-toggles">
+      <button class="big haz" id="qHaz" aria-pressed="false">Hazards<small>both sides flash</small></button>
+      <button class="big pods" id="qPods" aria-pressed="false">Pods<small>on with any beam</small></button>
+    </div>
+    <h2>Underglow</h2>
+    <div class="panel" id="accentPanel"></div>
+    <h2>Turn signals</h2>
+    <div class="panel" id="turnPanel"></div>
+    <h2>Rear light</h2>
+    <div class="panel" id="rearPanel"></div>
+  </section>
+
+  <!-- strips -->
+  <section class="tab" id="tab-strips">
+    <p class="note">Each output drives one chain of LEDs. Pick the LED chip, split the chain into segments and give each a job. Add a position to a segment to use the position-based underglow effects (the Map tab helps). Changes apply when you tap Apply.</p>
+    <div id="stripCards"></div>
+  </section>
+
+  <!-- map -->
+  <section class="tab" id="tab-map">
+    <h2>Pixel finder</h2>
+    <div class="panel">
+      <div class="field"><label for="pfStrip">Strip</label><select id="pfStrip"></select></div>
+      <div class="field"><label for="pfNum">Pixel</label>
+        <input type="number" class="numbox" id="pfNum" min="0" max="0" step="1" value="0" inputmode="numeric">
+        <div class="pf-ctl">
+          <button class="btn small" id="pfMinus" aria-label="Previous pixel">−</button>
+          <input type="range" id="pfRange" min="0" max="0" step="1" value="0" aria-label="Pixel number">
+          <button class="btn small" id="pfPlus" aria-label="Next pixel">+</button>
+        </div>
+        <div class="hint" id="pfState">Move the slider to light one pixel white on the bike. With more than one LED per pixel, the pixel lights a group of LEDs.</div>
+      </div>
+      <div class="field"><label for="pfSeg">Segment</label><select id="pfSeg"></select></div>
+      <div class="strip-actions">
+        <button class="btn" id="pfStart">Mark segment start here</button>
+        <button class="btn" id="pfEnd">Mark segment end here</button>
+        <button class="btn" id="pfStop">Stop</button>
+      </div>
+    </div>
+    <p class="note">Marks go into the strip's draft on the Strips tab. Tap Apply there to send them.</p>
+
+    <h2>Photo mapping</h2>
+    <div class="panel">
+      <div class="field"><label for="phStrip">Strip</label><select id="phStrip"></select></div>
+      <div class="field"><label for="phSeg">Segment</label><select id="phSeg"></select><div class="hint" id="phNow"></div></div>
+      <div id="photoBlocks"></div>
+    </div>
+
+    <h2>Bike overview</h2>
+    <div class="panel pad">
+      <div class="ov-cap">Top (front on the left)</div>
+      <svg class="ov" id="ovTop" role="img" aria-label="Top view of the bike with mapped segments"></svg>
+      <div class="ov-cap">Side (front on the left)</div>
+      <svg class="ov" id="ovSide" role="img" aria-label="Side view of the bike with mapped segments"></svg>
+      <div class="legend">
+        <span><i style="background:#e8352b"></i>Tail / brake</span>
+        <span><i style="background:#ffa41b"></i>Turn</span>
+        <span><i style="background:#3b82ff"></i>Underglow</span>
+      </div>
+      <p class="note" id="ovNote"></p>
+    </div>
+
+    <h2>Test flow</h2>
+    <div class="panel pad">
+      <div class="btns" style="margin-top:0">
+        <button class="btn" id="tfWave" aria-pressed="false">Wave front→rear</button>
+        <button class="btn" id="tfSweep" aria-pressed="false">Sweep left↔right</button>
+        <button class="btn" id="tfRise" aria-pressed="false">Rise</button>
+        <button class="btn" id="tfStop">Stop</button>
+      </div>
+      <p class="note" id="tfNote">Runs the underglow effect so you can check the mapping by eye. Stop puts the previous underglow settings back.</p>
+    </div>
+
+    <h2>Current budget</h2>
+    <div class="panel">
+      <div class="field"><span class="lbl">Strips now</span><span class="val" id="budTot" style="min-width:0">–</span>
+        <div class="hint dimnote" id="budDim" hidden></div></div>
+      <div id="budgetPanel"></div>
+    </div>
+    <p class="note">Shared by all four strips; the headlight, pods and DRL take about 15 A when lit, the converter gives 30 A.</p>
+  </section>
+
+  <!-- setup -->
+  <section class="tab" id="tab-setup">
+    <h2>Headlight</h2>
+    <div class="panel">
+      <div class="field"><label for="preset">Lamp type</label>
+        <select id="preset">
+          <option value="two_feed">Two feeds</option>
+          <option value="two_feed_both">Two feeds, low stays on</option>
+          <option value="lp6">Baja LP6</option>
+          <option value="custom">Custom</option>
+        </select>
+      </div>
+      <table class="grid" id="headGrid"></table>
+    </div>
+    <p class="note">Ticks set which outputs light in each switch position. Two feeds: separate low and high beam wires. Baja LP6: one power feed plus a high-beam trigger wire, pods with high.</p>
+    <h2>Lamp-out warning</h2>
+    <div class="panel" id="lampMinPanel"></div>
+    <h2>Handlebar button</h2>
+    <div class="panel" id="btnPanel"></div>
+    <h2>Current readings</h2>
+    <div class="panel">
+      <div class="field"><label for="calCh">Calibrate a channel</label>
+        <select id="calCh"></select>
+        <div class="hint">With the load on, measure it with a clamp meter and enter the reading.</div>
+      </div>
+      <div class="field"><label for="calAmps">Clamp meter reading (A)</label>
+        <input type="number" id="calAmps" step="0.01" min="0.3" inputmode="decimal">
+      </div>
+      <div class="strip-actions"><button class="btn" id="calBtn">Calibrate</button></div>
+    </div>
+    <h2>Radio</h2>
+    <div class="panel">
+      <div class="field"><span class="lbl">Phones</span><button class="btn" id="pairBtn">Add a phone</button>
+        <div class="hint" id="pairHint">Lets a new phone pair during the next 2 minutes.</div></div>
+      <div class="field"><span class="lbl">Update access point</span><span class="val" id="otaInfo" style="min-width:0;text-align:right">–</span>
+        <div class="hint">Wi-Fi name and password for the firmware update page.</div></div>
+      <div class="field"><label for="bleName">Bluetooth name</label><input type="text" id="bleName" maxlength="20"></div>
+      <div class="field"><label for="otaPass">Update Wi-Fi password</label><input type="password" id="otaPass" maxlength="32" placeholder="unchanged" autocomplete="new-password"><div class="hint">8 to 32 characters. Used by the firmware update access point.</div></div>
+      <div class="strip-actions"><button class="btn" id="radioBtn">Save radio settings</button></div>
+    </div>
+    <h2>Controller</h2>
+    <div class="panel pad">
+      <p class="note" id="infoText">–</p>
+      <p class="note">Restarting drops the lights for about half a second. The update access point leaves the lights running.</p>
+      <div class="btns">
+        <button class="btn" id="saveBtn">Save now</button>
+        <button class="btn" id="otaBtn">Start firmware update</button>
+        <button class="btn" id="rebootBtn">Restart</button>
+        <button class="btn danger" id="defaultsBtn">Reset all settings</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- console -->
+  <section class="tab" id="tab-console">
+    <div class="panel">
+      <pre class="log" id="log" aria-live="polite"></pre>
+      <form class="cmdline" id="cmdForm">
+        <input id="cmdIn" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="help, sense, info…" aria-label="Command">
+        <button class="btn" type="submit">Send</button>
+      </form>
+    </div>
+  </section>
+</main>
+
+<nav aria-label="Sections">
+  <div class="in" role="tablist">
+    <button role="tab" data-tab="live" aria-selected="false" disabled>Live</button>
+    <button role="tab" data-tab="lights" aria-selected="false" disabled>Lights</button>
+    <button role="tab" data-tab="strips" aria-selected="false" disabled>Strips</button>
+    <button role="tab" data-tab="map" aria-selected="false" disabled>Map</button>
+    <button role="tab" data-tab="setup" aria-selected="false" disabled>Setup</button>
+    <button role="tab" data-tab="console" aria-selected="false" disabled>Console</button>
+  </div>
+</nav>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+"use strict";
+// ---------------------------------------------------------------------------
+// Protocol (firmware/src/ble.h): one service, three text characteristics.
+// ---------------------------------------------------------------------------
+const SVC  = "b6f1e2a0-3c4d-4e5f-8a9b-52434c000000";
+const CMD  = "b6f1e2a0-3c4d-4e5f-8a9b-52434c000001";
+const OUT  = "b6f1e2a0-3c4d-4e5f-8a9b-52434c000002";
+const LIVE = "b6f1e2a0-3c4d-4e5f-8a9b-52434c000003";
+const MAX_WRITE = 512;
+
+const INPUTS = [  // bit order = firmware rcr::In
+  { key: "brake", name: "Brake",            where: "tail red",      sw: "#d8322a" },
+  { key: "l",     name: "Left turn",        where: "turn lead L",   sw: "#8f99a3" },
+  { key: "r",     name: "Right turn",       where: "turn lead R",   sw: "#8f99a3" },
+  { key: "low",   name: "Low beam",         where: "headlight yellow", sw: "#f2c40f" },
+  { key: "high",  name: "High beam",        where: "headlight blue", sw: "#2f6fe0" },
+  { key: "btn",   name: "Handlebar button", where: "button lead",   sw: "#2b2f33" },
+  { key: "run",   name: "Lights on",        where: "headlight red", sw: "#d8322a" },
+  { key: "spare", name: "Tail running",     where: "tail white",    sw: "#f4f6f8" },
+];
+// status.en index -> enable line; status.ch / status.a index -> sense channel
+const SENSE = [
+  { name: "Low beam",  where: "J6 pin 5", rating: 15,  en: 0 },
+  { name: "High beam", where: "J6 pin 6", rating: 15,  en: 1 },
+  { name: "Pods",      where: "J6 pin 7", rating: 7.5, en: 2 },
+  { name: "DRL",       where: "J6 pin 8", rating: 7.5, en: 3 },
+  // rev D: one supply per strip (en 4..7). On rev C the board mirrors s2 from s1 and s4 from s3.
+  { name: "Strip 1",   where: "J3",       rating: 7.5, en: 4, strip: 0 },
+  { name: "Strip 2",   where: "J4",       rating: 7.5, en: 5, strip: 1 },
+  { name: "Strip 3",   where: "J5",       rating: 7.5, en: 6, strip: 2 },
+  { name: "Strip 4",   where: "J15",      rating: 7.5, en: 7, strip: 3 },
+  { name: "Accessory 1", where: "J10 pin 3", rating: 7.5, en: -1 },
+  { name: "Accessory 2", where: "J10 pin 4", rating: 7.5, en: -1 },
+];
+const SENSE_KEYS = ["low","high","aux","drl","s1","s2","s3","s4","acc1","acc2"];
+const STATE = {
+  ".": ["off", ""], "o": ["on", "ok"], "s": ["switching", ""], "O": ["lamp out", "warn"],
+  "F": ["fault", "bad"], "X": ["high while off", "bad"],
+};
+const ROLES = [
+  ["none", "Unused"], ["tail", "Tail + brake"], ["brake", "Brake only"],
+  ["turn_l", "Front turn L"], ["turn_r", "Front turn R"],
+  ["tail_turn_l", "Rear turn L + tail"], ["tail_turn_r", "Rear turn R + tail"], ["accent", "Underglow"],
+];
+const ORDERS = ["GRB", "RGB", "BRG", "RBG", "GBR", "BGR"];
+const MODES = [["solid", "Solid"], ["breathe", "Breathe"], ["rainbow", "Rainbow"], ["chase", "Chase"],
+               ["wave", "Wave (front→rear)"], ["sweep", "Sweep (left↔right)"], ["rise", "Rise"], ["rainbow_x", "Rainbow along bike"]];
+const POS_MODES = ["wave", "sweep", "rise", "rainbow_x"];  // use segment positions
+// Chip presets: same table as firmware. Sending `chip` applies timing/rgbw/lpp/sum/px_ma.
+const CHIPS = [
+  ["ws2815",          "WS2815 (12 V)",                         { timing: "800k", rgbw: false, lpp: 1, sum: false, px_ma: 18 }],
+  ["gs8208",          "GS8208 (12 V)",                         { timing: "800k", rgbw: false, lpp: 1, sum: false, px_ma: 18 }],
+  ["ws2812b_12v_2",   "WS2812B 12 V strip, 2 LEDs per pixel",  { timing: "800k", rgbw: false, lpp: 2, sum: true,  px_ma: 40 }],
+  ["ws2812b_12v_3",   "WS2812B 12 V strip, 3 LEDs per pixel",  { timing: "800k", rgbw: false, lpp: 3, sum: true,  px_ma: 60 }],
+  ["ws2811_12v",      "WS2811 (12 V, 3 LEDs per pixel)",       { timing: "800k", rgbw: false, lpp: 3, sum: true,  px_ma: 60 }],
+  ["ws2811_12v_slow", "WS2811 400 kHz mode",                   { timing: "400k", rgbw: false, lpp: 3, sum: true,  px_ma: 60 }],
+  ["ws2812b_5v",      "WS2812B 5 V (behind a 12→5 V buck)",    { timing: "800k", rgbw: false, lpp: 1, sum: true,  px_ma: 28 }],
+  ["sk6812_rgbw_5v",  "SK6812 RGBW 5 V (behind a buck)",       { timing: "800k", rgbw: true,  lpp: 1, sum: true,  px_ma: 38 }],
+];
+const CHIP_BY = Object.fromEntries(CHIPS.map(([k, label, f]) => [k, { label, f }]));
+const CHIP_OPTIONS = [...CHIPS.map(([k, label]) => [k, label]), ["custom", "Custom"]];
+const CHIP_FIELDS = ["timing", "rgbw", "lpp", "sum", "px_ma"];
+// Which preset the fields match (keeps `prefer` when it still matches: ws2815 and gs8208 are identical).
+function chipOf(st, prefer) {
+  const m = k => CHIP_FIELDS.every(f => CHIP_BY[k].f[f] === st[f]);
+  if (prefer && CHIP_BY[prefer] && m(prefer)) return prefer;
+  const hit = CHIPS.find(c => m(c[0]));
+  return hit ? hit[0] : "custom";
+}
+// Segment = [start, count, role, reverse] or [..., [x0,y0,z0], [x1,y1,z1]] (mm; x front->rear, y left(-)->right(+), z up).
+const isMapped = g => [g[4], g[5]].some(p => Array.isArray(p) && p.some(v => Number(v) !== 0));
+const segPos = (g, n) => Array.isArray(g[4 + n]) ? g[4 + n] : [0, 0, 0];
+const segOut = g => {
+  const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
+  if (isMapped(g)) o.push(segPos(g, 0).map(v => Math.round(Number(v) || 0)), segPos(g, 1).map(v => Math.round(Number(v) || 0)));
+  return o;
+};
+const ROLE_LINE = { tail: "#e8352b", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
+                    tail_turn_l: "#ffa41b", tail_turn_r: "#ffa41b", accent: "#3b82ff", none: "#8a949e" };
+const MIRROR_ROLE = { turn_l: "turn_r", turn_r: "turn_l", tail_turn_l: "tail_turn_r", tail_turn_r: "tail_turn_l" };
+const SIDE_OF = { turn_l: "right", turn_r: "left", tail_turn_l: "right", tail_turn_r: "left" };  // side we copy FROM
+const ACTIONS = [["none", "Nothing"], ["accent_toggle", "Underglow on/off"], ["accent_next", "Next underglow effect"],
+                 ["hazard", "Hazards on/off"], ["aux_toggle", "Pods on/off"]];
+const LAMPS = [["low", "Low beam feed"], ["high", "High beam feed"], ["aux", "Pods"], ["drl", "DRL"]];
+const HEAD_STATES = [["O", "Off"], ["R", "Running"], ["L", "Low"], ["H", "High"]];
+const PRESETS = {  // same tables as firmware applyHeadPreset()
+  two_feed:      { low: "L",  high: "H", aux: "",  drl: "RLH" },
+  two_feed_both: { low: "LH", high: "H", aux: "",  drl: "RLH" },
+  lp6:           { low: "LH", high: "H", aux: "H", drl: "RLH" },
+};
+const STRIP_JACK = ["J3", "J4", "J5", "J15"];
+
+// ---------------------------------------------------------------------------
+// Newline framing over notifications (replies are split to the MTU).
+// ---------------------------------------------------------------------------
+class LineAssembler {
+  constructor(onLine) { this.onLine = onLine; this.buf = ""; this.dec = new TextDecoder(); }
+  push(bytes) {
+    this.buf += this.dec.decode(bytes, { stream: true });
+    let i;
+    while ((i = this.buf.indexOf("\n")) >= 0) {
+      const line = this.buf.slice(0, i).replace(/\r$/, "");
+      this.buf = this.buf.slice(i + 1);
+      if (line.length) this.onLine(line);
+    }
+    if (this.buf.length > 16384) this.buf = "";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Web Bluetooth transport
+// ---------------------------------------------------------------------------
+class BleLink {
+  constructor(h) { this.h = h; this.queue = Promise.resolve(); this.enc = new TextEncoder(); }
+  async open() {
+    this.dev = await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }], optionalServices: [SVC] });
+    this.dev.addEventListener("gattserverdisconnected", () => this.h.onDrop());
+    await this.attach();
+  }
+  async attach() {
+    const gatt = await this.dev.gatt.connect();
+    const svc = await gatt.getPrimaryService(SVC);
+    this.cmd = await svc.getCharacteristic(CMD);
+    const out = await svc.getCharacteristic(OUT);
+    const live = await svc.getCharacteristic(LIVE);
+    const outLines = new LineAssembler(l => this.h.onOut(l));
+    const liveLines = new LineAssembler(l => this.h.onLive(l));
+    out.addEventListener("characteristicvaluechanged", e => outLines.push(viewBytes(e.target.value)));
+    live.addEventListener("characteristicvaluechanged", e => liveLines.push(viewBytes(e.target.value)));
+    await out.startNotifications();   // first encrypted access: Android pairs here if needed
+    await live.startNotifications();
+  }
+  name() { return (this.dev && this.dev.name) || "RCR Lighting"; }
+  send(line) {
+    const data = this.enc.encode(line + "\n");
+    if (data.length > MAX_WRITE) return Promise.reject(new Error("Command too long for one write"));
+    this.queue = this.queue.then(() => this.cmd.writeValueWithResponse(data));
+    return this.queue.catch(e => { this.queue = Promise.resolve(); throw e; });
+  }
+  reconnect() { return this.attach(); }
+  close() { if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); }
+}
+function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength); }
+
+// ---------------------------------------------------------------------------
+// Demo: a simulated controller with the firmware's defaults and logic.
+// ---------------------------------------------------------------------------
+const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"button":{"short":"accent_toggle","double":"accent_next","long":"hazard"},"strips":[{"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
+// Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
+{
+  const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18 };
+  DEFAULTS.strips = [
+    { ...base, px: 24, seg: [[0, 12, "turn_l", false, [0, -300, 900], [0, -200, 900]],
+                             [12, 12, "turn_r", false, [0, 200, 900], [0, 300, 900]]] },
+    { ...base, px: 36, seg: [[0, 12, "tail_turn_l", false, [1500, -250, 800], [1500, -100, 800]],
+                             [12, 12, "tail", false, [1500, -80, 800], [1500, 80, 800]],
+                             [24, 12, "tail_turn_r", false, [1500, 100, 800], [1500, 250, 800]]] },
+    { ...base, px: 144, seg: [[0, 72, "accent", false, [400, -150, 250], [1400, -150, 250]],
+                              [72, 72, "accent", false, [1400, 150, 250], [400, 150, 250]]] },
+    { ...base, px: 0, seg: [] },
+  ];
+  DEFAULTS.budget = { lit_ma: 14000, dark_ma: 20000 };  // firmware defaults
+}
+
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const lerp3 = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
+
+// Segments from a `set` patch: 4 elements, or 6 when mapped (all-zero positions are dropped, like the firmware).
+function parseSegs(list) {
+  const pt = a => [0, 1, 2].map(j => Math.round(Number(a && a[j]) || 0));
+  return (Array.isArray(list) ? list : []).slice(0, 6).map(g => {
+    const o = [g[0] | 0, g[1] | 0, ROLE_LINE[g[2]] ? g[2] : "none", !!g[3]];
+    if (Array.isArray(g[4]) && Array.isArray(g[5])) {
+      const p0 = pt(g[4]), p1 = pt(g[5]);
+      if ([...p0, ...p1].some(v => v)) o.push(p0, p1);
+    }
+    return o;
+  });
+}
+
+// Bounding box of every mapped segment (the position-based effects normalise over it).
+function posBounds(strips) {
+  const b = { x: [Infinity, -Infinity], y: [Infinity, -Infinity], z: [Infinity, -Infinity], any: false };
+  strips.forEach(st => st.seg.forEach(g => {
+    if (g[1] <= 0 || !isMapped(g)) return;
+    for (const p of [segPos(g, 0), segPos(g, 1)]) {
+      b.any = true;
+      ["x", "y", "z"].forEach((a, j) => { b[a][0] = Math.min(b[a][0], p[j]); b[a][1] = Math.max(b[a][1], p[j]); });
+    }
+  }));
+  return b;
+}
+function hsv(h, s, v) {
+  const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
+  return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
+}
+// One underglow pixel in the demo preview. pos = [x,y,z] mm or null (unmapped: runs along the strip).
+function accentPix(s, idx, n, pos, bnd, now, scale) {
+  const A = s.accent;
+  if (!A.on) return [0, 0, 0];
+  const sp = A.speed || 5, ph = (now / 1000 * sp * 0.08) % 1;
+  const lin = n > 1 ? idx / (n - 1) : 0;
+  const norm = (v, r) => r[1] > r[0] ? (v - r[0]) / (r[1] - r[0]) : 0.5;
+  const band = u => { const d = ((ph - u) % 1 + 1) % 1; return d < 0.35 ? 1 - d / 0.35 : 0; };
+  const along = ax => pos && bnd.any ? norm(pos[ax], bnd["xyz"[ax]]) : lin;
+  let k = 1, rgb = A.rgb;
+  switch (A.mode) {
+    case "wave": k = band(along(0)); break;
+    case "rise": k = band(along(2)); break;
+    case "sweep": { const tri = ph < 0.5 ? ph * 2 : 2 - ph * 2; k = Math.max(0, 1 - Math.abs(along(1) - tri) * 4); break; }
+    case "rainbow_x": rgb = hsv((along(0) * 360 + ph * 360) % 360, 1, 1); break;
+    case "rainbow": rgb = hsv((lin * 360 + ph * 360) % 360, 1, 1); break;
+    case "breathe": k = 0.5 + 0.5 * Math.sin(now / 1000 * sp * 0.6); break;
+    case "chase": k = ((Math.floor(ph * n) - idx + n) % n) < Math.max(2, n * 0.1) ? 1 : 0; break;
+  }
+  const m = k * A.pct / 100 * scale;
+  return rgb.map(c => Math.round(c * m));
+}
+
+function detectPreset(head) {
+  for (const [k, m] of Object.entries(PRESETS))
+    if (["low","high","aux","drl"].every(l => sortMask(head[l]) === sortMask(m[l]))) return k;
+  return "custom";
+}
+function sortMask(s) { return HEAD_STATES.map(h => h[0]).filter(c => (s || "").toUpperCase().includes(c)).join(""); }
+
+// Merge a `set` patch the way firmware settingsPatch() does.
+function applyPatch(s, p) {
+  for (const [k, v] of Object.entries(p)) {
+    if (k === "strips") {
+      (v || []).forEach((e, i) => {
+        if (!e || i > 3) return;
+        const st = s.strips[i];
+        // chip first (applies its preset), then the other keys in the same patch override it
+        if (typeof e.chip === "string" && CHIP_BY[e.chip]) Object.assign(st, CHIP_BY[e.chip].f);
+        for (const [sk, sv] of Object.entries(e)) {
+          if (sk === "chip") continue;
+          if (sk === "seg") st.seg = parseSegs(sv);
+          else if (sk === "timing") { if (sv === "800k" || sv === "400k") st.timing = sv; }
+          else if (sk === "order") { if (ORDERS.includes(sv)) st.order = sv; }
+          else if (sk === "rgbw" || sk === "sum") st[sk] = !!sv;
+          else st[sk] = sv;
+        }
+        st.chip = chipOf(st, e.chip || st.chip);
+      });
+    } else if (k === "budget") {
+      Object.assign(s.budget, v);
+      s.budget.lit_ma = clamp(s.budget.lit_ma | 0, 2000, 28000);
+      s.budget.dark_ma = clamp(s.budget.dark_ma | 0, 2000, 28000);
+      if (s.budget.dark_ma < s.budget.lit_ma) s.budget.dark_ma = s.budget.lit_ma;
+    } else if (k === "head") {
+      if (v.preset && PRESETS[v.preset]) Object.assign(s.head, PRESETS[v.preset]);
+      for (const l of ["low","high","aux","drl"]) if (l in v) s.head[l] = sortMask(v[l]);
+      s.head.preset = detectPreset(s.head);
+    } else if (k === "ota_pass") {
+      /* write-only */
+    } else if (v && typeof v === "object" && !Array.isArray(v) && s[k] && typeof s[k] === "object") {
+      Object.assign(s[k], v);
+    } else {
+      s[k] = v;
+    }
+  }
+  s.blink.fpm = clamp(s.blink.fpm, 60, 120); s.blink.duty = clamp(s.blink.duty, 30, 75);
+  s.turn.pct = clamp(s.turn.pct, 40, 100); s.brake_pct = clamp(s.brake_pct, 50, 100);
+  s.tail_pct = clamp(Math.min(s.tail_pct, Math.floor(s.brake_pct / 3)), 5, 33);
+  s.marker_pct = clamp(s.marker_pct, 0, 50); s.boot_red_pct = clamp(s.boot_red_pct, 10, 60);
+  for (const st of s.strips) {
+    st.px = clamp(st.px | 0, 0, 800); st.cap_ma = clamp(st.cap_ma | 0, 500, 7000); st.px_ma = clamp(st.px_ma | 0, 5, 80);
+    st.lpp = clamp(st.lpp | 0, 1, 3);
+    st.seg = st.seg.map(g => [g[0], g[0] >= st.px ? 0 : Math.min(g[1], st.px - g[0]), g[2], g[3], ...g.slice(4)]);
+    st.chip = chipOf(st, st.chip);
+  }
+}
+
+// What a segment shows right now, as an RGB triple (mirrors core/render.cpp).
+function segRgb(s, role, st) {
+  const pct = (c, p) => c.map(x => Math.round(x * p / 100));
+  const RED = [255, 0, 0], AMBER = [255, 96, 0], BLACK = [0, 0, 0];
+  const running = st.head && st.head !== "off";
+  const tail = () => !st.v ? pct(RED, s.boot_red_pct) : st.brk ? pct(RED, s.brake_pct)
+                 : (running || s.tail_always) ? pct(RED, s.tail_pct) : BLACK;
+  switch (role) {
+    case "tail": return tail();
+    case "brake": return !st.v ? pct(RED, s.boot_red_pct) : st.brk ? pct(RED, s.brake_pct) : BLACK;
+    case "turn_l": case "turn_r": {
+      const side = role === "turn_l" ? st.l : st.r;
+      if (st.v && side) return st.blk ? pct(AMBER, s.turn.pct) : BLACK;
+      return st.v && running && s.marker_pct ? pct(AMBER, s.marker_pct) : BLACK;
+    }
+    case "tail_turn_l": case "tail_turn_r": {
+      const side = role === "tail_turn_l" ? st.l : st.r;
+      if (st.v && side) return st.blk ? pct(s.turn.color === "red" ? RED : AMBER, s.turn.pct) : BLACK;
+      return tail();
+    }
+    case "accent": return s.accent.on ? pct(s.accent.rgb, s.accent.pct) : BLACK;
+    default: return BLACK;
+  }
+}
+
+class DemoLink {
+  constructor(h) {
+    this.h = h; this.s = structuredClone(DEFAULTS); this.inputs = 0;
+    this.hazLatch = false; this.aux = false; this.blinkStart = 0; this.turning = false;
+    this.gain = 1; this.find = null;
+  }
+  async open() { this.timer = setInterval(() => this.h.onLive(JSON.stringify(this.status())), 250); }
+  name() { return "Demo controller"; }
+  close() { clearInterval(this.timer); }
+  reconnect() { return this.open(); }
+  toggleInput(bit) { this.inputs ^= (1 << bit); this.h.onLive(JSON.stringify(this.status())); }
+  out(text) { for (const l of text.split("\n")) if (l) setTimeout(() => this.h.onOut(l), 40); }
+  send(line) {
+    const t = line.trim(); const sp = t.indexOf(" ");
+    const cmd = sp < 0 ? t : t.slice(0, sp), args = sp < 0 ? "" : t.slice(sp + 1).trim();
+    const onoff = args === "on" ? 1 : args === "off" ? 0 : -1;
+    switch (cmd) {
+      case "get": { const c = structuredClone(this.s); c.ota_pass = "********"; this.out(JSON.stringify(c)); break; }
+      case "status": this.out(JSON.stringify(this.status())); break;
+      case "set":
+        try { applyPatch(this.s, JSON.parse(args)); this.out(JSON.stringify({ ok: true, notes: "" })); }
+        catch (e) { this.out(JSON.stringify({ ok: false, notes: "json: " + e.message })); }
+        break;
+      case "preset":
+        if (PRESETS[args]) { applyPatch(this.s, { head: { preset: args } }); this.out("headlight preset " + args); }
+        else this.out("usage: preset two_feed | two_feed_both | lp6");
+        break;
+      case "find": {
+        const m = /^([1-4])\s+(\d+)$/.exec(args);
+        if (args === "off") { this.find = null; this.out("find off"); }
+        else if (m && +m[2] < this.s.strips[m[1] - 1].px) {
+          this.find = { strip: m[1] - 1, px: +m[2], until: performance.now() + 600000 };
+          this.out(`find strip ${m[1]} pixel ${m[2]}`);
+        } else this.out("usage: find <strip 1-4> <pixel>|off (pixel must be inside the strip)");
+        break;
+      }
+      case "bench": if (args === "off") { this.find = null; this.out("bench off"); } else this.out("bench: not simulated (try find)"); break;
+      case "hazard": if (onoff >= 0) this.hazLatch = !!onoff; this.out("hazard " + (this.hazLatch ? "on" : "off")); break;
+      case "aux": if (onoff >= 0) this.aux = !!onoff; this.out("aux " + (this.aux ? "on" : "off")); break;
+      case "accent":
+        if (args === "next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
+        else if (onoff >= 0) this.s.accent.on = !!onoff;
+        this.out(`accent ${this.s.accent.on ? "on" : "off"}, ${this.s.accent.mode}`); break;
+      case "info": this.out("RCR Lighting demo (simulated in this page)\nOTA access point \"RCR-Lighting-DEMO\", password rcr-1a2b3c4d\nno board connected: settings reset when the page reloads"); break;
+      case "pair": this.pairUntil = performance.now() + 120000; this.out("BLE pairing open for 2 minutes"); break;
+      case "sense": this.out(SENSE.map((c, i) => `${SENSE_KEYS[i].padEnd(6)} ${this.status().a[i].toFixed(2)} A`).join("\n")); break;
+      case "cal": this.out("cal: simulated, nothing to calibrate"); break;
+      case "save": this.out("saved"); break;
+      case "ota": this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break;
+      case "reboot": this.out("rebooting"); break;
+      case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
+      case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, bench off, cal CH AMPS, save, defaults yes, ota, reboot, pair"); break;
+      default: this.out(`unknown command '${cmd}' (try help)`);
+    }
+    return Promise.resolve();
+  }
+  status() {
+    const s = this.s, now = performance.now(), b = n => (this.inputs >> n) & 1;
+    const runIn = b(6) || (s.spare_as_run && b(7));
+    const head = b(3) ? "low" : b(4) ? "high" : runIn ? "running" : "off";
+    const L = !!b(1), R = !!b(2), hz = this.hazLatch || (L && R);
+    const turning = L || R || hz;
+    if (turning && !this.turning) this.blinkStart = now;
+    this.turning = turning;
+    const period = 60000 / s.blink.fpm, blk = turning && ((now - this.blinkStart) % period) < period * s.blink.duty / 100;
+    const hb = { off: "O", running: "R", low: "L", high: "H" }[head];
+    const en = ["low","high","aux","drl"].map(l => s.head[l].includes(hb) ? 1 : 0);
+    if (this.aux && head !== "off") en[2] = 1;
+    const st = { v: 1, head, brk: !!b(0), l: L || hz, r: R || hz, blk };
+    // strips: 1 mA per pixel idle + px_ma x brightness for lit pixels (channels add up when `sum`)
+    if (this.find && now > this.find.until) this.find = null;
+    const bnd = posBounds(s.strips);
+    const frac = (c, sp) => sp.sum ? (c[0] + c[1] + c[2]) / 765 : Math.max(...c) / 255;
+    const loads = s.strips.map((sp, i) => {
+      let base = sp.px, acc = 0;
+      for (const g of sp.seg) {
+        const n = g[1]; if (n <= 0) continue;
+        if (g[2] === "accent") {
+          const mapped = isMapped(g);
+          for (let k = 0; k < n; k++)
+            acc += sp.px_ma * frac(accentPix(s, k, n, mapped ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null, bnd, now, 1), sp);
+        } else base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp);
+      }
+      if (this.find && this.find.strip === i) base += sp.px_ma;
+      return { base, acc };
+    });
+    const totPre = s.strips.reduce((m, sp, i) => m + Math.min(sp.cap_ma, loads[i].base + loads[i].acc), 0);
+    const budget = (head === "low" || head === "high") ? s.budget.lit_ma : s.budget.dark_ma;
+    const bud = totPre > budget ? Math.floor(budget / totPre * 100) : 100;
+    const sma = s.strips.map((sp, i) => Math.round(Math.min(sp.cap_ma, loads[i].base + loads[i].acc * bud / 100)));
+    const tot = sma.reduce((m, v) => m + v, 0);
+    const lit = s.strips.map((sp, i) => sma[i] > sp.px + 1);
+    en.push(...lit.map(v => v ? 1 : 0));
+    const lampA = [3.2, 3.0, 4.1, 0.6];
+    const a = [];
+    for (let i = 0; i < 4; i++) a.push(en[i] ? lampA[i] + (Math.random() - 0.5) * 0.06 : 0);
+    for (let i = 0; i < 4; i++) a.push(en[4 + i] ? sma[i] / 1000 : 0);
+    a.push(0.8, 0);
+    const ch = a.map((v, i) => {
+      const on = i < 8 ? en[SENSE[i].en] : 1;
+      const min = i < 4 ? (s.lamp_min_ma[["low","high","aux","drl"][i]] || 0) : 0;
+      return !on ? "." : (min && v * 1000 < min ? "O" : "o");
+    });
+    return { t: Math.round(now), v: 1, in: this.inputs, raw: this.inputs, head, brk: st.brk ? 1 : 0,
+             l: st.l ? 1 : 0, r: st.r ? 1 : 0, hz: hz ? 1 : 0, blk: blk ? 1 : 0, aux: this.aux ? 1 : 0,
+             en, rt: [0,0,0,0,0,0,0,0], lk: "........", ch: ch.join(""), a: a.map(v => Math.round(v * 100) / 100),
+             sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find ? 1 : 0, ovr: 0, ble: 1,
+             pair: this.pairUntil > now ? 1 : 0, ota: 0 };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// App
+// ---------------------------------------------------------------------------
+const $ = id => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, "");
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const k of kids) if (k != null) e.append(k);
+  return e;
+};
+
+const app = { link: null, demo: false, settings: null, status: null, lastLive: 0, drafts: {},
+              tab: "connect", open: new Set(), testPrev: null };
+const finder = { active: false, timer: 0 };
+
+const handlers = {
+  onOut(line) {
+    if (line[0] === "{") {
+      try {
+        const j = JSON.parse(line);
+        if (j.head && j.strips) { setSettings(j); return; }
+        if ("ok" in j) { setReply(j); return; }
+        if ("ch" in j && "en" in j) { setStatus(j); return; }
+      } catch (e) { /* fall through to the log */ }
+    }
+    if (/^RCR Lighting/.test(line)) $("infoText").textContent = line;
+    const ota = /^OTA access point "([^"]+)", password (\S+)/.exec(line);
+    if (ota) $("otaInfo").textContent = `${ota[1]} / ${ota[2]}`;
+    log(line);
+  },
+  onLive(line) { try { setStatus(JSON.parse(line)); } catch (e) { /* partial or garbled frame */ } },
+  onDrop() {
+    finder.active = false; app.testPrev = null;
+    setLink("Disconnected", false);
+    $("linkBtn").textContent = "Reconnect"; $("linkBtn").hidden = false;
+  },
+};
+
+function log(text, mine) {
+  const L = $("log");
+  L.append(el("div", { class: mine ? "me" : null }, (mine ? "> " : "") + text));
+  while (L.childNodes.length > 400) L.firstChild.remove();
+  L.scrollTop = L.scrollHeight;
+}
+
+let toastTimer = 0;
+function toast(msg, warn) {
+  const t = $("toast");
+  t.textContent = msg; t.className = "toast show" + (warn ? " warn" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = "toast", warn ? 6000 : 2200);
+}
+
+function send(line) {
+  if (!app.link) return Promise.resolve();
+  log(line, true);
+  return app.link.send(line).catch(e => toast("Not sent: " + e.message, true));
+}
+// Settings patches go out in pieces that each fit one BLE write, then one re-read.
+function patchMany(objs) {
+  const lines = objs.map(o => "set " + JSON.stringify(o));
+  if (lines.some(l => new TextEncoder().encode(l).length > MAX_WRITE - 1)) { toast("That change is too large to send at once", true); return; }
+  lines.forEach(send); send("get");
+}
+const patch = obj => patchMany([obj]);
+function setReply(j) {
+  if (!j.ok) toast("Not applied: " + (j.notes || "error"), true);
+  else if (j.notes) toast("Applied, with notes: " + j.notes, true);
+  else toast("Applied");
+}
+
+function setLink(text, ok) {
+  $("linkText").textContent = text;
+  $("linkLamp").className = "lamp" + (ok ? (app.demo ? " demo" : " ok") : "");
+}
+
+function showTab(name) {
+  if (app.tab === "map" && name !== "map") finderStop();
+  app.tab = name;
+  document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + name));
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  window.scrollTo(0, 0);
+  if (name === "map") buildMap();
+}
+
+async function start(demo) {
+  $("connectErr").hidden = true;
+  app.demo = demo;
+  app.link = demo ? new DemoLink(handlers) : new BleLink(handlers);
+  try {
+    setLink(demo ? "Starting demo…" : "Connecting…", false);
+    await app.link.open();
+  } catch (e) {
+    app.link = null; setLink("Not connected", false);
+    if (e.name !== "NotFoundError") { $("connectErr").textContent = connectHelp(e); $("connectErr").hidden = false; }
+    return;
+  }
+  setLink(app.link.name(), true);
+  $("linkBtn").textContent = "Disconnect"; $("linkBtn").hidden = false;
+  document.querySelectorAll("nav button").forEach(b => b.disabled = false);
+  buildWires();
+  showTab("live");
+  send("info"); send("get");
+}
+
+function connectHelp(e) {
+  if (/security|insufficient|auth/i.test(e.message)) return "The controller refused this phone. New phones can pair only in the first 2 minutes after power-up: press reset on the board and try again.";
+  return "Couldn't connect: " + e.message;
+}
+
+$("btnConnect").onclick = () => start(false);
+$("btnDemo").onclick = () => start(true);
+$("linkBtn").onclick = async () => {
+  if (!app.link) return;
+  if ($("linkBtn").textContent === "Reconnect") {
+    try { setLink("Reconnecting…", false); await app.link.reconnect(); setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect"; send("get"); }
+    catch (e) { setLink("Disconnected", false); toast(connectHelp(e), true); }
+    return;
+  }
+  finderStop();
+  app.link.close(); app.link = null; app.settings = null; app.status = null; app.testPrev = null; app.drafts = {};
+  setLink("Not connected", false); $("linkBtn").hidden = true;
+  document.querySelectorAll("nav button").forEach(b => { b.disabled = true; b.setAttribute("aria-selected", false); });
+  paintDash({});
+  showTab("connect");
+};
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+$("cmdForm").onsubmit = ev => { ev.preventDefault(); const v = $("cmdIn").value.trim(); if (v) { send(v); $("cmdIn").value = ""; } };
+
+const framed = (() => { try { return window.top !== window.self; } catch (e) { return true; } })();
+if (!navigator.bluetooth || framed) {
+  $("btnConnect").disabled = true;
+  $("connectErr").textContent = framed
+    ? "Connecting needs this page open on its own in Chrome, not inside another app. The demo works here."
+    : "This browser can't use Bluetooth. Open this page in Chrome on Android (or desktop Chrome) over https. The demo works anywhere.";
+  $("connectErr").hidden = false;
+}
+
+// ---- live status -----------------------------------------------------------
+function paintDash(s) {
+  $("tL").classList.toggle("on", !!(s.l && s.blk));
+  $("tR").classList.toggle("on", !!(s.r && s.blk));
+  $("tLow").classList.toggle("on", s.head === "low");
+  $("tHigh").classList.toggle("on", s.head === "high");
+  $("tBrake").classList.toggle("on", !!s.brk);
+  $("tHaz").classList.toggle("on", !!s.hz);
+}
+
+function buildWires() {
+  const w = $("wires"); w.textContent = "";
+  INPUTS.forEach((inp, bit) => {
+    const b = el(app.demo ? "button" : "div", { class: "wire", id: "w" + bit, "aria-pressed": app.demo ? "false" : null,
+                 onclick: app.demo ? () => app.link.toggleInput(bit) : null },
+      el("span", { class: "sw", style: `background:${inp.sw}` }),
+      el("span", { class: "txt" }, el("b", {}, inp.name), el("span", {}, inp.where)),
+      el("span", { class: "lamp" }));
+    w.append(b);
+  });
+}
+
+function setStatus(s) {
+  app.status = s; app.lastLive = Date.now();
+  paintDash(s);
+  INPUTS.forEach((_, bit) => {
+    const w = $("w" + bit); if (!w) return;
+    const on = !!((s.in >> bit) & 1);
+    w.classList.toggle("on", on);
+    if (app.demo) w.setAttribute("aria-pressed", on);
+  });
+  const rows = $("outRows");
+  if (!rows.childNodes.length) {
+    SENSE.forEach((c, i) => {
+      rows.append(el("li", { id: "o" + i },
+        el("div", {}, el("div", { class: "name" }, c.name), el("div", { class: "where" }, c.where)),
+        el("div", {}, el("div", { class: "amps" }, "–"), el("div", { class: "state" }, "")),
+        el("div", { class: "bar" }, el("i"))));
+      if (i === 7) rows.append(el("li", { id: "oTot", hidden: true },
+        el("div", {}, el("div", { class: "name" }, "Strips total"), el("div", { class: "where" }, "shared budget")),
+        el("div", {}, el("div", { class: "amps" }, "–"), el("div", { class: "state" }, "")),
+        el("div", { class: "bar" }, el("i"))));
+    });
+  }
+  paintTotals(s);
+  const alerts = [];
+  SENSE.forEach((c, i) => {
+    const li = $("o" + i), code = (s.ch || "")[i] || ".";
+    const [label, cls] = STATE[code] || ["?", ""];
+    const amps = (s.a || [])[i] || 0;
+    let rating = c.rating, extra = "";
+    if (c.strip != null && app.settings) {
+      rating = app.settings.strips[c.strip].cap_ma / 1000;
+      if (!app.settings.strips[c.strip].px) extra = " (unused)";
+    }
+    const locked = c.en >= 0 && (s.lk || "")[c.en] === "L";
+    const retries = c.en >= 0 ? (s.rt || [])[c.en] : 0;
+    li.querySelector(".amps").textContent = amps.toFixed(2) + " A";
+    const stEl = li.querySelector(".state");
+    stEl.textContent = locked ? "fault, gave up retrying" : label + (retries && code === "F" ? `, retry ${retries}` : "") + extra;
+    stEl.className = "state " + (locked ? "bad" : cls);
+    const bar = li.querySelector(".bar i");
+    bar.style.width = Math.min(100, amps / rating * 100) + "%";
+    bar.classList.toggle("lit", code === "o");
+    if (code === "F" || locked) alerts.push(["bad", `${c.name}: ${locked ? "faulted and switched off" : "fault (short, overload or overheating), retrying"}`]);
+    else if (code === "O") alerts.push(["warn", `${c.name}: no current. Lamp out or unplugged?`]);
+    else if (code === "X") alerts.push(["bad", `${c.name}: output is live while switched off`]);
+  });
+  if (s.warn) alerts.unshift(["bad", "Setup: " + s.warn]);
+  if (s.strips_err) alerts.unshift(["bad", "LED strip outputs failed to start"]);
+  if (s.v === 0) alerts.unshift(["warn", "Inputs not settled yet: low beam and rear red held on"]);
+  if (s.bench) alerts.unshift(["warn", "Bench override active (pixel finder or USB console)"]);
+  const al = $("alerts"); al.textContent = "";
+  for (const [cls, msg] of alerts) al.append(el("div", { class: "banner " + cls }, msg));
+  $("liveFoot").textContent = s.ota ? "Firmware update access point is on." : "";
+  $("pairHint").textContent = s.pair ? "Pairing is open: pair the new phone now." : "Lets a new phone pair during the next 2 minutes.";
+  // quick toggles
+  $("qHaz").setAttribute("aria-pressed", !!s.hz);
+  $("qPods").setAttribute("aria-pressed", !!s.aux);
+  paintMaps();
+}
+// Total strip current and the shared-budget scale (status `tot` mA, `bud` %), on Live and Map.
+function paintTotals(s) {
+  const has = typeof s.tot === "number";
+  const li = $("oTot"); if (li) li.hidden = !has;
+  if (!has) { $("budTot").textContent = "–"; $("budDim").hidden = true; return; }
+  const tot = s.tot / 1000, bud = typeof s.bud === "number" ? s.bud : 100;
+  const B = app.settings && app.settings.budget;
+  const cap = B ? ((s.head === "low" || s.head === "high") ? B.lit_ma : B.dark_ma) / 1000 : 0;
+  if (li) {
+    li.querySelector(".amps").textContent = tot.toFixed(2) + " A";
+    const st = li.querySelector(".state");
+    st.textContent = bud < 100 ? `underglow dimmed to ${bud} %` : "budget " + bud + " %, not limiting";
+    st.className = "state " + (bud < 100 ? "warn" : "ok");
+    li.querySelector(".bar i").style.width = (cap ? Math.min(100, tot / cap * 100) : 0) + "%";
+    li.querySelector(".where").textContent = cap ? `shared budget ${cap.toFixed(1)} A` : "shared budget";
+  }
+  $("budTot").textContent = tot.toFixed(2) + " A" + (cap ? ` of ${cap.toFixed(1)} A` : "");
+  const d = $("budDim"); d.hidden = !(bud < 100);
+  if (bud < 100) d.textContent = `Dimming underglow to ${bud} %`;
+}
+$("qHaz").onclick = () => send("hazard " + (app.status && app.status.hz ? "off" : "on"));
+$("qPods").onclick = () => send("aux " + (app.status && app.status.aux ? "off" : "on"));
+
+// ---- settings forms --------------------------------------------------------
+function rangeField(label, value, min, max, step, unit, onCommit, hint) {
+  const v = el("span", { class: "val" }, value + unit);
+  const r = el("input", { type: "range", min, max, step, value, "aria-label": label });
+  r.addEventListener("input", () => v.textContent = r.value + unit);
+  r.addEventListener("change", () => onCommit(Number(r.value)));
+  return el("div", { class: "field" }, el("span", { class: "lbl" }, label), v, r, hint ? el("div", { class: "hint" }, hint) : null);
+}
+function switchField(label, on, onCommit, hint) {
+  const b = el("button", { class: "switch", role: "switch", "aria-checked": on ? "true" : "false", "aria-label": label });
+  b.onclick = () => { const nv = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", nv); onCommit(nv); };
+  return el("div", { class: "field" }, el("span", { class: "lbl" }, label), b, hint ? el("div", { class: "hint" }, hint) : null);
+}
+function selectField(label, options, value, onCommit) {
+  const id = "f" + Math.random().toString(36).slice(2);
+  const s = el("select", { id, onchange: () => onCommit(s.value) }, ...options.map(([v, t]) => el("option", { value: v, selected: v === value }, t)));
+  return el("div", { class: "field" }, el("label", { for: id }, label), s);
+}
+const hex = rgb => "#" + rgb.map(x => x.toString(16).padStart(2, "0")).join("");
+const unhex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+
+function setSettings(s) {
+  app.settings = s;
+  const A = s.accent;
+  const ap = $("accentPanel"); ap.textContent = "";
+  ap.append(
+    switchField("Underglow on at key-on", A.on, v => patch({ accent: { on: v } }), "The handlebar button switches it for the current ride."),
+    (() => {
+      const f = selectField("Effect", MODES, A.mode, v => patch({ accent: { mode: v } }));
+      if (POS_MODES.includes(A.mode) && !s.strips.some(st => st.seg.some(g => g[1] > 0 && isMapped(g))))
+        f.append(el("div", { class: "hint", id: "posHint" }, "No segments are mapped yet — the effect runs along each strip. Map them in the Map tab."));
+      return f;
+    })(),
+    (() => { const c = el("input", { type: "color", value: hex(A.rgb), "aria-label": "Colour" });
+             c.onchange = () => patch({ accent: { rgb: unhex(c.value) } });
+             return el("div", { class: "field" }, el("span", { class: "lbl" }, "Colour"), c); })(),
+    rangeField("Brightness", A.pct, 0, 100, 1, "%", v => patch({ accent: { pct: v } })),
+    rangeField("Speed", A.speed, 1, 10, 1, "", v => patch({ accent: { speed: v } }), "For every effect except solid."));
+
+  const tp = $("turnPanel"); tp.textContent = "";
+  tp.append(
+    rangeField("Flash rate", s.blink.fpm, 60, 120, 1, " /min", v => patch({ blink: { fpm: v } })),
+    rangeField("On time", s.blink.duty, 30, 75, 1, "%", v => patch({ blink: { duty: v } })),
+    selectField("Style", [["flash", "Flash"], ["sweep", "Sweep"]], s.turn.style, v => patch({ turn: { style: v } })),
+    selectField("Rear colour", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
+    rangeField("Brightness", s.turn.pct, 40, 100, 1, "%", v => patch({ turn: { pct: v } })),
+    rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."));
+
+  const rp = $("rearPanel"); rp.textContent = "";
+  rp.append(
+    rangeField("Brake", s.brake_pct, 50, 100, 1, "%", v => patch({ brake_pct: v })),
+    rangeField("Tail", s.tail_pct, 5, 33, 1, "%", v => patch({ tail_pct: v }), "Capped at a third of the brake level so braking stands out."),
+    switchField("Tail on with the key", s.tail_always, v => patch({ tail_always: v }), "Otherwise the tail follows the headlight switch."),
+    rangeField("Start-up red", s.boot_red_pct, 10, 60, 1, "%", v => patch({ boot_red_pct: v }), "Shown for a moment at key-on until the switches have been read."));
+
+  buildStrips();
+  buildSetup();
+  buildMap();
+}
+
+// ---- strips ----------------------------------------------------------------
+function roleCss(role) {
+  const s = app.settings;
+  return { tail: "#8c1d18", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
+           tail_turn_l: "linear-gradient(#ffa41b 50%, #8c1d18 50%)", tail_turn_r: "linear-gradient(#ffa41b 50%, #8c1d18 50%)",
+           accent: hex(s.accent.rgb), none: "transparent" }[role] || "transparent";
+}
+function mapNodes(draft) {
+  const total = Math.max(1, draft.px);
+  const nodes = [];
+  let pos = 0;
+  [...draft.seg].sort((a, b) => a[0] - b[0]).forEach(g => {
+    if (g[0] > pos) nodes.push(el("div", { style: `flex:${g[0] - pos}` }));
+    if (g[1] > 0) nodes.push(el("div", { "data-role": g[2], style: `flex:${g[1]};background:${roleCss(g[2])}`, title: `${g[0]}–${g[0] + g[1] - 1} ${g[2]}` }));
+    pos = Math.max(pos, g[0] + g[1]);
+  });
+  if (pos < total) nodes.push(el("div", { style: `flex:${total - pos}` }));
+  return nodes;
+}
+// Lit segments show what the strip shows now; dark ones show their job colour, faded.
+function paintMaps() {
+  if (!app.settings) return;
+  document.querySelectorAll(".map [data-role]").forEach(d => {
+    const c = app.status ? segRgb(app.settings, d.dataset.role, app.status) : [0, 0, 0];
+    const lit = Math.max(...c) > 0;
+    d.style.background = lit ? `rgb(${c.join(",")})` : roleCss(d.dataset.role, false);
+    d.classList.toggle("dark", !lit);
+  });
+}
+
+const effStrip = i => app.drafts[i] || app.settings.strips[i];
+const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
+function normStrip(d) {
+  d.chip = d.chip || "custom"; d.timing = d.timing || "800k"; d.rgbw = !!d.rgbw;
+  d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18;
+  return d;
+}
+function draftFor(i) {
+  if (!app.drafts[i]) app.drafts[i] = normStrip(structuredClone(app.settings.strips[i]));
+  return app.drafts[i];
+}
+// The mapped segment on the other side (turn_l <-> turn_r, tail_turn_l <-> tail_turn_r); other strips first.
+function findMirror(i, k) {
+  const want = MIRROR_ROLE[effStrip(i).seg[k][2]];
+  if (!want) return null;
+  const all = effStrips();
+  for (const sameStrip of [false, true])
+    for (let j = 0; j < all.length; j++) {
+      if ((j === i) !== sameStrip) continue;
+      for (let kk = 0; kk < all[j].seg.length; kk++) {
+        const g = all[j].seg[kk];
+        if (g[2] === want && isMapped(g) && !(j === i && kk === k)) return { j, kk, g };
+      }
+    }
+  return null;
+}
+const negY = p => [p[0], p[1] ? -p[1] : 0, p[2]];
+
+function buildStrips() {
+  const box = $("stripCards"); box.textContent = "";
+  app.settings.strips.forEach((st, i) => {
+    // Unapplied edits survive a settings refresh; untouched strips follow the controller.
+    const draft = normStrip(app.drafts[i] || structuredClone(st));
+    const card = el("div", { class: "panel" });
+    const headNote = el("p", { class: "note" });
+    const est = el("div", { class: "est" });
+    const refreshHead = () => { headNote.textContent = `${STRIP_JACK[i]}, ${draft.px ? draft.px + " pixels" : "unused"}`; };
+    const refreshEst = () => {
+      const px = draft.px | 0, ma = Math.max(1, draft.px_ma | 0);
+      if (!px) { est.textContent = "Unused."; est.className = "est"; return; }
+      const full = px * ma / 1000, cap = draft.cap_ma / 1000;
+      const z = Math.max(0, Math.floor((draft.cap_ma - px) / ma));
+      est.className = "est" + (full > cap ? " warn" : "");
+      est.textContent = `${px} px at full white ≈ ${full.toFixed(1)} A; cap is ${cap.toFixed(1)} A → ` +
+        (full > cap ? `the limiter dims accent above ~${z} px` : "full white fits under the cap");
+    };
+    const redraw = () => {
+      app.drafts[i] = draft;
+      const m = card.querySelector(".map"); m.replaceChildren(...mapNodes(draft)); paintMaps();
+      refreshHead(); refreshEst();
+    };
+    const numIn = (label, val, min, max, step, onIn) => {
+      const n = el("input", { type: "number", min, max, step, value: val, inputmode: "decimal" });
+      n.addEventListener("input", () => { onIn(Number(n.value)); redraw(); });
+      return el("label", {}, label, n);
+    };
+    const order = el("select", { onchange: () => { draft.order = order.value; redraw(); } }, ...ORDERS.map(o => el("option", { value: o, selected: o === draft.order }, o)));
+
+    // ---- chip: preset fields are read-only until Edit; Custom shows them editable ----
+    const chipField = selectField("LED chip", CHIP_OPTIONS, draft.chip, v => {
+      draft.chip = v;
+      if (CHIP_BY[v]) Object.assign(draft, CHIP_BY[v].f);
+      draft.edit = v === "custom";
+      drawDerived(); redraw();
+    });
+    chipField.querySelector("select").setAttribute("data-strip-chip", i);
+    const markCustom = () => {
+      if (draft.chip !== "custom") { draft.chip = "custom"; chipField.querySelector("select").value = "custom"; }
+    };
+    const derived = el("div", { class: "derived" });
+    const kv = (k, v) => el("span", {}, k + " ", el("b", {}, String(v)));
+    const numField = (label, val, min, max, step, onIn, hint) => {
+      const id = "f" + Math.random().toString(36).slice(2);
+      const n = el("input", { type: "number", id, min, max, step, value: val, inputmode: "numeric" });
+      n.addEventListener("input", () => { markCustom(); onIn(Number(n.value)); redraw(); });
+      return el("div", { class: "field" }, el("label", { for: id }, label), n, hint ? el("div", { class: "hint" }, hint) : null);
+    };
+    const drawDerived = () => {
+      derived.textContent = "";
+      if (draft.chip !== "custom" && !draft.edit) {
+        derived.append(
+          el("div", { class: "kv" }, kv("Timing", draft.timing === "400k" ? "400 kHz" : "800 kHz"), kv("Colours", draft.rgbw ? "RGBW" : "RGB"),
+            kv("LEDs per pixel", draft.lpp), kv("Channels add up", draft.sum ? "yes" : "no"), kv("mA per pixel", draft.px_ma)),
+          el("div", { class: "strip-actions", style: "padding:0 14px 10px" },
+            el("button", { class: "btn small", "data-edit": i, onclick: () => { draft.edit = true; drawDerived(); redraw(); } }, "Edit")));
+        return;
+      }
+      derived.append(
+        selectField("Timing", [["800k", "800 kHz"], ["400k", "400 kHz"]], draft.timing, v => { markCustom(); draft.timing = v; redraw(); }),
+        switchField("RGBW (4 channels)", draft.rgbw, v => { markCustom(); draft.rgbw = v; redraw(); }),
+        numField("LEDs per pixel", draft.lpp, 1, 3, 1, v => draft.lpp = clamp(v | 0, 1, 3)),
+        switchField("Channels add up", draft.sum, v => { markCustom(); draft.sum = v; redraw(); },
+          "On for strips where each colour draws its own current (WS2811/WS2812B). Off for constant-current drivers like WS2815."),
+        numField("mA per pixel", draft.px_ma, 5, 80, 1, v => draft.px_ma = clamp(v | 0, 5, 80), "At full white, measured on the 12 V side."));
+      if (draft.chip !== "custom")
+        derived.append(el("div", { class: "strip-actions", style: "padding:0 14px 10px" },
+          el("button", { class: "btn small", onclick: () => { draft.edit = false; drawDerived(); } }, "Done")));
+    };
+
+    // ---- mA/pixel from the strip's label ----
+    const hw = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Watts per metre" });
+    const hp = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Pixels per metre" });
+    const hl = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "LEDs per metre" });
+    const hres = el("p", { class: "note" });
+    const hbtn = el("button", { class: "btn small", disabled: true }, "Use it");
+    let hval = null;
+    const hcalc = () => {
+      const w = Number(hw.value), ppm = Number(hp.value) || (Number(hl.value) / Math.max(1, draft.lpp));
+      if (w > 0 && ppm > 0) {
+        hval = clamp(Math.round(w / 12 / ppm * 1000), 5, 80);
+        hres.textContent = `${w} W/m ÷ 12 V ÷ ${+ppm.toFixed(2)} px/m ≈ ${Math.round(w / 12 / ppm * 1000)} mA per pixel` + (hval !== Math.round(w / 12 / ppm * 1000) ? ` (limited to ${hval})` : "");
+        hbtn.disabled = false; hbtn.textContent = `Use ${hval} mA`;
+      } else { hval = null; hres.textContent = "Enter the watts per metre and either pixels per metre or LEDs per metre."; hbtn.disabled = true; hbtn.textContent = "Use it"; }
+    };
+    [hw, hp, hl].forEach(x => x.addEventListener("input", hcalc));
+    hbtn.onclick = () => {
+      if (hval == null) return;
+      markCustom(); draft.px_ma = hval; draft.edit = true; drawDerived(); redraw(); toast(`mA per pixel set to ${hval}`);
+    };
+    hcalc();
+    const helper = el("details", { class: "sub" },
+      el("summary", {}, "Work out mA/pixel from the strip's label"),
+      el("div", { class: "body" },
+        el("div", { class: "helper-grid" },
+          el("label", {}, "Watts per metre", hw), el("label", {}, "Pixels per metre", hp),
+          el("label", {}, "or LEDs per metre", hl)),
+        hres, hbtn));
+
+    card.append(
+      el("div", { class: "strip-head" }, el("h3", {}, `Strip ${i + 1}`), headNote),
+      el("div", { class: "map", "aria-hidden": "true" }),
+      chipField, derived, helper,
+      el("div", { class: "strip-props" },
+        numIn("Pixels", draft.px, 0, 800, 1, v => draft.px = clamp(v | 0, 0, 800)),
+        el("label", {}, "Colour order", order),
+        numIn("Current cap (A)", draft.cap_ma / 1000, 0.5, 7, 0.1, v => draft.cap_ma = Math.round(v * 1000))),
+      est);
+    drawDerived(); refreshHead(); refreshEst();
+
+    // ---- segments ----
+    const table = el("table", { class: "segs" },
+      el("colgroup", {}, el("col", { class: "n" }), el("col", { class: "n" }), el("col"), el("col", { class: "c" }), el("col", { class: "d" })),
+      el("thead", {}, el("tr", {}, el("th", {}, "Start"), el("th", {}, "Pixels"), el("th", {}, "Job"), el("th", {}, "Rev."), el("th", {}))));
+    const tb = el("tbody");
+    const posRow = (g, k) => {
+      const key = `${i}.${k}`;
+      const ensure = () => { if (!Array.isArray(g[4])) g[4] = [0, 0, 0]; if (!Array.isArray(g[5])) g[5] = [0, 0, 0]; };
+      const status = el("span", { class: "note" });
+      const upd = () => { status.textContent = isMapped(g) ? "mapped" : "not mapped"; };
+      const mk = (r, c) => {
+        const inp = el("input", { type: "number", step: 1, min: -9999, max: 9999, inputmode: "numeric", value: segPos(g, r)[c],
+                                  "aria-label": `${r ? "Last" : "First"} pixel ${"xyz"[c]} (mm)`, "data-pos": `${r}${"xyz"[c]}` });
+        inp.addEventListener("input", () => { ensure(); g[4 + r][c] = Math.round(Number(inp.value) || 0); upd(); redraw(); });
+        return inp;
+      };
+      const row = (r, label) => el("div", { class: "pos-grid" }, el("span", { class: "cap" }, label), mk(r, 0), mk(r, 1), mk(r, 2));
+      const side = SIDE_OF[g[2]];
+      const mirror = el("button", { class: "btn small", disabled: !side, "data-mirror": key, onclick: () => {
+        const src = findMirror(i, k);
+        if (!src) { toast(`No mapped ${side} segment (${MIRROR_ROLE[g[2]]}) to copy from`, true); return; }
+        ensure(); g[4] = negY(segPos(src.g, 0)); g[5] = negY(segPos(src.g, 1));
+        drawRows(); redraw(); toast(`Copied from strip ${src.j + 1}, segment ${src.kk + 1}, y negated`);
+      } }, side ? `Mirror from ${side}` : "Mirror from left/right");
+      const clear = el("button", { class: "btn small", "data-clear": key, onclick: () => { g[4] = [0, 0, 0]; g[5] = [0, 0, 0]; drawRows(); redraw(); } }, "Clear");
+      const det = el("details", { class: "sub", open: app.open.has(key) },
+        el("summary", {}, "Position ", status),
+        el("div", { class: "body" },
+          el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x mm"), el("span", { class: "pos-head" }, "y mm"), el("span", { class: "pos-head" }, "z mm")),
+          row(0, "First pixel"), row(1, "Last pixel"),
+          el("p", { class: "note" }, "x: front 0 → rear. y: left − → right +. z: up. Millimetres on the bike."),
+          el("div", { class: "btns", style: "margin-top:4px" }, mirror, clear)));
+      det.addEventListener("toggle", () => { det.open ? app.open.add(key) : app.open.delete(key); });
+      upd();
+      return el("tr", {}, el("td", { class: "posrow", colspan: 5 }, det));
+    };
+    const drawRows = () => {
+      tb.textContent = "";
+      draft.seg.forEach((g, k) => {
+        const s0 = el("input", { type: "number", min: 0, max: 799, value: g[0], inputmode: "numeric", "aria-label": "Start" });
+        const s1 = el("input", { type: "number", min: 0, max: 800, value: g[1], inputmode: "numeric", "aria-label": "Pixels" });
+        const r = el("select", { "aria-label": "Job" }, ...ROLES.map(([v, t]) => el("option", { value: v, selected: v === g[2] }, t)));
+        const rv = el("input", { type: "checkbox", checked: !!g[3], "aria-label": "Reverse sweep direction" });
+        s0.oninput = () => { g[0] = s0.value | 0; redraw(); };
+        s1.oninput = () => { g[1] = s1.value | 0; redraw(); };
+        r.onchange = () => { g[2] = r.value; drawRows(); redraw(); };
+        rv.onchange = () => { g[3] = rv.checked; redraw(); };
+        tb.append(el("tr", {}, el("td", {}, s0), el("td", {}, s1), el("td", {}, r), el("td", {}, rv),
+          el("td", {}, el("button", { class: "x", "aria-label": "Remove segment", onclick: () => {
+            draft.seg.splice(k, 1);
+            [...app.open].filter(x => x.startsWith(i + ".")).forEach(x => app.open.delete(x));
+            drawRows(); redraw(); } }, "×"))));
+        tb.append(posRow(g, k));
+      });
+    };
+    table.append(tb); card.append(table);
+    const add = el("button", { class: "btn", onclick: () => {
+      if (draft.seg.length >= 6) { toast("Six segments per strip at most", true); return; }
+      const end = draft.seg.reduce((m, g) => Math.max(m, g[0] + g[1]), 0);
+      draft.seg.push([Math.min(end, Math.max(0, draft.px - 1)), Math.max(0, draft.px - end), "accent", false]);
+      drawRows(); redraw(); } }, "Add segment");
+    const apply = el("button", { class: "btn primary", "data-apply": i, onclick: () => {
+      const core = { px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma };
+      // A preset is sent by name (the board fills in the rest); Custom sends every field.
+      if (draft.chip !== "custom") core.chip = draft.chip;
+      else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
+      const wrap = o => { const a = [null, null, null, null].slice(0, i); a.push(o); return { strips: a }; };
+      delete app.drafts[i];
+      patchMany([wrap(core), wrap({ seg: draft.seg.map(segOut) })]); } }, `Apply to strip ${i + 1}`);
+    const reset = el("button", { class: "btn", onclick: () => { delete app.drafts[i]; buildStrips(); } }, "Discard changes");
+    card.append(el("div", { class: "strip-actions" }, apply, add, reset));
+    box.append(card);
+    drawRows();
+    card.querySelector(".map").replaceChildren(...mapNodes(draft));
+  });
+  paintMaps();
+}
+
+// ---- setup -----------------------------------------------------------------
+function buildSetup() {
+  const s = app.settings;
+  $("preset").value = s.head.preset;
+  $("preset").onchange = () => { if ($("preset").value !== "custom") { send("preset " + $("preset").value); send("get"); } };
+  const g = $("headGrid"); g.textContent = "";
+  g.append(el("tr", {}, el("th", {}, "Output"), ...HEAD_STATES.map(h => el("th", {}, h[1]))));
+  LAMPS.forEach(([lamp, label]) => {
+    g.append(el("tr", {}, el("td", {}, label), ...HEAD_STATES.map(([c, name]) => {
+      const box = el("input", { type: "checkbox", checked: s.head[lamp].includes(c), "aria-label": `${label} in ${name}` });
+      box.onchange = () => {
+        const cur = new Set(s.head[lamp].split(""));
+        box.checked ? cur.add(c) : cur.delete(c);
+        patch({ head: { [lamp]: HEAD_STATES.map(h => h[0]).filter(x => cur.has(x)).join("") } });
+      };
+      return el("td", {}, box);
+    })));
+  });
+  const lm = $("lampMinPanel"); lm.textContent = "";
+  LAMPS.forEach(([lamp, label]) => {
+    const n = el("input", { type: "number", min: 0, max: 20000, step: 50, value: s.lamp_min_ma[lamp], inputmode: "numeric", "aria-label": label + " minimum mA" });
+    n.onchange = () => patch({ lamp_min_ma: { [lamp]: Number(n.value) | 0 } });
+    lm.append(el("div", { class: "field" }, el("span", { class: "lbl" }, label + " (mA)"), n));
+  });
+  lm.append(el("div", { class: "field" }, el("div", { class: "hint" }, "Warn when an output is on but draws less than this. 0 means nothing is expected on that output.")));
+  lm.append(switchField("Tail white counts as lights on", s.spare_as_run, v => patch({ spare_as_run: v })));
+
+  const bp = $("btnPanel"); bp.textContent = "";
+  bp.append(
+    selectField("Short press", ACTIONS, s.button.short, v => patch({ button: { short: v } })),
+    selectField("Double press", ACTIONS, s.button.double, v => patch({ button: { double: v } })),
+    selectField("Hold 1 s", ACTIONS, s.button.long, v => patch({ button: { long: v } })),
+    el("div", { class: "field" }, el("div", { class: "hint" }, "Holding the button while switching the key on starts the firmware update access point.")));
+
+  const cal = $("calCh");
+  if (!cal.options.length) SENSE.forEach((c, i) => cal.append(el("option", { value: SENSE_KEYS[i] }, c.name)));
+  $("bleName").value = s.ble_name;
+}
+$("calBtn").onclick = () => { const a = Number($("calAmps").value); if (a > 0) send(`cal ${$("calCh").value} ${a}`).then(() => send("get")); };
+$("radioBtn").onclick = () => {
+  const p = { ble_name: $("bleName").value.trim() };
+  const pw = $("otaPass").value;
+  if (pw) { if (pw.length < 8) { toast("The password needs at least 8 characters", true); return; } p.ota_pass = pw; }
+  patch(p); $("otaPass").value = "";
+  toast("Saved. The new Bluetooth name shows after a restart.");
+};
+$("saveBtn").onclick = () => send("save");
+$("pairBtn").onclick = () => send("pair");
+// Second tap within 4 s confirms (no browser dialogs: they don't work in every viewer).
+function armed(btn, prompt, action) {
+  const label = btn.textContent;
+  let timer = 0;
+  btn.onclick = () => {
+    if (btn.dataset.armed) {
+      clearTimeout(timer); delete btn.dataset.armed; btn.textContent = label; action();
+    } else {
+      btn.dataset.armed = "1"; btn.textContent = prompt;
+      timer = setTimeout(() => { delete btn.dataset.armed; btn.textContent = label; }, 4000);
+    }
+  };
+}
+armed($("otaBtn"), "Tap again to start the update access point", () => send("ota"));
+armed($("rebootBtn"), "Tap again to restart", () => send("reboot"));
+armed($("defaultsBtn"), "Tap again to reset everything", () => { send("defaults yes"); send("get"); });
+
+// ---- map tab -----------------------------------------------------------------
+const ROLE_NAME = Object.fromEntries(ROLES);
+const segLabel = (g, k) => `#${k + 1}: pixels ${g[0]}–${g[0] + Math.max(0, g[1]) - 1}, ${ROLE_NAME[g[2]] || g[2]}`;
+function fillSelect(sel, opts, keep) {
+  const cur = keep ? sel.value : null;
+  sel.textContent = "";
+  opts.forEach(([v, t]) => sel.append(el("option", { value: v }, t)));
+  if (cur != null && opts.some(o => String(o[0]) === cur)) sel.value = cur;
+}
+const segOpts = i => { const st = effStrip(i); return st.seg.length ? st.seg.map((g, k) => [k, segLabel(g, k)]) : [["", "no segments yet"]]; };
+
+function buildMap() {
+  if (!app.settings) return;
+  const strips = [0, 1, 2, 3].map(i => [i, `Strip ${i + 1} (${effStrip(i).px} px)`]);
+  fillSelect($("pfStrip"), strips, true); fillSelect($("phStrip"), strips, true);
+  fillSelect($("pfSeg"), segOpts(pfStrip()), true);
+  fillSelect($("phSeg"), segOpts(+$("phStrip").value || 0), true);
+  finderRange(); phNow(); budgetUi(); buildOverview(); tfPaint();
+  paintTotals(app.status || {});
+}
+
+// ---- pixel finder (find <strip> <pixel>|off) ----
+const pfStrip = () => +$("pfStrip").value || 0;
+const pfPx = () => app.settings ? app.settings.strips[pfStrip()].px : 0;   // what the board has, not the draft
+function finderUi() {
+  const px = pfPx(), n = +$("pfNum").value | 0;
+  $("pfState").textContent = !px ? "This strip has no pixels yet. Set the pixel count on the Strips tab and tap Apply."
+    : finder.active ? `Strip ${finder.strip + 1}, pixel ${finder.n} is lit white. Stop, or leave this tab, to turn it off.`
+    : "Move the slider to light one pixel white on the bike. With more than one LED per pixel, the pixel lights a group of LEDs.";
+  $("pfStop").disabled = !finder.active;
+  void n;
+}
+function finderRange() {
+  const px = pfPx(), max = Math.max(0, px - 1);
+  $("pfRange").max = max; $("pfNum").max = max;
+  $("pfRange").disabled = $("pfNum").disabled = $("pfMinus").disabled = $("pfPlus").disabled = !px;
+  const n = clamp(Math.round(Number($("pfNum").value)) || 0, 0, max);
+  $("pfNum").value = n; $("pfRange").value = n;
+  finderUi();
+}
+function finderSet(n) {
+  const px = pfPx(); if (!px) return;
+  n = clamp(Math.round(n) || 0, 0, px - 1);
+  $("pfNum").value = n; $("pfRange").value = n;
+  clearTimeout(finder.timer);
+  finder.timer = setTimeout(() => {
+    finder.strip = pfStrip(); finder.n = n; finder.active = true;
+    send(`find ${finder.strip + 1} ${n}`);
+    finderUi(); ovFind();
+  }, 100);
+}
+function finderStop() {
+  clearTimeout(finder.timer);
+  if (finder.active) send("find off");
+  finder.active = false; finderUi(); ovFind();
+}
+function pfMark(which) {
+  const i = pfStrip(), k = +$("pfSeg").value, n = +$("pfNum").value | 0;
+  if (!app.settings || !effStrip(i).seg[k]) { toast("Add a segment for this strip on the Strips tab first", true); return; }
+  const g = draftFor(i).seg[k];
+  if (which === "start") { g[0] = n; toast(`Strip ${i + 1}, segment ${k + 1} now starts at pixel ${n}`); }
+  else {
+    if (n < g[0]) { toast(`The end (${n}) is before the segment start (${g[0]})`, true); return; }
+    g[1] = n - g[0] + 1; toast(`Strip ${i + 1}, segment ${k + 1} now has ${g[1]} pixels`);
+  }
+  buildStrips(); buildMap();
+}
+$("pfStrip").onchange = () => { fillSelect($("pfSeg"), segOpts(pfStrip()), false); finderRange(); if (finder.active) finderSet(+$("pfNum").value); };
+$("pfRange").addEventListener("input", () => finderSet(+$("pfRange").value));
+$("pfNum").addEventListener("input", () => finderSet(+$("pfNum").value));
+$("pfMinus").onclick = () => finderSet((+$("pfNum").value | 0) - 1);
+$("pfPlus").onclick = () => finderSet((+$("pfNum").value | 0) + 1);
+$("pfStart").onclick = () => pfMark("start");
+$("pfEnd").onclick = () => pfMark("end");
+$("pfStop").onclick = finderStop;
+
+// ---- photo mapping ----
+const photos = {};
+const sideReady = () => !!(photos.side && photos.side.img && photos.side.scale && photos.side.origin);
+function phNow() {
+  const i = +$("phStrip").value || 0, k = +$("phSeg").value;
+  const g = app.settings && effStrip(i).seg[k];
+  $("phNow").textContent = !g ? "Add a segment on the Strips tab first."
+    : isMapped(g) ? `First pixel (${segPos(g, 0).join(", ")}) · last pixel (${segPos(g, 1).join(", ")}) mm` : "Not mapped yet.";
+}
+$("phStrip").onchange = () => { fillSelect($("phSeg"), segOpts(+$("phStrip").value || 0), false); phNow(); };
+$("phSeg").onchange = phNow;
+
+function photoBlock(host, kind, title) {
+  const ph = { kind, img: null, pts: [], scale: null, origin: null, mode: "scale", marks: {}, frontLeft: true, view: "top_up" };
+  const file = el("input", { type: "file", accept: "image/*", capture: "environment", "aria-label": title, "data-photo": kind });
+  const canvas = el("canvas", { class: "photo", hidden: true, "data-photo-canvas": kind });
+  const tools = el("div", { hidden: true });
+  const how = el("p", { class: "note ph-how" });
+  const info = el("p", { class: "ph-info" });
+  const steps = [["scale", "1 Scale"], ["origin", "2 Origin"], ["start", "3 First pixel"], ["end", "4 Last pixel"]];
+  const stepBtns = {};
+  const stepRow = el("div", { class: "ph-steps" }, ...steps.map(([m, t]) => {
+    const b = el("button", { class: "btn small", "aria-pressed": "false", "data-step": `${kind}.${m}`, onclick: () => { ph.mode = m; paint(); } }, t);
+    stepBtns[m] = b; return b;
+  }));
+  const mm = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", "data-mm": kind,
+                           placeholder: kind === "side" ? "wheelbase, mm" : "known distance, mm", "aria-label": "Real distance between the two points, mm" });
+  const orient = kind === "side"
+    ? el("button", { class: "btn small", "data-front": kind, onclick: () => { ph.frontLeft = !ph.frontLeft; paint(); draw(); } })
+    : el("select", { "aria-label": "What the photo shows", "data-view": kind, onchange: () => { ph.view = orient.value; paint(); } },
+        ...[["top_up", "Top view, front at the top"], ["top_down", "Top view, front at the bottom"], ["rear", "Rear view, from behind"]]
+          .map(([v, t]) => el("option", { value: v }, t)));
+  const scaleRow = el("div", { class: "ph-row" }, el("label", { class: "note" }, "Real distance (mm) ", mm), orient);
+
+  const HOW = {
+    scale: kind === "side" ? "Tap the centres of both wheels, then type the wheelbase in mm."
+                           : "Tap two points a known distance apart (wheelbase from above, handlebar width from behind), then type it in mm.",
+    origin: kind === "side" ? "Tap the ground directly under the very front of the bike. That is x 0, z 0."
+                            : "Tap the bike's centreline at the very front (top view) or anywhere on it (rear view). That is y 0.",
+    start: "Tap where the selected segment's first pixel is.",
+    end: "Tap where the selected segment's last pixel is.",
+  };
+  const paint = () => {
+    for (const [m] of steps) stepBtns[m].setAttribute("aria-pressed", String(ph.mode === m));
+    how.textContent = HOW[ph.mode];
+    if (kind === "side") orient.textContent = `Front of the bike is on the ${ph.frontLeft ? "LEFT" : "RIGHT"} of the photo (tap to flip)`;
+    info.textContent = (ph.scale ? `Scale: 1 px = ${ph.scale.toFixed(2)} mm. ` : "Scale not set. ") + (ph.origin ? "Origin set." : "Origin not set.");
+  };
+  const draw = () => {
+    if (!ph.img) return;
+    const c = canvas, x = c.getContext("2d"), r = Math.max(7, c.width / 80);
+    x.clearRect(0, 0, c.width, c.height); x.drawImage(ph.img, 0, 0, c.width, c.height);
+    x.lineWidth = Math.max(2, c.width / 400);
+    x.strokeStyle = x.fillStyle = "#00d0ff";
+    if (ph.pts.length === 2) { x.beginPath(); x.moveTo(...ph.pts[0]); x.lineTo(...ph.pts[1]); x.stroke(); }
+    ph.pts.forEach(p => { x.beginPath(); x.arc(p[0], p[1], r / 2, 0, 7); x.fill(); });
+    if (ph.origin) {
+      x.strokeStyle = "#2fbf68"; x.beginPath();
+      x.moveTo(ph.origin[0] - r * 1.5, ph.origin[1]); x.lineTo(ph.origin[0] + r * 1.5, ph.origin[1]);
+      x.moveTo(ph.origin[0], ph.origin[1] - r * 1.5); x.lineTo(ph.origin[0], ph.origin[1] + r * 1.5); x.stroke();
+    }
+    x.font = `600 ${Math.round(r * 1.3)}px sans-serif`; x.textAlign = "center"; x.textBaseline = "middle";
+    for (const m of Object.values(ph.marks)) {
+      x.fillStyle = "#ffa41b"; x.beginPath(); x.arc(m.x, m.y, r, 0, 7); x.fill();
+      x.fillStyle = "#1b1300"; x.fillText(m.label, m.x, m.y + 1);
+    }
+  };
+  const recalc = () => {
+    if (ph.pts.length === 2) {
+      const d = Math.hypot(ph.pts[0][0] - ph.pts[1][0], ph.pts[0][1] - ph.pts[1][1]), v = Number(mm.value);
+      ph.scale = v > 0 && d > 2 ? v / d : null;
+    } else ph.scale = null;
+    paint();
+  };
+  mm.addEventListener("input", () => { recalc(); draw(); });
+  mm.addEventListener("change", () => { if (ph.scale && !ph.origin && ph.mode === "scale") { ph.mode = "origin"; paint(); } });
+  const place = (which, x, y) => {
+    if (!ph.scale || !ph.origin) { toast("Set the scale (1) and origin (2) first", true); return; }
+    const i = +$("phStrip").value || 0, k = +$("phSeg").value;
+    if (!app.settings || !effStrip(i).seg[k]) { toast("Pick a segment above first", true); return; }
+    const g = draftFor(i).seg[k];
+    if (!Array.isArray(g[4])) g[4] = [0, 0, 0];
+    if (!Array.isArray(g[5])) g[5] = [0, 0, 0];
+    const p = g[which === "end" ? 5 : 4];
+    const dx = (x - ph.origin[0]) * ph.scale, dy = (y - ph.origin[1]) * ph.scale;
+    if (kind === "side") { p[0] = Math.round(ph.frontLeft ? dx : -dx) || 0; p[2] = Math.round(-dy) || 0; }
+    else {
+      p[1] = Math.round(ph.view === "top_down" ? -dx : dx) || 0;
+      if (ph.view !== "rear" && !sideReady()) p[0] = Math.round(ph.view === "top_up" ? dy : -dy) || 0;
+    }
+    ph.marks[`${i}.${k}.${which}`] = { x, y, label: which === "start" ? "S" : "E" };
+    ph.mode = which === "start" ? "end" : "start";
+    buildStrips(); buildMap(); paint();
+    toast(`Strip ${i + 1}, segment ${k + 1}, ${which === "start" ? "first" : "last"} pixel: (${p.join(", ")}) mm`);
+  };
+  canvas.addEventListener("click", ev => {
+    const r = canvas.getBoundingClientRect();
+    const x = (ev.clientX - r.left) * canvas.width / r.width, y = (ev.clientY - r.top) * canvas.height / r.height;
+    if (ph.mode === "scale") { if (ph.pts.length >= 2) ph.pts = []; ph.pts.push([x, y]); recalc(); }
+    else if (ph.mode === "origin") { ph.origin = [x, y]; ph.mode = "start"; }
+    else place(ph.mode, x, y);
+    paint(); draw();
+  });
+  file.addEventListener("change", () => {
+    const f = file.files && file.files[0]; if (!f) return;
+    const url = URL.createObjectURL(f), img = new Image();
+    img.onload = () => {
+      const k = Math.min(1, 1000 / img.naturalWidth);
+      canvas.width = Math.max(1, Math.round(img.naturalWidth * k)); canvas.height = Math.max(1, Math.round(img.naturalHeight * k));
+      Object.assign(ph, { img, pts: [], scale: null, origin: null, mode: "scale", marks: {} });
+      canvas.hidden = false; tools.hidden = false; URL.revokeObjectURL(url);
+      paint(); draw();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); toast("Couldn't read that photo", true); };
+    img.src = url;
+  });
+  tools.append(stepRow, how, scaleRow, info);
+  host.append(el("div", { class: "ph-block" }, el("h3", {}, title), file, tools, canvas));
+  paint();
+  return ph;
+}
+[["side", "Side view (gives x and z)"], ["top", "Top or rear view (gives y)"]]
+  .forEach(([kind, title]) => photos[kind] = photoBlock($("photoBlocks"), kind, title));
+
+// ---- bike overview (top and side sketches; live pixel colours in the demo) ----
+const SVGNS = "http://www.w3.org/2000/svg";
+const sv = (tag, attrs = {}) => { const e = document.createElementNS(SVGNS, tag); for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v); return e; };
+const ov = { dots: [], rings: [] };
+function buildOverview() {
+  const top = $("ovTop"), side = $("ovSide");
+  top.textContent = ""; side.textContent = ""; ov.dots = []; ov.rings = [];
+  if (!app.settings) return;
+  const segs = [];
+  effStrips().forEach((st, i) => st.seg.forEach((g, k) => { if (g[1] > 0 && isMapped(g)) segs.push({ i, k, g }); }));
+  let x0 = -150, x1 = 1950, ym = 450, z0 = -80, z1 = 1300;
+  segs.forEach(({ g }) => [segPos(g, 0), segPos(g, 1)].forEach(p => {
+    x0 = Math.min(x0, p[0] - 80); x1 = Math.max(x1, p[0] + 80); ym = Math.max(ym, Math.abs(p[1]) + 80);
+    z0 = Math.min(z0, p[2] - 80); z1 = Math.max(z1, p[2] + 80);
+  }));
+  top.setAttribute("viewBox", `${x0} ${-ym} ${x1 - x0} ${2 * ym}`);          // svg y = -world y: left side is at the bottom
+  side.setAttribute("viewBox", `${x0} ${-z1} ${x1 - x0} ${z1 - z0}`);        // svg y = -world z
+  // sketch of the bike: 2 wheels and a body (front on the left, x = 0)
+  const body = (tag, a) => sv(tag, { class: "ov-body", ...a });
+  top.append(body("rect", { x: -30, y: -45, width: 660, height: 90, rx: 45 }), body("rect", { x: 1020, y: -45, width: 660, height: 90, rx: 45 }),
+             body("rect", { x: 250, y: -130, width: 1200, height: 260, rx: 70 }), body("line", { x1: 250, y1: -330, x2: 250, y2: 330 }));
+  side.append(body("circle", { cx: 300, cy: -330, r: 330 }), body("circle", { cx: 1350, cy: -330, r: 330 }),
+              body("rect", { x: 380, y: -780, width: 900, height: 300, rx: 60 }), body("line", { x1: 320, y1: -330, x2: 200, y2: -1050 }),
+              body("line", { x1: 120, y1: -1050, x2: 330, y2: -1050 }), body("rect", { x: 900, y: -840, width: 520, height: 60, rx: 30 }));
+  const lbl = (svg, x, y, t) => { const e = sv("text", { x, y, class: "ov-txt" }); e.textContent = t; svg.append(e); };
+  lbl(top, x0 + 20, -ym + 90, "right"); lbl(top, x0 + 20, ym - 30, "left"); lbl(top, x1 - 260, -ym + 90, "rear"); lbl(top, x0 + 20, 16, "front");
+  lbl(side, x1 - 260, -z1 + 90, "rear"); lbl(side, x0 + 20, -z1 + 90, "front");
+  segs.forEach(({ i, k, g }) => {
+    const p0 = segPos(g, 0), p1 = segPos(g, 1), col = ROLE_LINE[g[2]] || ROLE_LINE.none;
+    [[top, p => -p[1]], [side, p => -p[2]]].forEach(([svg, fy]) => svg.append(sv("line", {
+      x1: p0[0], y1: fy(p0), x2: p1[0], y2: fy(p1), stroke: col, "stroke-width": 26, "stroke-linecap": "round",
+      opacity: app.demo ? 0.3 : 0.95, "data-seg": `${i}.${k}` })));
+  });
+  if (app.demo) segs.forEach(({ g }) => {
+    const p0 = segPos(g, 0), p1 = segPos(g, 1), n = g[1], m = Math.min(n, 96);
+    for (let j = 0; j < m; j++) {
+      const idx = m > 1 ? Math.round(j * (n - 1) / (m - 1)) : 0, pos = lerp3(p0, p1, n > 1 ? idx / (n - 1) : 0);
+      const attrs = { r: 13, fill: "rgba(128,138,150,.28)", "data-px": "" };
+      const c1 = sv("circle", { ...attrs, cx: pos[0], cy: -pos[1] }), c2 = sv("circle", { ...attrs, cx: pos[0], cy: -pos[2] });
+      top.append(c1); side.append(c2);
+      ov.dots.push({ c1, c2, g, idx, n, pos, last: "" });
+    }
+  });
+  for (const svg of [top, side]) {
+    const r = sv("circle", { r: 42, fill: "none", "stroke-width": 9, visibility: "hidden", style: "stroke:var(--ink)", "data-ring": "" });
+    svg.append(r); ov.rings.push(r);
+  }
+  $("ovNote").textContent = !segs.length ? "No segments are mapped yet. Enter positions on the Strips tab, or map from photos above."
+    : app.demo ? `${segs.length} mapped segment${segs.length > 1 ? "s" : ""}, with live pixel colours (demo). Unsaved edits are included.`
+    : `${segs.length} mapped segment${segs.length > 1 ? "s" : ""} (static map). Unsaved edits are included.`;
+  ovFind(); ovUpdate();
+}
+function ovFind() {
+  if (!ov.rings.length) return;
+  let pos = null;
+  if (finder.active && app.settings) {
+    for (const g of effStrip(finder.strip).seg)
+      if (g[1] > 0 && isMapped(g) && finder.n >= g[0] && finder.n < g[0] + g[1]) { pos = lerp3(segPos(g, 0), segPos(g, 1), g[1] > 1 ? (finder.n - g[0]) / (g[1] - 1) : 0); break; }
+  }
+  ov.rings.forEach((r, n) => {
+    r.setAttribute("visibility", pos ? "visible" : "hidden");
+    if (pos) { r.setAttribute("cx", pos[0]); r.setAttribute("cy", -pos[n ? 2 : 1]); }
+  });
+}
+function ovUpdate() {
+  if (!app.demo || !app.settings || !app.status || !ov.dots.length) return;
+  const s = app.settings, st = app.status, now = performance.now(), bnd = posBounds(effStrips());
+  const scale = (typeof st.bud === "number" ? st.bud : 100) / 100;
+  for (const d of ov.dots) {
+    const c = d.g[2] === "accent" ? accentPix(s, d.idx, d.n, d.pos, bnd, now, scale) : segRgb(s, d.g[2], st);
+    const key = c.join(",");
+    if (key !== d.last) {
+      d.last = key;
+      const f = Math.max(...c) > 8 ? `rgb(${key})` : "rgba(128,138,150,.28)";
+      d.c1.setAttribute("fill", f); d.c2.setAttribute("fill", f);
+    }
+  }
+}
+setInterval(() => { if (app.tab === "map") ovUpdate(); }, 60);
+
+// ---- test flow: position-based underglow effects, previous settings restored on Stop ----
+function tfStart(mode) {
+  if (!app.settings) return;
+  const A = app.settings.accent;
+  if (!app.testPrev) app.testPrev = { on: A.on, mode: A.mode };
+  patch({ accent: { on: true, mode } });
+}
+function tfStop() {
+  const p = app.testPrev;
+  if (!p) { toast("No test is running"); return; }
+  app.testPrev = null;
+  patch({ accent: { on: p.on, mode: p.mode } });
+  tfPaint();
+}
+function tfPaint() {
+  const A = app.settings && app.settings.accent;
+  [["tfWave", "wave"], ["tfSweep", "sweep"], ["tfRise", "rise"]].forEach(([id, m]) =>
+    $(id).setAttribute("aria-pressed", String(!!(app.testPrev && A && A.on && A.mode === m))));
+  $("tfStop").disabled = !app.testPrev;
+}
+$("tfWave").onclick = () => tfStart("wave");
+$("tfSweep").onclick = () => tfStart("sweep");
+$("tfRise").onclick = () => tfStart("rise");
+$("tfStop").onclick = tfStop;
+
+// ---- shared current budget ----
+function ampField(label, ma, onCommit) {
+  const v = el("span", { class: "val" }, (ma / 1000).toFixed(1) + " A");
+  const r = el("input", { type: "range", min: 2, max: 28, step: 0.5, value: ma / 1000, "aria-label": label });
+  r.addEventListener("input", () => v.textContent = Number(r.value).toFixed(1) + " A");
+  r.addEventListener("change", () => onCommit(Math.round(Number(r.value) * 1000)));
+  return el("div", { class: "field" }, el("span", { class: "lbl" }, label), v, r);
+}
+function budgetUi() {
+  const B = app.settings.budget || { lit_ma: 14000, dark_ma: 20000 };
+  const p = $("budgetPanel"); p.textContent = "";
+  p.append(
+    ampField("Headlight Low or High", B.lit_ma, v => patch({ budget: { lit_ma: v, dark_ma: Math.max(B.dark_ma, v) } })),
+    ampField("Headlight Off or Running", B.dark_ma, v => patch({ budget: { lit_ma: Math.min(B.lit_ma, v), dark_ma: v } })));
+}
+
+// Live link watchdog: no status for 2 s while connected.
+setInterval(() => {
+  if (app.link && app.status && Date.now() - app.lastLive > 2000 && $("linkBtn").textContent === "Disconnect")
+    setLink(app.link.name() + " (no updates)", false);
+  else if (app.link && app.status && Date.now() - app.lastLive <= 2000 && $("linkBtn").textContent === "Disconnect")
+    setLink(app.link.name(), true);
+}, 1000);
+</script>
+<script>
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
