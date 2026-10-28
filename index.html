@@ -287,8 +287,12 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 .lay-file { margin-top: 8px; font-size: 14px; color: var(--muted); }
 .lay-run { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 6px 14px 10px; border-top: 1px solid var(--line); }
 .lay-run:first-child { border-top: 0; }
-.lay-run.sel { background: color-mix(in srgb, var(--blue) 10%, var(--panel)); }
-.lay-run.found { box-shadow: inset 4px 0 0 var(--amber); }
+#layRuns { max-height: 320px; overflow-y: auto; }
+.lay-run { border-left: 4px solid transparent; }
+.lay-run.sel { border-left-color: var(--blue); background: color-mix(in srgb, var(--blue) 10%, var(--panel)); }
+.lay-run.sel .lay-pick { background: color-mix(in srgb, var(--blue) 22%, var(--panel)); border-radius: var(--radius-ctl); padding: 0 8px; margin: 0 -8px; width: calc(100% + 16px); }
+.lay-head label { color: var(--blue); font-weight: 600; }
+.lay-run.found { border-left-color: var(--amber); }
 .lay-pick { display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 0 10px; align-items: center; text-align: left; min-height: 44px; background: none; border: 0; padding: 0; cursor: pointer; width: 100%; }
 .lay-pick .sw { width: 14px; height: 14px; border-radius: 3px; grid-row: span 2; }
 .lay-pick b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -403,20 +407,24 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
         <canvas class="lay" id="layCanvas" role="img" aria-label="Photo of the bike with the LED strips drawn on it"></canvas>
         <div class="ph-row" id="layTools">
           <button class="btn small" id="layAdd">Add run</button>
+          <button class="btn small" id="layAddPt" disabled>Add point</button>
+          <button class="btn small" id="layAddRing">Add ring</button>
           <button class="btn small" id="layDone" disabled>Done</button>
           <button class="btn small" id="layUndo" disabled>Undo point</button>
           <button class="btn small" id="layZoom" aria-pressed="false">2× zoom</button>
           <button class="btn small" id="layRemovePhoto" disabled>Remove photo</button>
         </div>
+        <div class="ph-row"><button class="btn small" id="layGhosts" aria-pressed="true">Show other view's runs</button></div>
         <div class="legend">
           <span><i style="background:#e8352b"></i>Tail / brake</span>
           <span><i style="background:#ffa41b"></i>Turn</span>
           <span><i style="background:#3b82ff"></i>Underglow</span>
           <span><i style="background:#8a949e"></i>Unused</span>
         </div>
-        <p class="ph-info">Hollow dot: first pixel. Filled dot: last pixel. Arrows show the data direction.</p>
+        <p class="ph-info">Hollow dot: first pixel. Filled dot: last pixel. Arrows show the data direction. Dashed bars are runs drawn on the other view, at their depth: drag one sideways to set it.</p>
       </div>
     </div>
+    <div class="panel" id="layRing" hidden></div>
     <h2>Runs</h2>
     <div class="panel" id="layRuns"></div>
     <div class="panel" id="layEditor" hidden></div>
@@ -620,6 +628,16 @@ function chipOf(st, prefer) {
 // Segment = [start, count, role, reverse] plus, in any order, two [x,y,z] mm arrays (first pixel, last pixel;
 // x front->rear, y left(-)->right(+), z up) and one {idle, rgb} object (safety roles only).
 const MAX_SEGS = 12;
+// The length unit the user sees and types. The board and the stored run points stay in millimeters, converted at the edge:
+// change this one constant (and the preset suggestions below) to switch units.
+const UNIT = { name: "in", sym: '"', mm: 25.4 };
+const toMm = v => v * UNIT.mm;
+const fromMm = mm => mm / UNIT.mm;
+const numLen = mm => String(Math.round(fromMm(mm) * 10) / 10);                           // 59.1, for input fields
+const fmtLen = mm => (Math.round(fromMm(mm) * 10) / 10).toFixed(1) + UNIT.sym;           // 59.1"
+const GRID_MM = toMm(4);                                                                 // photo grid: every 4"
+const SNAP = 0.5;                                                                        // ghost drags snap to half a unit
+const perFoot = perMeter => Math.round(perMeter * 0.3048);                               // LEDs per meter -> per foot
 const rnd = v => Math.round(Number(v) || 0);
 const segArrs = g => g.slice(4).filter(Array.isArray);
 const isMapped = g => { const q = segArrs(g); return q.length >= 2 && [q[0], q[1]].some(p => p.some(v => Number(v) !== 0)); };
@@ -743,7 +761,7 @@ function parseSeg(g) {
 }
 const parseSegs = list => (Array.isArray(list) ? list : []).slice(0, MAX_SEGS).map(parseSeg);
 
-// Bounding box of every mapped segment (the position-based effects normalise over it).
+// Bounding box of every mapped segment (the position-based effects normalize over it).
 function posBounds(strips) {
   const b = { x: [Infinity, -Infinity], y: [Infinity, -Infinity], z: [Infinity, -Infinity], any: false };
   strips.forEach(st => st.seg.forEach(g => {
@@ -1315,9 +1333,9 @@ function setSettings(s) {
         f.append(el("div", { class: "hint", id: "posHint" }, "No segments are mapped yet — the effect runs along each strip. Map them in the Map tab."));
       return f;
     })(),
-    (() => { const c = el("input", { type: "color", value: hex(A.rgb), "aria-label": "Colour" });
+    (() => { const c = el("input", { type: "color", value: hex(A.rgb), "aria-label": "Color" });
              c.onchange = () => patch({ accent: { rgb: unhex(c.value) } });
-             return el("div", { class: "field" }, el("span", { class: "lbl" }, "Colour"), c); })(),
+             return el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), c); })(),
     rangeField("Brightness", A.pct, 0, 100, 1, "%", v => patch({ accent: { pct: v } })),
     rangeField("Speed", A.speed, 1, 10, 1, "", v => patch({ accent: { speed: v } }), "For every effect except solid."));
 
@@ -1326,7 +1344,7 @@ function setSettings(s) {
     rangeField("Flash rate", s.blink.fpm, 60, 120, 1, " /min", v => patch({ blink: { fpm: v } })),
     rangeField("On time", s.blink.duty, 30, 75, 1, "%", v => patch({ blink: { duty: v } })),
     selectField("Style", [["flash", "Flash"], ["sweep", "Sweep"]], s.turn.style, v => patch({ turn: { style: v } })),
-    selectField("Rear colour", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
+    selectField("Rear color", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
     rangeField("Brightness", s.turn.pct, 40, 100, 1, "%", v => patch({ turn: { pct: v } })),
     rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."));
 
@@ -1361,7 +1379,7 @@ function mapNodes(draft) {
   if (pos < total) nodes.push(el("div", { style: `flex:${total - pos}` }));
   return nodes;
 }
-// Lit segments show what the strip shows now; dark ones show their job colour, faded.
+// Lit segments show what the strip shows now; dark ones show their job color, faded.
 function paintMaps() {
   if (!app.settings) return;
   document.querySelectorAll(".map [data-role]").forEach(d => {
@@ -1454,7 +1472,7 @@ function buildStrips() {
       derived.textContent = "";
       if (draft.chip !== "custom" && !draft.edit) {
         derived.append(
-          el("div", { class: "kv" }, kv("Timing", draft.timing === "400k" ? "400 kHz" : "800 kHz"), kv("Colours", draft.rgbw ? "RGBW" : "RGB"),
+          el("div", { class: "kv" }, kv("Timing", draft.timing === "400k" ? "400 kHz" : "800 kHz"), kv("Colors", draft.rgbw ? "RGBW" : "RGB"),
             kv("LEDs per pixel", draft.lpp), kv("Channels add up", draft.sum ? "yes" : "no"), kv("mA per pixel", draft.px_ma)),
           el("div", { class: "strip-actions", style: "padding:0 14px 10px" },
             el("button", { class: "btn small", "data-edit": i, onclick: () => { draft.edit = true; drawDerived(); redraw(); } }, "Edit")));
@@ -1465,7 +1483,7 @@ function buildStrips() {
         switchField("RGBW (4 channels)", draft.rgbw, v => { markCustom(); draft.rgbw = v; redraw(); }),
         numField("LEDs per pixel", draft.lpp, 1, 3, 1, v => draft.lpp = clamp(v | 0, 1, 3)),
         switchField("Channels add up", draft.sum, v => { markCustom(); draft.sum = v; redraw(); },
-          "On for strips where each colour draws its own current (WS2811/WS2812B). Off for constant-current drivers like WS2815."),
+          "On for strips where each color draws its own current (WS2811/WS2812B). Off for constant-current drivers like WS2815."),
         numField("mA per pixel", draft.px_ma, 5, 80, 1, v => draft.px_ma = clamp(v | 0, 5, 80), "At full white, measured on the 12 V side."));
       if (draft.chip !== "custom")
         derived.append(el("div", { class: "strip-actions", style: "padding:0 14px 10px" },
@@ -1473,9 +1491,9 @@ function buildStrips() {
     };
 
     // ---- mA/pixel from the strip's label ----
-    const hw = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Watts per metre" });
-    const hp = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Pixels per metre" });
-    const hl = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "LEDs per metre" });
+    const hw = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Watts per meter" });
+    const hp = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Pixels per meter" });
+    const hl = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "LEDs per meter" });
     const hres = el("p", { class: "note" });
     const hbtn = el("button", { class: "btn small", disabled: true }, "Use it");
     let hval = null;
@@ -1485,7 +1503,7 @@ function buildStrips() {
         hval = clamp(Math.round(w / 12 / ppm * 1000), 5, 80);
         hres.textContent = `${w} W/m ÷ 12 V ÷ ${+ppm.toFixed(2)} px/m ≈ ${Math.round(w / 12 / ppm * 1000)} mA per pixel` + (hval !== Math.round(w / 12 / ppm * 1000) ? ` (limited to ${hval})` : "");
         hbtn.disabled = false; hbtn.textContent = `Use ${hval} mA`;
-      } else { hval = null; hres.textContent = "Enter the watts per metre and either pixels per metre or LEDs per metre."; hbtn.disabled = true; hbtn.textContent = "Use it"; }
+      } else { hval = null; hres.textContent = "Enter the watts per meter and either pixels per meter or LEDs per meter."; hbtn.disabled = true; hbtn.textContent = "Use it"; }
     };
     [hw, hp, hl].forEach(x => x.addEventListener("input", hcalc));
     hbtn.onclick = () => {
@@ -1497,8 +1515,8 @@ function buildStrips() {
       el("summary", {}, "Work out mA/pixel from the strip's label"),
       el("div", { class: "body" },
         el("div", { class: "helper-grid" },
-          el("label", {}, "Watts per metre", hw), el("label", {}, "Pixels per metre", hp),
-          el("label", {}, "or LEDs per metre", hl)),
+          el("label", {}, "Watts per meter", hw), el("label", {}, "Pixels per meter", hp),
+          el("label", {}, "or LEDs per meter", hl)),
         hres, hbtn));
 
     card.append(
@@ -1507,7 +1525,7 @@ function buildStrips() {
       chipField, derived, helper,
       el("div", { class: "strip-props" },
         numIn("Pixels", draft.px, 0, 800, 1, v => draft.px = clamp(v | 0, 0, 800)),
-        el("label", {}, "Colour order", order),
+        el("label", {}, "Color order", order),
         numIn("Current cap (A)", draft.cap_ma / 1000, 0.5, 7, 0.1, v => draft.cap_ma = Math.round(v * 1000))),
       est);
     drawDerived(); refreshHead(); refreshEst();
@@ -1525,17 +1543,17 @@ function buildStrips() {
       // idle look: what a safety segment shows while its own function is off
       const cur = idleOk(g[2]) && segIdleOf(g);
       const idleSel = el("select", { "aria-label": "Idle look", "data-idle": key, disabled: !idleOk(g[2]) },
-        ...[["off", "Off"], ["accent", "Join underglow"], ["color", "Colour"]].map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
-      const idleCol = el("input", { type: "color", "aria-label": "Idle colour", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
+        ...[["off", "Off"], ["accent", "Join underglow"], ["color", "Color"]].map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
+      const idleCol = el("input", { type: "color", "aria-label": "Idle color", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
       const setIdle = () => {
         g.length = 6; const o = idleObj(idleSel.value, unhex(idleCol.value)); if (o) g.push(o);
         idleCol.hidden = idleSel.value !== "color"; upd(); redraw();
       };
       idleSel.onchange = setIdle; idleCol.onchange = setIdle;
       const mk = (r, c) => {
-        const inp = el("input", { type: "number", step: 1, min: -9999, max: 9999, inputmode: "numeric", value: segPos(g, r)[c],
-                                  "aria-label": `${r ? "Last" : "First"} pixel ${"xyz"[c]} (mm)`, "data-pos": `${r}${"xyz"[c]}` });
-        inp.addEventListener("input", () => { ensure(); g[4 + r][c] = Math.round(Number(inp.value) || 0); upd(); redraw(); });
+        const inp = el("input", { type: "number", step: 0.1, min: -400, max: 400, inputmode: "decimal", value: numLen(segPos(g, r)[c]),
+                                  "aria-label": `${r ? "Last" : "First"} pixel ${"xyz"[c]} (${UNIT.name})`, "data-pos": `${r}${"xyz"[c]}` });
+        inp.addEventListener("input", () => { ensure(); g[4 + r][c] = Math.round(toMm(Number(inp.value) || 0)); upd(); redraw(); });
         return inp;
       };
       const row = (r, label) => el("div", { class: "pos-grid" }, el("span", { class: "cap" }, label), mk(r, 0), mk(r, 1), mk(r, 2));
@@ -1552,11 +1570,11 @@ function buildStrips() {
         el("div", { class: "body" },
           el("div", { class: "ph-row", style: "margin:0 0 6px" }, el("label", { class: "note" }, "Idle look "), idleSel, idleCol),
           el("p", { class: "note", style: "margin:0 0 8px" }, idleOk(g[2])
-            ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Colour: a steady colour then. Both follow underglow on/off."
+            ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Color: a steady color then. Both follow underglow on/off."
             : "Only tail, brake and turn segments have an idle look."),
-          el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x mm"), el("span", { class: "pos-head" }, "y mm"), el("span", { class: "pos-head" }, "z mm")),
+          el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x " + UNIT.name), el("span", { class: "pos-head" }, "y " + UNIT.name), el("span", { class: "pos-head" }, "z " + UNIT.name)),
           row(0, "First pixel"), row(1, "Last pixel"),
-          el("p", { class: "note" }, "x: front 0 → rear. y: left − → right +. z: up. Millimetres on the bike."),
+          el("p", { class: "note" }, "x: front 0 → rear. y: left − → right +. z: up. Inches on the bike (the board keeps whole millimeters)."),
           el("div", { class: "btns", style: "margin-top:4px" }, mirror, clear)));
       det.addEventListener("toggle", () => { det.open ? app.open.add(key) : app.open.delete(key); });
       upd();
@@ -1760,10 +1778,10 @@ const VIEWS = {
 const RUN_ROLES = [["accent", "Underglow"], ["tail", "Tail"], ["brake", "Brake"], ["turn_l", "Turn L"], ["turn_r", "Turn R"],
                    ["tail_turn_l", "Tail + Turn L"], ["tail_turn_r", "Tail + Turn R"], ["none", "Unused"]];
 const DENSITIES = [144, 96, 60, 30];
-const IDLE_MODES = [["off", "Off"], ["accent", "Join underglow"], ["color", "Colour"]];
+const IDLE_MODES = [["off", "Off"], ["accent", "Join underglow"], ["color", "Color"]];
 const CAL_PRESETS = [["", "Preset…"], ["wheel", "Wheel diameter"], ["wheelbase", "Wheelbase"], ["bars", "Handlebar width"]];
-const CAL_TYPICAL = { wheel: 700, wheelbase: 1450, bars: 780 };   // typical values; a typed number always wins
-const LS = { cal: "rcr.lay.cal.v1", runs: "rcr.lay.runs.v1", runsDemo: "rcr.lay.runs.demo.v1", img: v => "rcr.lay.img." + v };
+const CAL_TYPICAL = { wheel: 27.5, wheelbase: 57, bars: 30.7 };   // suggestions in inches; a typed number always wins
+const LS = { ghosts: "rcr.lay.ghosts", cal: "rcr.lay.cal.v1", runs: "rcr.lay.runs.v1", runsDemo: "rcr.lay.runs.demo.v1", img: v => "rcr.lay.img." + v };
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } },
@@ -1772,7 +1790,7 @@ const store = {
 const newCal = () => ({ zero: null, a: null, b: null, mm: 0, front: "right", preset: "", typed: false, snap: null });
 const lay = {
   view: "side", mode: "none", sel: null, drawing: null, demoKey: false,
-  runs: [], nextId: 1, lastChip: "ws2815", find: null, cam: null, g: null, lastTap: null,
+  runs: [], nextId: 1, lastChip: "ws2815", find: null, cam: null, g: null, lastTap: null, ghosts: true, ring: null,
   photo: { side: null, rear: null },                       // {img, url, W, H}
   cal: { side: newCal(), rear: newCal() },
   vw: { side: { z: 1, cx: 0, cy: 0 }, rear: { z: 1, cx: 0, cy: 0 } },
@@ -1781,10 +1799,17 @@ const lay = {
 // ---- geometry ----
 const rnd1 = v => Math.round(v * 10) / 10;
 const dist3 = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+const RING_OBL = 0.35;   // a flat ring is drawn as an ellipse this much squashed in the side view
+// How a run's [x,y,z] points land in a view's plane (a flat ring is shown obliquely so it reads as a ring).
+function projOf(r, view) {
+  const V = VIEWS[view];
+  if (r.ring && r.ring.orient === "h" && r.view === view) { const yc = r.ring.yc; return p => [p[V.hi], p[V.vi] + RING_OBL * (p[1] - yc)]; }
+  return p => [p[V.hi], p[V.vi]];
+}
 const runById = id => lay.runs.find(r => r.id === id) || null;
 const runLen = r => { let L = 0; for (let i = 1; i < r.pts.length; i++) L += dist3(r.pts[i - 1], r.pts[i]); return L; };
 const lppOf = r => (CHIP_BY[r.chip] ? CHIP_BY[r.chip].f.lpp : 1);
-// Pixel count from the drawn length: round(length_mm / 1000 x LEDs per metre / LEDs per pixel). An edited count sticks.
+// Pixel count from the drawn length: round(length_mm / 1000 x LEDs per meter / LEDs per pixel). An edited count sticks.
 function layAutoCount(r) { if (!r.countEdited) r.count = Math.max(0, Math.round(runLen(r) / 1000 * (r.dens || 0) / lppOf(r))); }
 function splitCounts(total, lens) {   // integers proportional to length, summing to total
   const L = lens.reduce((a, b) => a + b, 0), raw = lens.map(l => L > 0 ? total * l / L : total / lens.length);
@@ -1842,9 +1867,18 @@ function calChange(view, fn) {
   const before = calOk(c) ? calCopy(c) : c.snap;
   fn(c);
   if (calOk(c)) {
-    if (before) for (const r of lay.runs) if (r.view === view) for (const p of r.pts) {
-      const [x, y] = calP2I(view, before, p[V.hi], p[V.vi]), [h, v] = calI2P(view, c, x, y);
-      p[V.hi] = h; p[V.vi] = v;
+    if (before) {
+      const ratio = calScale(c) / calScale(before);
+      for (const r of lay.runs) if (r.view === view) {
+        for (const p of r.pts) {
+          const [x, y] = calP2I(view, before, p[V.hi], p[V.vi]), [h, v] = calI2P(view, c, x, y);
+          p[V.hi] = h; p[V.vi] = v;
+        }
+        if (r.ring) {
+          const [x, y] = calP2I(view, before, r.ring.xc, r.ring.zc), [h, v] = calI2P(view, c, x, y);
+          r.ring.xc = h; r.ring.zc = v; r.ring.rad *= ratio;
+        }
+      }
     }
     c.snap = null;
   } else if (before && !c.snap) c.snap = before;
@@ -1857,6 +1891,7 @@ function saveRuns() {
   store.set(lay.demoKey ? LS.runsDemo : LS.runs, JSON.stringify({ v: 1, nextId: lay.nextId, sel: lay.sel, lastChip: lay.lastChip, runs: lay.runs }));
 }
 function layBoot() {
+  lay.ghosts = store.get(LS.ghosts) !== "0";
   try {
     const o = JSON.parse(store.get(LS.cal) || "null");
     if (o) for (const v of Object.keys(VIEWS)) if (o[v]) Object.assign(lay.cal[v], newCal(), o[v]);
@@ -1929,7 +1964,7 @@ function laySanitize() {
     const seen = new Set([r.id]);
     for (let q = runById(r.next); q; q = runById(q.next)) { if (seen.has(q.id)) { r.next = null; break; } seen.add(q.id); }
   }
-  if (!runById(lay.sel)) lay.sel = lay.runs.length ? lay.runs[0].id : null;
+  if (!runById(lay.sel)) lay.sel = null;
 }
 // Rebuild runs from strip settings: one run per contiguous same-role stretch that is also continuous in space;
 // runs from one strip are chained in pixel order and given that strip's output.
@@ -1993,15 +2028,21 @@ function layFrame(view) {
     const ok = calOk(c);
     return { kind: "photo", W: ph.W, H: ph.H, ok, p2f: ok ? (h, v) => calP2I(view, c, h, v) : null, f2p: ok ? (x, y) => calI2P(view, c, x, y) : null };
   }
-  let h0 = view === "side" ? -250 : -500, h1 = view === "side" ? 1800 : 500, v0 = -80, v1 = 1300;
-  for (const r of lay.runs) if (r.view === view) for (const p of r.pts) {
-    h0 = Math.min(h0, Math.floor((p[V.hi] - 100) / 100) * 100); h1 = Math.max(h1, Math.ceil((p[V.hi] + 100) / 100) * 100);
-    v0 = Math.min(v0, Math.floor((p[V.vi] - 100) / 100) * 100); v1 = Math.max(v1, Math.ceil((p[V.vi] + 100) / 100) * 100);
+  const G = GRID_MM;
+  let h0 = (view === "side" ? -10 : -20) * UNIT.mm, h1 = (view === "side" ? 72 : 20) * UNIT.mm, v0 = -3 * UNIT.mm, v1 = 50 * UNIT.mm;
+  for (const r of lay.runs) if (r.view === view) {
+    const pj = projOf(r, view);
+    for (const p of r.pts) {
+      const [h, v] = pj(p);
+      h0 = Math.min(h0, Math.floor((h - G) / G) * G); h1 = Math.max(h1, Math.ceil((h + G) / G) * G);
+      v0 = Math.min(v0, Math.floor((v - G) / G) * G); v1 = Math.max(v1, Math.ceil((v + G) / G) * G);
+    }
   }
   const k = 0.5;
   return { kind: "schem", W: (h1 - h0) * k, H: (v1 - v0) * k, ok: true, h0, h1, v0, v1,
            p2f: (h, v) => [(h - h0) * k, (v1 - v) * k], f2p: (x, y) => [x / k + h0, v1 - y / k] };
 }
+// Runs drawn on the other view, shown on this one at their depth: {r, h (across this view), v0, v1 (z range)}.
 function layRunGs(r) {   // the run as demo/board segments [start,count,role,rev,p0,p1,idle?] with unrounded positions
   const out = []; const idl = runIdle(r);
   runSegCounts(r).forEach((c, i) => { if (c > 0) out.push([0, c, r.role, false, r.pts[i], r.pts[i + 1], ...(idl ? [idl] : [])]); });
@@ -2021,36 +2062,42 @@ function layDraw() {
   const C = (fx, fy) => [(fx - ox) * k, (fy - oy) * k];
   const P = (h, v) => C(...fr.p2f(h, v));
   const cam = lay.cam = { k, ox, oy, dpr, fr, visW, visH, C, P, view, toFrame: p => [ox + p.x / k, oy + p.y / k] };
-  const x = cv.getContext("2d"), cs = getComputedStyle(cv), muted = cs.getPropertyValue("--muted").trim() || "#667", ink = cs.getPropertyValue("--ink").trim() || "#111";
-  x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, cw, chh);
+  const x = cv.getContext("2d"), cs = getComputedStyle(cv), ink = cs.getPropertyValue("--ink").trim() || "#111";
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.clearRect(0, 0, cw, chh);
   x.lineCap = "round"; x.lineJoin = "round";
   if (ph) x.drawImage(ph.img, ox, oy, visW, visH, 0, 0, cw, chh);
   const text = (t, px, py, col, align) => {
     x.font = `600 ${Math.round(11 * dpr)}px sans-serif`; x.textAlign = align || "left"; x.textBaseline = "top";
     x.lineWidth = 3 * dpr; x.strokeStyle = "rgba(0,0,0,.55)"; x.strokeText(t, px, py); x.fillStyle = col; x.fillText(t, px, py);
   };
+  const ellipse = (R, orient, dashed) => {   // outline of a ring around a tube
+    const c0 = P(R.xc, R.zc), e = P(R.xc + R.rad, R.zc), rx = Math.abs(e[0] - c0[0]), ry = orient === "h" ? rx * RING_OBL : rx;
+    x.beginPath(); x.ellipse(c0[0], c0[1], rx, ry, 0, 0, 7);
+    if (dashed) x.setLineDash([5 * dpr, 4 * dpr]);
+    x.stroke(); x.setLineDash([]);
+  };
 
-  // mm grid, every 100 mm (every 1000 mm when zoomed far out)
+  // grid: every 4 inches (every 40 when zoomed far out), labeled every 5th line
   if (fr.ok) {
     const a = fr.f2p(ox, oy), b = fr.f2p(ox + visW, oy + visH);
     const h0 = Math.min(a[0], b[0]), h1 = Math.max(a[0], b[0]), v0 = Math.min(a[1], b[1]), v1 = Math.max(a[1], b[1]);
-    let step = 100;
-    if ((h1 - h0) / step > 70 || (v1 - v0) / step > 70) step = 1000;
+    let step = GRID_MM;
+    if ((h1 - h0) / step > 70 || (v1 - v0) / step > 70) step *= 10;
     if ((h1 - h0) / step <= 70 && (v1 - v0) / step <= 70) {
       const line = (x0, y0, x1, y1, major) => {
         x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1);
         if (ph) { x.strokeStyle = "rgba(0,0,0,.25)"; x.lineWidth = (major ? 3 : 2) * dpr; x.stroke(); }
         x.strokeStyle = ph ? `rgba(255,255,255,${major ? .75 : .45})` : `rgba(140,150,160,${major ? .55 : .25})`; x.lineWidth = (major ? 1.5 : 1) * dpr; x.stroke();
       };
-      for (let h = Math.ceil(h0 / step) * step; h <= h1; h += step) {
-        const px = P(h, 0)[0], major = h % (step * 5) === 0;
+      for (let n = Math.ceil(h0 / step - 1e-9); n * step <= h1; n++) {
+        const px = P(n * step, 0)[0], major = n % 5 === 0;
         line(px, 0, px, chh, major);
-        if (major) text(h + (h === 0 ? " " + (view === "side" ? "x" : "y") : ""), px + 3 * dpr, 2 * dpr, "#fff");
+        if (major) text(numLen(n * step) + (n === 0 ? " " + (view === "side" ? "x" : "y") : ""), px + 3 * dpr, 2 * dpr, "#fff");
       }
-      for (let v = Math.ceil(v0 / step) * step; v <= v1; v += step) {
-        const py = P(0, v)[1], major = v % (step * 5) === 0;
+      for (let n = Math.ceil(v0 / step - 1e-9); n * step <= v1; n++) {
+        const py = P(0, n * step)[1], major = n % 5 === 0;
         line(0, py, cw, py, major);
-        if (major) text(v + (v === 0 ? " z" : ""), 3 * dpr, py + 2 * dpr, "#fff");
+        if (major) text(numLen(n * step) + (n === 0 ? " z" : ""), 3 * dpr, py + 2 * dpr, "#fff");
       }
     }
   }
@@ -2066,7 +2113,7 @@ function layDraw() {
     const r0 = 7 * dpr;
     if (c.a && c.b) { x.beginPath(); x.moveTo(...C(...c.a)); x.lineTo(...C(...c.b)); x.strokeStyle = "#00d0ff"; x.lineWidth = 2 * dpr; x.stroke(); }
     [c.a, c.b].forEach(p => { if (!p) return; const q = C(...p); x.beginPath(); x.arc(q[0], q[1], r0 / 2, 0, 7); x.fillStyle = "#00d0ff"; x.fill(); });
-    if (c.a && c.b && c.mm > 0) { const m = C((c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2); text(c.mm + " mm", m[0], m[1] + 6 * dpr, "#00d0ff", "center"); }
+    if (c.a && c.b && c.mm > 0) { const m = C((c.a[0] + c.b[0]) / 2, (c.a[1] + c.b[1]) / 2); text(fmtLen(c.mm), m[0], m[1] + 6 * dpr, "#00d0ff", "center"); }
     if (c.zero) {
       const q = C(...c.zero); x.beginPath();
       x.moveTo(q[0] - r0 * 1.8, q[1]); x.lineTo(q[0] + r0 * 1.8, q[1]); x.moveTo(q[0], q[1] - r0 * 1.8); x.lineTo(q[0], q[1] + r0 * 1.8);
@@ -2075,37 +2122,53 @@ function layDraw() {
   }
 
   if (fr.ok) {
-    const runs = lay.runs.filter(r => r.view === view && r.pts.length);
+    // other view's runs, as dashed bars at their depth
+    for (const gh of layGhostList(view)) {
+      const a = P(gh.h, gh.v0), b = P(gh.h, gh.v1), col = ROLE_LINE[gh.r.role] || ROLE_LINE.none, top = Math.min(a[1], b[1]), bot = Math.max(a[1], b[1]);
+      x.save(); x.globalAlpha = 0.5; x.strokeStyle = col; x.lineWidth = 3 * dpr; x.setLineDash([5 * dpr, 4 * dpr]);
+      x.beginPath(); x.moveTo(a[0], top); x.lineTo(a[0], bot); x.stroke(); x.setLineDash([]);
+      x.beginPath(); x.moveTo(a[0] - 6 * dpr, top); x.lineTo(a[0] + 6 * dpr, top); x.moveTo(a[0] - 6 * dpr, bot); x.lineTo(a[0] + 6 * dpr, bot); x.stroke();
+      if (gh.r.id === lay.sel) { x.globalAlpha = 0.9; x.strokeStyle = "#fff"; x.lineWidth = dpr; x.beginPath(); x.moveTo(a[0] + 3 * dpr, top); x.lineTo(a[0] + 3 * dpr, bot); x.stroke(); }
+      x.restore();
+      text(gh.r.name, a[0], top - 14 * dpr, col, "center");
+    }
+    const runs = lay.runs.filter(r => r.view === view && r.pts.length), dimOthers = !!runById(lay.sel);
     // wires between chained runs
     x.setLineDash([6 * dpr, 5 * dpr]); x.lineWidth = 2 * dpr; x.strokeStyle = "rgba(220,225,230,.85)";
     for (const r of runs) {
       const n = runById(r.next);
-      if (n && n.view === view && n.pts.length) { x.beginPath(); x.moveTo(...P(r.pts[r.pts.length - 1][V.hi], r.pts[r.pts.length - 1][V.vi])); x.lineTo(...P(n.pts[0][V.hi], n.pts[0][V.vi])); x.stroke(); }
+      if (n && n.view === view && n.pts.length) {
+        x.beginPath(); x.moveTo(...P(...projOf(r, view)(r.pts[r.pts.length - 1]))); x.lineTo(...P(...projOf(n, view)(n.pts[0]))); x.stroke();
+      }
     }
     x.setLineDash([]);
     const live = app.demo && app.settings && app.status;
     const bnd = live ? posBounds([{ seg: lay.runs.flatMap(layRunGs) }]) : null, now = performance.now();
     const scale = live ? (typeof app.status.bud === "number" ? app.status.bud : 100) / 100 : 1;
-    for (const r of runs) {
-      const pts = r.pts.map(p => P(p[V.hi], p[V.vi])), col = ROLE_LINE[r.role] || ROLE_LINE.none, sel = r.id === lay.sel;
+    // selected run last so it sits on top
+    const order = [...runs.filter(r => r.id !== lay.sel), ...runs.filter(r => r.id === lay.sel)];
+    for (const r of order) {
+      const pj = projOf(r, view), pts = r.pts.map(p => P(...pj(p))), col = ROLE_LINE[r.role] || ROLE_LINE.none, sel = r.id === lay.sel;
+      x.globalAlpha = dimOthers && !sel ? 0.4 : 1;
       const path = () => { x.beginPath(); pts.forEach((q, i) => i ? x.lineTo(q[0], q[1]) : x.moveTo(q[0], q[1])); };
+      if (r.ring && r.ring.half !== "B") { x.strokeStyle = col; x.lineWidth = 1.5 * dpr; x.globalAlpha *= 0.6; ellipse(r.ring, r.ring.orient, true); x.globalAlpha = dimOthers && !sel ? 0.4 : 1; }
       if (pts.length > 1) {
-        path(); x.strokeStyle = sel ? "rgba(255,255,255,.9)" : "rgba(0,0,0,.45)"; x.lineWidth = (sel ? 7 : 5.5) * dpr; x.stroke();
-        path(); x.strokeStyle = col; x.lineWidth = 3.5 * dpr; x.stroke();
+        path(); x.strokeStyle = sel ? "#fff" : "rgba(0,0,0,.45)"; x.lineWidth = (sel ? 5 : 3.5) * dpr; x.stroke();   // white 1 px glow around the 3 px line
+        path(); x.strokeStyle = col; x.lineWidth = (sel ? 3 : 2) * dpr; x.stroke();
         for (let i = 0; i + 1 < pts.length; i++) {   // data direction
           const a = pts[i], b = pts[i + 1], len = Math.hypot(b[0] - a[0], b[1] - a[1]);
-          if (len < 44 * dpr) continue;
-          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, s = 6 * dpr;
+          if (len < 36 * dpr) continue;
+          const ang = Math.atan2(b[1] - a[1], b[0] - a[0]), mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2, s = (sel ? 7 : 5.5) * dpr;
           x.beginPath(); x.moveTo(mx + Math.cos(ang) * s, my + Math.sin(ang) * s);
           x.lineTo(mx + Math.cos(ang + 2.5) * s, my + Math.sin(ang + 2.5) * s); x.lineTo(mx + Math.cos(ang - 2.5) * s, my + Math.sin(ang - 2.5) * s); x.closePath();
           x.fillStyle = "#fff"; x.strokeStyle = "rgba(0,0,0,.6)"; x.lineWidth = 1.5 * dpr; x.stroke(); x.fill();
         }
       }
-      // pixel dots: when zoomed in, and with live colours in the demo
+      // pixel dots: when zoomed in, and with live colors in the demo
       if ((z > 1 || live) && r.count > 0 && pts.length > 1) {
         const gs = layRunGs(r), s = app.settings, st = app.status;
         gs.forEach(g => {
-          const n = g[1], a = P(g[4][V.hi], g[4][V.vi]), b = P(g[5][V.hi], g[5][V.vi]);
+          const n = g[1], a = P(...pj(g[4])), b = P(...pj(g[5]));
           const sp = Math.hypot(b[0] - a[0], b[1] - a[1]) / Math.max(1, n - 1), step = Math.max(1, Math.ceil(3 * dpr / Math.max(sp, 0.01)));
           const rad = clamp(sp * 0.42, 1.6 * dpr, 4.5 * dpr);
           for (let j = 0; j < n; j += step) {
@@ -2120,27 +2183,36 @@ function layDraw() {
           }
         });
       }
-      // vertices of the selected run; first pixel hollow, last pixel filled
+      // vertices of the selected run; first pixel hollow, last pixel filled (larger when selected)
       if (sel) pts.forEach((q, i) => {
         if (i === 0 || i === pts.length - 1) return;
-        x.beginPath(); x.arc(q[0], q[1], 5 * dpr, 0, 7); x.fillStyle = "#fff"; x.fill(); x.strokeStyle = col; x.lineWidth = 2 * dpr; x.stroke();
+        x.beginPath(); x.arc(q[0], q[1], 6 * dpr, 0, 7); x.fillStyle = "#fff"; x.fill(); x.strokeStyle = col; x.lineWidth = 2.5 * dpr; x.stroke();
       });
-      const rr = (sel ? 7 : 5.5) * dpr, q0 = pts[0], q1 = pts[pts.length - 1];
-      x.beginPath(); x.arc(q0[0], q0[1], rr, 0, 7); x.strokeStyle = "rgba(0,0,0,.7)"; x.lineWidth = 5 * dpr; x.stroke();
-      x.strokeStyle = col; x.lineWidth = 2.5 * dpr; x.stroke();
+      const rr = (sel ? 10 : 5.5) * dpr, q0 = pts[0], q1 = pts[pts.length - 1];
+      x.beginPath(); x.arc(q0[0], q0[1], rr, 0, 7); x.strokeStyle = sel ? "#fff" : "rgba(0,0,0,.7)"; x.lineWidth = (sel ? 6 : 5) * dpr; x.stroke();
+      x.strokeStyle = col; x.lineWidth = (sel ? 3.5 : 2.5) * dpr; x.stroke();
       if (pts.length > 1) {
-        x.beginPath(); x.arc(q1[0], q1[1], rr, 0, 7); x.fillStyle = col; x.fill(); x.strokeStyle = "#fff"; x.lineWidth = 2 * dpr; x.stroke();
+        x.beginPath(); x.arc(q1[0], q1[1], rr, 0, 7); x.fillStyle = col; x.fill(); x.strokeStyle = "#fff"; x.lineWidth = (sel ? 3 : 2) * dpr; x.stroke();
       }
     }
+    x.globalAlpha = 1;
     // the pixel finder's pixel
     const f = lay.find;
     if (f && f.pos) {
       const fr0 = runById(f.runId);
       if (fr0 && fr0.view === view) {
-        const q = P(f.pos[V.hi], f.pos[V.vi]);
+        const q = P(...projOf(fr0, view)(f.pos));
         x.beginPath(); x.arc(q[0], q[1], 13 * dpr, 0, 7); x.strokeStyle = "rgba(0,0,0,.7)"; x.lineWidth = 6 * dpr; x.stroke();
         x.strokeStyle = "#fff"; x.lineWidth = 3 * dpr; x.stroke();
       }
+    }
+    // ring being set up: tube center and a preview of the ring
+    const R = lay.ring;
+    if (R && R.xc != null && view === "side") {
+      const q = P(R.xc, R.zc), rad = toMm(R.dia) / 2;
+      x.strokeStyle = "#ff3df0"; x.lineWidth = 2 * dpr;
+      x.beginPath(); x.moveTo(q[0] - 9 * dpr, q[1]); x.lineTo(q[0] + 9 * dpr, q[1]); x.moveTo(q[0], q[1] - 9 * dpr); x.lineTo(q[0], q[1] + 9 * dpr); x.stroke();
+      if (rad > 0) ellipse({ xc: R.xc, zc: R.zc, rad }, R.orient, false);
     }
   }
 }
@@ -2151,13 +2223,23 @@ function layPt(ev) {
   if (!lay.cam || !r.width) return null;
   return { x: (ev.clientX - r.left) * cv.width / r.width, y: (ev.clientY - r.top) * cv.height / r.height };
 }
-function layHit(p) {   // nearest vertex of any run on this view, within about a fingertip
+function layHit(p) {   // nearest vertex of a run (or a ghost bar of the other view), within about a fingertip
   const cam = lay.cam; if (!cam || cam.fr.kind !== "photo" || !cam.fr.ok) return null;
-  const V = VIEWS[cam.view]; let best = null, bd = (24 * cam.dpr) ** 2;
-  for (const r of lay.runs) if (r.view === cam.view && (lay.mode !== "draw" || r.id === lay.drawing)) r.pts.forEach((q, i) => {
-    const c = cam.P(q[V.hi], q[V.vi]), d = (c[0] - p.x) ** 2 + (c[1] - p.y) ** 2 - (r.id === lay.sel ? 40 : 0);
-    if (d < bd) { bd = d; best = { r, i }; }
-  });
+  let best = null, bd = (24 * cam.dpr) ** 2;
+  for (const r of lay.runs) if (r.view === cam.view && (lay.mode !== "draw" || r.id === lay.drawing)) {
+    const pj = projOf(r, cam.view);
+    r.pts.forEach((q, i) => {
+      const c = cam.P(...pj(q)), d = (c[0] - p.x) ** 2 + (c[1] - p.y) ** 2 - (r.id === lay.sel ? 40 : 0);
+      if (d < bd) { bd = d; best = { r, i }; }
+    });
+  }
+  if (best || lay.mode !== "none") return best;
+  let gd = 24 * cam.dpr;
+  for (const gh of layGhostList(cam.view)) {
+    const a = cam.P(gh.h, gh.v0), b = cam.P(gh.h, gh.v1), top = Math.min(a[1], b[1]) - 14 * cam.dpr, bot = Math.max(a[1], b[1]) + 14 * cam.dpr;
+    const d = Math.abs(a[0] - p.x);
+    if (d < gd && p.y >= top && p.y <= bot) { gd = d; best = { ghost: gh.r }; }
+  }
   return best;
 }
 function layTap(p, hit) {
@@ -2174,6 +2256,10 @@ function layTap(p, hit) {
     calChange(view, () => { if (!c.a || (c.a && c.b)) { c.a = f; c.b = null; } else c.b = f; });
     if (c.a && c.b) { lay.mode = "none"; layRenderAll(); const m = document.querySelector(`[data-cal-mm="${view}"]`); if (m && !c.mm) m.focus(); }
     else layRenderAll();
+  } else if (lay.mode === "ring" && lay.ring && fr.kind === "photo" && fr.ok) {
+    const [h, v] = fr.f2p(f[0], f[1]);
+    lay.ring.xc = rnd1(h); lay.ring.zc = rnd1(v);
+    layRenderAll();
   } else if (lay.mode === "draw") {
     if (dbl) { layFinish(); return; }
     const r = runById(lay.drawing);
@@ -2181,7 +2267,12 @@ function layTap(p, hit) {
     const [h, v] = fr.f2p(f[0], f[1]), q = [0, 0, 0];
     q[V.hi] = rnd1(h); q[V.vi] = rnd1(v); q[V.di] = r.depth || 0;
     r.pts.push(q); layAutoCount(r); layChanged({});
-  } else if (hit) laySelect(hit.r.id);
+  } else if (hit) {
+    if (hit.ghost) laySelect(hit.ghost.id, { keepView: true, fromCanvas: true });
+    else laySelect(hit.r.id, { fromCanvas: true });
+  } else if (lay.mode === "none" && lay.sel != null) {   // tapping empty canvas deselects
+    lay.sel = null; layChanged({ editor: true });
+  }
 }
 function layBindPointer() {
   const cv = $("layCanvas");
@@ -2190,18 +2281,30 @@ function layBindPointer() {
     const p = layPt(ev); if (!p) return;
     ev.preventDefault();
     try { cv.setPointerCapture(ev.pointerId); } catch (e) { /* synthetic pointers */ }
-    lay.g = { id: ev.pointerId, p0: p, moved: false, hit: lay.mode === "zero" || lay.mode === "ref" ? null : layHit(p), pan: { ...lay.vw[lay.view] } };
+    lay.g = { id: ev.pointerId, p0: p, moved: false, hit: ["zero", "ref", "ring"].includes(lay.mode) ? null : layHit(p), pan: { ...lay.vw[lay.view] } };
   });
   cv.addEventListener("pointermove", ev => {
     const g = lay.g; if (!g || g.id !== ev.pointerId) return;
     const p = layPt(ev), cam = lay.cam; if (!p) return;
     if (!g.moved && Math.hypot(p.x - g.p0.x, p.y - g.p0.y) > 6 * cam.dpr) g.moved = true;
     if (!g.moved) return;
-    if (g.hit) {   // drag a vertex
-      const V = VIEWS[cam.view], f = cam.toFrame(p), [h, v] = cam.fr.f2p(f[0], f[1]), q = g.hit.r.pts[g.hit.i];
-      q[V.hi] = rnd1(h); q[V.vi] = rnd1(v); g.dragged = true;
-      if (lay.sel !== g.hit.r.id) { lay.sel = g.hit.r.id; layRenderAll(); }
-      layAutoCount(g.hit.r); layDraw();
+    if (g.hit) {
+      const V = VIEWS[cam.view], f = cam.toFrame(p), [h, v] = cam.fr.f2p(f[0], f[1]);
+      if (!g.prev) { const f0 = cam.toFrame(g.p0); g.prev = cam.fr.f2p(f0[0], f0[1]); }
+      const owner = g.hit.ghost || g.hit.r;
+      if (lay.sel !== owner.id) { lay.sel = owner.id; layRenderAll(); }
+      if (g.hit.ghost) {   // drag a ghost across: sets that run's depth, snapped to half an inch
+        setRunDepth(owner, Math.round(h / toMm(SNAP)) * toMm(SNAP));
+      } else if (owner.ring) {   // a ring moves as a whole
+        const dh = h - g.prev[0], dv = v - g.prev[1];
+        for (const m of lay.runs.filter(x => x.ring && x.ring.id === owner.ring.id && x.view === owner.view)) {
+          m.pts.forEach(q => { q[V.hi] += dh; q[V.vi] += dv; }); m.ring.xc += dh; m.ring.zc += dv;
+        }
+      } else {   // drag a vertex
+        const q = owner.pts[g.hit.i];
+        q[V.hi] = rnd1(h); q[V.vi] = rnd1(v); layAutoCount(owner);
+      }
+      g.prev = [h, v]; g.dragged = true; layDraw();
     } else if (lay.vw[cam.view].z === 2) {   // pan
       const vw = lay.vw[cam.view]; vw.cx = g.pan.cx - (p.x - g.p0.x) / cam.k; vw.cy = g.pan.cy - (p.y - g.p0.y) / cam.k; layDraw();
     }
@@ -2216,6 +2319,7 @@ function layBindPointer() {
   cv.addEventListener("pointerup", ev => end(ev, false));
   cv.addEventListener("pointercancel", ev => end(ev, true));
 }
+// The depth of a run (the axis its photo cannot see). Rings move as a group around their center.
 
 // ---- actions ----
 function layChanged(o) {
@@ -2227,19 +2331,24 @@ function layChanged(o) {
 function laySetView(view) {
   if (lay.mode === "draw") layFinish(true);
   lay.view = view; if (lay.mode !== "none") lay.mode = "none";
+  lay.ring = null;
   layRenderAll();
 }
 function laySetMode(m) {
   if (lay.mode === "draw" && m !== "draw") { layFinish(true); }
-  lay.mode = m; layRenderCal(); layRenderTools(); layHow(); layDraw();
+  if (m !== "ring") lay.ring = null;
+  lay.mode = m; layRenderCal(); layRenderTools(); layHow(); layRenderRing(); layDraw();
 }
-function laySelect(id) {
+function laySelect(id, o) {
+  o = o || {};
   const r = runById(id); if (!r) return;
   if (lay.mode === "draw" && lay.drawing !== id) layFinish(true);
   lay.sel = id;
-  if (r.view !== lay.view) { lay.view = r.view; lay.mode = "none"; layRenderAll(); return; }
+  if (r.view !== lay.view && !o.keepView) { lay.view = r.view; lay.mode = "none"; lay.ring = null; layRenderAll(); layRevealRun(); return; }
   layChanged({ editor: true });
+  if (o.fromCanvas) layRevealRun();
 }
+// Bring the selected run's card into view inside the runs list (the list scrolls, not the page).
 function layAddRun() {
   const view = lay.view, fr = layFrame(view);
   if (lay.mode === "draw") layFinish(true);
@@ -2250,8 +2359,10 @@ function layAddRun() {
   saveRuns(); layRenderAll();
 }
 function layDrawOn(r) {   // add points to an existing run
+  if (lay.mode === "draw" && lay.drawing !== r.id) layFinish(true);
+  if (lay.mode === "ring") { lay.ring = null; }
   if (r.view !== lay.view) { lay.view = r.view; }
-  if (!layFrame(r.view).ok || !lay.photo[r.view]) { toast("Add and calibrate the " + VIEWS[r.view].label.toLowerCase() + " photo first", true); layRenderAll(); return; }
+  if (!layFrame(r.view).ok || !lay.photo[r.view]) { lay.mode = "none"; toast("Add and calibrate the " + VIEWS[r.view].label.toLowerCase() + " photo first", true); layRenderAll(); return; }
   lay.sel = r.id; lay.drawing = r.id; lay.mode = "draw"; layRenderAll();
 }
 function layFinish(quiet) {
@@ -2272,7 +2383,7 @@ function layDelete(id, silent) {
   else if (nxt) nxt.out = r.out;   // the next run becomes the head: keep the output
   lay.runs = lay.runs.filter(x => x.id !== id);
   if (lay.drawing === id) { lay.drawing = null; lay.mode = "none"; }
-  if (lay.sel === id) lay.sel = lay.runs.length ? lay.runs[lay.runs.length - 1].id : null;
+  if (lay.sel === id) lay.sel = null;
   saveRuns(); layRenderAll();
   if (!silent) toast(`${r.name} deleted`);
 }
@@ -2294,6 +2405,7 @@ function layMirror(r) {   // copy on the other side of the bike: y negated, left
   m.pts = r.pts.map(p => [p[0], p[1] ? -p[1] : 0, p[2]]);
   m.role = MIRROR_ROLE[r.role] || r.role;
   if (r.view === "side") m.depth = r.depth ? -r.depth : 0;
+  if (m.ring) { m.ring.id = "m" + m.id; m.ring.yc = m.ring.yc ? -m.ring.yc : 0; }
   lay.runs.push(m); lay.sel = m.id; saveRuns(); layRenderAll(); toast(`${m.name} added`);
 }
 function layReverse(r) { r.pts.reverse(); layChanged({ editor: true }); }
@@ -2303,20 +2415,24 @@ function layHow() {
   const view = lay.view, c = lay.cal[view], ph = lay.photo[view], t = $("layHow");
   let msg;
   if (!ph) msg = "No photo yet: this is a plain schematic of the runs. Add a photo of the bike, taken square-on, to draw on it.";
-  else if (lay.mode === "zero") msg = view === "side" ? "Tap the ground directly under the front axle. That is x 0, z 0." : "Tap the ground on the bike's centreline. That is y 0, z 0.";
-  else if (lay.mode === "ref") msg = c.a && !c.b ? "Now tap the second point." : "Tap two points a known distance apart (wheel top and bottom, wheelbase, handlebar ends), then type the distance.";
+  else if (lay.mode === "zero") msg = view === "side" ? "Tap the ground directly under the front axle. That is x 0, z 0." : "Tap the ground on the bike's centerline. That is y 0, z 0.";
+  else if (lay.mode === "ref") msg = c.a && !c.b ? "Now tap the second point." : "Tap two points a known distance apart (wheel top and bottom, wheelbase, handlebar ends), then type the distance in inches.";
   else if (lay.mode === "draw") msg = "Tap along the strip from the first pixel to the last. Double-tap or Done ends the run. Drag a dot to move it.";
-  else if (!calOk(c)) msg = "Calibrate: " + [!c.zero && "tap the zero point", !(c.a && c.b) && "tap two scale points", !(c.mm > 0) && "type their distance in mm"].filter(Boolean).join(", ") + ".";
-  else msg = `Calibrated: 1 photo pixel = ${calScale(c).toFixed(2)} mm. The grid is every 100 mm: check it against something you know. Tap Add run to draw a strip.`;
+  else if (lay.mode === "ring") msg = lay.ring && lay.ring.xc != null ? "Set up the ring below, then tap Create ring. Tap the photo again to move the center." : "Tap the center of the fork tube on the side photo.";
+  else if (!calOk(c)) msg = "Calibrate: " + [!c.zero && "tap the zero point", !(c.a && c.b) && "tap two scale points", !(c.mm > 0) && "type their distance in inches"].filter(Boolean).join(", ") + ".";
+  else msg = `Calibrated: 1 photo pixel = ${(calScale(c) / UNIT.mm).toFixed(3)}${UNIT.sym}. The grid is every ${numLen(GRID_MM)}${UNIT.sym}: check it against something you know. Tap Add run to draw a strip.`;
   t.textContent = msg;
 }
 function layRenderTools() {
   const v = lay.view, r = runById(lay.sel);
   $("layDone").disabled = lay.mode !== "draw";
   $("layUndo").disabled = !(r && r.view === v && r.pts.length);
+  $("layAddPt").disabled = !r;
   $("layZoom").setAttribute("aria-pressed", String(lay.vw[v].z === 2));
   $("layRemovePhoto").disabled = !lay.photo[v];
   $("layAdd").setAttribute("aria-pressed", String(lay.mode === "draw"));
+  $("layAddRing").setAttribute("aria-pressed", String(lay.mode === "ring"));
+  $("layGhosts").setAttribute("aria-pressed", String(lay.ghosts));
 }
 function layRenderCal() {
   const view = lay.view, c = lay.cal[view], ph = lay.photo[view], box = $("layCal");
@@ -2326,34 +2442,34 @@ function layRenderCal() {
   if (!ph) return;
   const step = (mode, text, done) => el("button", { class: "btn small", "data-cal": mode, "aria-pressed": String(lay.mode === mode),
     onclick: () => laySetMode(lay.mode === mode ? "none" : mode) }, text + (done ? " ✓" : ""));
-  const mm = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", "data-cal-mm": view, "aria-label": "Real distance between the two scale points, mm", placeholder: "mm", value: c.mm || "" });
-  const preset = el("select", { "aria-label": "Measurement preset", "data-cal-preset": view }, ...CAL_PRESETS.map(([v, t]) => el("option", { value: v, selected: v === c.preset }, t)));
+  const mm = el("input", { type: "number", min: 0.1, step: 0.1, inputmode: "decimal", "data-cal-mm": view, "aria-label": `Real distance between the two scale points, ${UNIT.name}`, placeholder: UNIT.name, value: c.mm ? numLen(c.mm) : "" });
+  const preset = el("select", { "aria-label": "Measurement preset", "data-cal-preset": view }, ...CAL_PRESETS.map(([v, t]) => el("option", { value: v, selected: v === c.preset }, v ? `${t} (${CAL_TYPICAL[v]}${UNIT.sym})` : t)));
   const info = el("p", { class: "ph-info", "data-cal-info": view });
   const showInfo = () => {
-    info.textContent = (calOk(c) ? `Scale: 1 px = ${calScale(c).toFixed(2)} mm. ` : "Not calibrated yet. ") +
+    info.textContent = (calOk(c) ? `Scale: 1 px = ${(calScale(c) / UNIT.mm).toFixed(3)}${UNIT.sym}. ` : "Not calibrated yet. ") +
       (c.preset && !c.typed ? "The preset is a typical value: type your own if yours differs." : "");
   };
   mm.addEventListener("input", () => {
     c.typed = true;
-    calChange(view, () => { c.mm = Number(mm.value) > 0 ? Number(mm.value) : 0; });
+    calChange(view, () => { c.mm = Number(mm.value) > 0 ? toMm(Number(mm.value)) : 0; });
     showInfo(); layHow(); layDraw(); layChanged({});
   });
   preset.addEventListener("change", () => {
     c.preset = preset.value;
-    if (preset.value && !c.typed) { mm.value = CAL_TYPICAL[preset.value]; calChange(view, () => { c.mm = CAL_TYPICAL[preset.value]; }); layChanged({}); }
+    if (preset.value && !c.typed) { mm.value = CAL_TYPICAL[preset.value]; calChange(view, () => { c.mm = toMm(CAL_TYPICAL[preset.value]); }); layChanged({}); }
     showInfo(); layHow(); layDraw();
   });
   const frontBtn = (val, text) => el("button", { class: "btn small", "data-front": val, "aria-pressed": String(c.front === val),
     onclick: () => { calChange(view, () => { c.front = val; }); layRenderAll(); } }, text);
   box.append(
     el("div", { class: "ph-steps" }, step("zero", "1 Zero point", !!c.zero), step("ref", "2 Scale points", !!(c.a && c.b))),
-    el("div", { class: "ph-row" }, el("label", { class: "note" }, "Their distance, mm ", mm), preset),
+    el("div", { class: "ph-row" }, el("label", { class: "note" }, `Their distance, ${UNIT.name} `, mm), preset),
     view === "side" ? el("div", { class: "ph-row" }, el("span", { class: "note" }, "3 Front of the bike points"), frontBtn("right", "→"), frontBtn("left", "←")) : null,
     info);
   showInfo();
 }
 function layRenderRuns() {
-  const box = $("layRuns"); box.textContent = "";
+  const box = $("layRuns"), keep = box.scrollTop; box.textContent = "";
   if (!lay.runs.length) {
     box.append(el("p", { class: "note lay-empty" }, "No runs yet. Add a photo, calibrate it, then tap Add run and tap along a strip. Or import what is already on the board."));
     return;
@@ -2367,7 +2483,7 @@ function layRenderRuns() {
       el("option", { value: "" }, "Not connected"),
       ...cand.map(b => el("option", { value: b.id, selected: b.id === r.next }, "→ " + b.name)));
     sel.onchange = () => layConnect(r.id, sel.value ? +sel.value : null);
-    const meta = [VIEWS[r.view].label, `${r.count} px`, r.pts.length < 2 ? "unplaced" : `${nsg} segment${nsg === 1 ? "" : "s"}`, "○→●"];
+    const meta = [VIEWS[r.view].label, `${r.count} px`, r.pts.length < 2 ? "unplaced" : fmtLen(runLen(r)), r.pts.length < 2 ? "" : `${nsg} segment${nsg === 1 ? "" : "s"}`, "○→●"].filter(Boolean);
     if (ch && ch.out) meta.push("output " + ch.out);
     if (f) meta.push(`pixel ${lay.find.n} is in segment ${lay.find.seg + 1}`);
     box.append(el("div", { class: "lay-run" + (r.id === lay.sel ? " sel" : "") + (f ? " found" : ""), "data-run": r.id },
@@ -2375,14 +2491,15 @@ function layRenderRuns() {
         el("i", { class: "sw", style: `background:${ROLE_LINE[r.role] || ROLE_LINE.none}` }), el("b", {}, r.name), el("span", { class: "note" }, meta.join(" · "))),
       el("label", { class: "lay-conn" }, "End wired to", sel)));
   });
+  box.scrollTop = keep;
 }
 const ed = { r: null, len: null, implied: null, count: null, depth: null, depthChips: [] };
 function edDerived() {
   const r = ed.r; if (!r || !ed.len || !ed.len.isConnected) return;
   const L = runLen(r), nsg = runSegs(r).length;
-  ed.len.textContent = r.pts.length < 2 ? "Draw at least two points to get a length." : `Length ${Math.round(L)} mm, ${nsg} segment${nsg === 1 ? "" : "s"}.`;
+  ed.len.textContent = r.pts.length < 2 ? "Draw at least two points to get a length." : `Length ${fmtLen(L)}, ${nsg} segment${nsg === 1 ? "" : "s"}.`;
   const imp = L > 0 ? Math.round(r.count * lppOf(r) / (L / 1000)) : 0;
-  ed.implied.textContent = !L ? "" : r.countEdited ? `Typed count: that is ${imp} LEDs per metre.` : `From ${r.dens} LEDs per metre.`;
+  ed.implied.textContent = !L ? "" : r.countEdited ? `Typed count: that is ${imp} LEDs per meter (≈ ${perFoot(imp)} per foot).` : `From ${r.dens} LEDs per meter (≈ ${perFoot(r.dens)} per foot).`;
   if (ed.count && document.activeElement !== ed.count) ed.count.value = r.count;
 }
 function layRenderEditor() {
@@ -2391,14 +2508,14 @@ function layRenderEditor() {
   if (!r) return;
   const name = el("input", { type: "text", value: r.name, maxlength: 24, "aria-label": "Run name", "data-ed": "name" });
   name.oninput = () => { r.name = name.value; layChanged({}); };
-  box.append(el("div", { class: "field" }, el("label", {}, "Name"), name));
+  box.append(el("div", { class: "field lay-head" }, el("label", {}, "Name"), name));
   const tag = (f, k) => { f.querySelector("select").setAttribute("data-ed", k); return f; };
   box.append(
     tag(selectField("Role", RUN_ROLES, r.role, v => { r.role = v; layChanged({ editor: true }); }), "role"),
     tag(selectField("LED chip", CHIP_OPTIONS, r.chip, v => { r.chip = v; lay.lastChip = v; r.countEdited = false; layAutoCount(r); layChanged({ editor: true }); }), "chip"));
-  // density and pixel count
-  const densSel = el("select", { "data-ed": "dens", "aria-label": "LEDs per metre" },
-    ...DENSITIES.map(d => el("option", { value: d, selected: !r.densCustom && r.dens === d }, d + " per metre")),
+  // density (per meter, as strips are sold) and pixel count
+  const densSel = el("select", { "data-ed": "dens", "aria-label": "LEDs per meter" },
+    ...DENSITIES.map(d => el("option", { value: d, selected: !r.densCustom && r.dens === d }, `${d} per meter (≈ ${perFoot(d)} per foot)`)),
     el("option", { value: "custom", selected: r.densCustom }, "Custom"));
   densSel.onchange = () => {
     if (densSel.value === "custom") r.densCustom = true; else { r.densCustom = false; r.dens = +densSel.value; }
@@ -2406,9 +2523,10 @@ function layRenderEditor() {
   };
   box.append(el("div", { class: "field" }, el("label", {}, "LED density"), densSel));
   if (r.densCustom) {
-    const cd = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", value: r.dens, "aria-label": "Custom LEDs per metre", "data-ed": "dens-custom" });
-    cd.oninput = () => { r.dens = Number(cd.value) || 0; r.countEdited = false; layAutoCount(r); layChanged({}); };
-    box.append(el("div", { class: "field" }, el("label", {}, "LEDs per metre"), cd));
+    const hint = el("div", { class: "hint" }, `≈ ${perFoot(r.dens)} per foot`);
+    const cd = el("input", { type: "number", min: 1, step: 1, inputmode: "numeric", value: r.dens, "aria-label": "Custom LEDs per meter", "data-ed": "dens-custom" });
+    cd.oninput = () => { r.dens = Number(cd.value) || 0; hint.textContent = `≈ ${perFoot(r.dens)} per foot`; r.countEdited = false; layAutoCount(r); layChanged({}); };
+    box.append(el("div", { class: "field" }, el("label", {}, "LEDs per meter"), cd, hint));
   }
   ed.count = el("input", { type: "number", min: 0, max: 800, step: 1, inputmode: "numeric", value: r.count, "aria-label": "Pixel count", "data-ed": "count" });
   ed.count.oninput = () => { r.count = clamp(Math.round(Number(ed.count.value)) || 0, 0, 800); r.countEdited = true; layChanged({}); };
@@ -2418,26 +2536,27 @@ function layRenderEditor() {
     el("div", { class: "chips" }, auto, el("span", { class: "note" }, `${lppOf(r)} LED${lppOf(r) > 1 ? "s" : ""} per pixel on this chip`))));
   // depth: the axis the photo cannot see
   const side = r.view === "side";
-  const dvals = new Set(r.pts.map(p => p[V.di])), varies = dvals.size > 1;
-  ed.depth = el("input", { type: "number", step: 1, inputmode: "numeric", value: varies ? "" : r.depth, placeholder: varies ? "varies" : "mm", "aria-label": side ? "Sideways position y, mm" : "Distance from the front axle x, mm", "data-ed": "depth" });
-  const setDepth = v => { r.depth = v; for (const p of r.pts) p[V.di] = v; };
+  const varies = !r.ring && new Set(r.pts.map(p => p[V.di])).size > 1;
+  ed.depth = el("input", { type: "number", step: 0.1, inputmode: "decimal", value: varies ? "" : numLen(r.depth), placeholder: varies ? "varies" : UNIT.name,
+    "aria-label": side ? `Sideways position y, ${UNIT.name}` : `Distance from the front axle x, ${UNIT.name}`, "data-ed": "depth" });
   ed.depthChips = [];
-  const chips = side ? el("div", { class: "chips" }, ...[["Left (−150)", -150], ["Centre (0)", 0], ["Right (+150)", 150]].map(([t, v]) => {
-    const b = el("button", { class: "btn small", "data-depth": v, "aria-pressed": String(!varies && r.depth === v), onclick: () => { setDepth(v); ed.depth.value = v; syncChips(); layChanged({}); } }, t);
+  const syncChips = () => ed.depthChips.forEach(([b, v]) => b.setAttribute("aria-pressed", String(Math.abs(r.depth - toMm(v)) < 0.5)));
+  const chips = side ? el("div", { class: "chips" }, ...[["Left −6" + UNIT.sym, -6], ["Center 0", 0], ["Right +6" + UNIT.sym, 6]].map(([t, v]) => {
+    const b = el("button", { class: "btn small", "data-depth": v, "aria-pressed": String(!varies && Math.abs(r.depth - toMm(v)) < 0.5),
+      onclick: () => { setRunDepth(r, toMm(v)); ed.depth.value = numLen(r.depth); syncChips(); layChanged({}); } }, t);
     ed.depthChips.push([b, v]); return b;
   })) : null;
-  const syncChips = () => ed.depthChips.forEach(([b, v]) => b.setAttribute("aria-pressed", String(r.depth === v)));
-  ed.depth.oninput = () => { if (ed.depth.value === "" || !isFinite(Number(ed.depth.value))) return; setDepth(Math.round(Number(ed.depth.value))); syncChips(); layChanged({}); };
-  box.append(el("div", { class: "field" }, el("label", {}, side ? "Sideways position y (mm)" : "From the front axle x (mm)"), ed.depth, chips,
-    el("div", { class: "hint" }, side ? "How far left (−) or right (+) of the centreline this strip is. The side photo cannot see it."
-                                      : "Distance from the front axle toward the rear. The rear photo cannot see it.")));
+  ed.depth.oninput = () => { if (ed.depth.value === "" || !isFinite(Number(ed.depth.value))) return; setRunDepth(r, toMm(Number(ed.depth.value))); syncChips(); layChanged({}); };
+  box.append(el("div", { class: "field" }, el("label", {}, side ? `Sideways position y (${UNIT.name})` : `From the front axle x (${UNIT.name})`), ed.depth, chips,
+    el("div", { class: "hint" }, (side ? "How far left (−) or right (+) of the centerline this strip is. The side photo cannot see it."
+                                      : "Distance from the front axle toward the rear. The rear photo cannot see it.") + " Drag its ghost on the other view to set it by eye.")));
   // idle look (safety roles only)
   if (idleOk(r.role)) {
-    const col = el("input", { type: "color", value: hex(r.rgb), "aria-label": "Idle colour", "data-ed": "idle-color", hidden: r.idle !== "color" });
+    const col = el("input", { type: "color", value: hex(r.rgb), "aria-label": "Idle color", "data-ed": "idle-color", hidden: r.idle !== "color" });
     col.onchange = () => { r.rgb = unhex(col.value); layChanged({}); };
     const idleBtns = IDLE_MODES.map(([v, t]) => el("button", { class: "btn small", "data-idle": v, "aria-pressed": String(r.idle === v), onclick: () => { r.idle = v; layChanged({ editor: true }); } }, t));
     box.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Idle look"), el("div", { class: "chips" }, ...idleBtns, col),
-      el("div", { class: "hint" }, "What this strip shows while its own light is off. Join underglow and Colour follow the underglow on/off.")));
+      el("div", { class: "hint" }, "What this strip shows while its own light is off. Join underglow and Color follow the underglow on/off.")));
   }
   // direction
   const rev = el("button", { class: "btn small", "data-ed": "reverse", onclick: () => layReverse(r) }, "Reverse");
@@ -2479,7 +2598,7 @@ function layRenderChains() {
 }
 function layRenderAll() {
   if (!lay.runs) return;
-  layRenderCal(); layHow(); layRenderRuns(); layRenderEditor(); layRenderChains(); layRenderTools(); layDraw();
+  layRenderCal(); layHow(); layRenderRing(); layRenderRuns(); layRenderEditor(); layRenderChains(); layRenderTools(); layDraw();
 }
 
 // ---- send to / import from the board ----
@@ -2524,7 +2643,7 @@ function layImport() {
   if (!app.settings) { toast("Connect first (or try the demo)", true); return; }
   const res = runsFromStrips(app.settings.strips);
   if (!res.runs.length) { toast("The board has no segments to import", true); return; }
-  lay.runs = res.runs; lay.nextId = res.nextId; lay.sel = res.runs[0].id; lay.mode = "none"; lay.drawing = null;
+  lay.runs = res.runs; lay.nextId = res.nextId; lay.sel = null; lay.mode = "none"; lay.drawing = null;
   laySanitize(); saveRuns(); layRenderAll();
   const unplaced = lay.runs.filter(r => r.pts.length < 2).length;
   toast(`Imported ${lay.runs.length} run${lay.runs.length > 1 ? "s" : ""}` + (unplaced ? `; ${unplaced} without positions are listed as unplaced` : ""), !!unplaced);
@@ -2543,6 +2662,120 @@ function layFindUpdate() {   // which run, segment and spot on the photo is the 
   }
   layRenderRuns(); layDraw();
 }
+// ---- rings around fork tubes ----
+// A ring is made of ordinary runs: two half-strips (3 segments each) that meet opposite the start, or one full ring (6 segments).
+
+function layGhostList(view) {
+  if (!lay.ghosts) return [];
+  const out = [];
+  for (const r of lay.runs) {
+    if (r.view === view || !r.pts.length) continue;
+    const W = VIEWS[r.view], h = r.ring ? r.ring.yc : r.pts.reduce((s, p) => s + p[W.di], 0) / r.pts.length;
+    let v0 = Math.min(...r.pts.map(p => p[2])), v1 = Math.max(...r.pts.map(p => p[2]));
+    if (v1 - v0 < toMm(3)) { const m = (v0 + v1) / 2; v0 = m - toMm(1.5); v1 = m + toMm(1.5); }
+    out.push({ r, h, v0, v1 });
+  }
+  return out;
+}
+
+function setRunDepth(r, v) {
+  const group = r.ring ? lay.runs.filter(x => x.ring && x.ring.id === r.ring.id) : [r];
+  for (const m of group) {
+    const di = VIEWS[m.view].di;
+    if (m.ring) { const d = v - m.ring.yc; m.pts.forEach(p => { p[di] += d; }); m.ring.yc = v; }
+    else m.pts.forEach(p => { p[di] = v; });
+    m.depth = v;
+  }
+}
+
+function layRevealRun() {
+  const row = document.querySelector("#layRuns .lay-run.sel"), box = $("layRuns");
+  if (!row || !box.clientHeight) return;
+  const rb = row.getBoundingClientRect(), bb = box.getBoundingClientRect();
+  if (rb.top < bb.top) box.scrollTop -= bb.top - rb.top;
+  else if (rb.bottom > bb.bottom) box.scrollTop += rb.bottom - bb.bottom;
+}
+
+function layAddRing() {
+  if (lay.mode === "draw") layFinish(true);
+  if (lay.view !== "side") laySetView("side");
+  if (!lay.photo.side) { toast("Add a side photo first", true); return; }
+  if (!calOk(lay.cal.side)) { toast("Calibrate the side photo first: zero point, two scale points and their distance", true); return; }
+  lay.mode = "ring"; lay.drawing = null;
+  lay.ring = { xc: null, zc: null, dia: 1.5, px: 24, chip: lay.lastChip, side: "left", orient: "h", start: "front", halves: true, yoff: 4 };
+  layRenderAll();
+}
+
+const RING_STARTS = { h: [["front", "Front"], ["back", "Back"], ["out", "Outside"], ["in", "Inside"]],
+                      v: [["front", "Front"], ["back", "Back"], ["top", "Top"], ["bottom", "Bottom"]] };
+
+const RING_ANGLE = { front: 180, back: 0, out: -90, in: 90, top: 90, bottom: -90 };   // left fork; the right fork is the mirror image
+
+function ringPts(R, side, dirSign, steps) {
+  const sgn = side === "left" ? -1 : 1, yc = sgn * toMm(R.yoff), rad = toMm(R.dia) / 2;
+  const mir = R.orient === "h" && side === "right" ? -1 : 1;   // a flat ring on the right fork is the left one mirrored
+  const th0 = RING_ANGLE[R.start] * mir * Math.PI / 180, out = [];
+  for (let k = 0; k <= steps; k++) {
+    const th = th0 + dirSign * mir * k * Math.PI / 3;
+    out.push(R.orient === "h" ? [R.xc + rad * Math.cos(th), yc + rad * Math.sin(th), R.zc] : [R.xc + rad * Math.cos(th), yc, R.zc + rad * Math.sin(th)]);
+  }
+  return { pts: out.map(p => p.map(v => Math.round(v * 10) / 10)), yc, rad };
+}
+
+function layCreateRing() {
+  const R = lay.ring; if (!R || R.xc == null) { toast("Tap the fork tube's center on the photo first", true); return; }
+  if (!(R.dia > 0) || !(R.px > 0)) { toast("Give the tube diameter and the pixel count", true); return; }
+  const sides = R.side === "both" ? ["left", "right"] : [R.side], made = [];
+  for (const side of sides) {
+    const tag = side === "left" ? "L" : "R", role = side === "left" ? "turn_l" : "turn_r", gid = "g" + lay.nextId;
+    const parts = R.halves ? [["A", 1, 3, Math.ceil(R.px / 2)], ["B", -1, 3, Math.floor(R.px / 2)]] : [["", 1, 6, R.px]];
+    const runs = parts.map(([h, dir, steps, count]) => {
+      const g = ringPts(R, side, dir, steps), r = { id: lay.nextId++, ...runDefaults("side") };
+      Object.assign(r, { name: `Fork ${tag}${h ? " " + h : " ring"}`, role, chip: R.chip, pts: g.pts, count, countEdited: true, depth: g.yc,
+                         ring: { id: gid, half: h || "full", xc: R.xc, zc: R.zc, yc: g.yc, rad: g.rad, orient: R.orient } });
+      const len = runLen(r), lpp = lppOf(r);
+      r.dens = len > 0 ? Math.round(count * lpp / (len / 1000)) || 60 : 60; r.densCustom = !DENSITIES.includes(r.dens);
+      return r;
+    });
+    if (runs.length === 2) runs[0].next = runs[1].id;   // half A then half B
+    lay.runs.push(...runs); made.push(...runs);
+  }
+  lay.lastChip = R.chip;
+  lay.mode = "none"; lay.ring = null; lay.sel = made[0].id;
+  saveRuns(); layRenderAll();
+  toast(`Ring created: ${made.length} run${made.length > 1 ? "s" : ""}. Give each chain an output below.`);
+}
+
+function layRenderRing() {
+  const box = $("layRing"), R = lay.ring;
+  box.textContent = ""; box.hidden = !(lay.mode === "ring" && R);
+  if (box.hidden) return;
+  const num = (label, key, step, min) => {
+    const inp = el("input", { type: "number", step, min, inputmode: "decimal", value: R[key], "aria-label": label, "data-ring": key });
+    inp.oninput = () => { R[key] = Number(inp.value); layDraw(); };
+    return el("div", { class: "field" }, el("label", {}, label), inp);
+  };
+  const sel = (label, key, opts, after) => {
+    const f = selectField(label, opts, String(R[key]), v => { R[key] = v === "true" ? true : v === "false" ? false : v; if (after) after(); layDraw(); });
+    f.querySelector("select").setAttribute("data-ring", key); return f;
+  };
+  box.append(
+    el("p", { class: "note lay-empty" }, R.xc == null ? "Tap the center of the fork tube on the photo." : `Tube center: x ${fmtLen(R.xc)}, z ${fmtLen(R.zc)}.`),
+    num(`Tube diameter (${UNIT.name})`, "dia", 0.1, 0.1),
+    num("Total pixels", "px", 1, 2),
+    num(`Fork distance from the centerline (${UNIT.name})`, "yoff", 0.1, 0),
+    tag2(selectField("LED chip", CHIP_OPTIONS, R.chip, v => { R.chip = v; }), "chip"),
+    sel("Role", "side", [["left", "Turn L (left fork)"], ["right", "Turn R (right fork)"], ["both", "Both forks (mirrored pair)"]]),
+    sel("Ring around", "orient", [["h", "a vertical tube (flat ring)"], ["v", "a horizontal tube (upright ring)"]], () => { R.start = "front"; layRenderRing(); }),
+    sel("Start at", "start", RING_STARTS[R.orient]),
+    sel("Strips", "halves", [["true", "Two halves meeting opposite the start"], ["false", "One strip all the way around"]]),
+    el("p", { class: "note lay-empty" }, "Each half becomes 3 segments (a full ring 6); 12 segments per output max. Two halves run front to back together, so animations look the same on both sides."),
+    el("div", { class: "strip-actions" },
+      el("button", { class: "btn small primary", "data-ring": "create", onclick: layCreateRing }, "Create ring"),
+      el("button", { class: "btn small", "data-ring": "cancel", onclick: () => laySetMode("none") }, "Cancel")));
+}
+
+function tag2(f, k) { f.querySelector("select").setAttribute("data-ring", k); return f; }
 
 // ---- wiring ----
 document.querySelectorAll("#layTabs [data-layview]").forEach(b => b.onclick = () => laySetView(b.dataset.layview));
@@ -2551,6 +2784,9 @@ document.querySelectorAll("input[data-photo]").forEach(inp => inp.addEventListen
   inp.value = "";
 }));
 $("layAdd").onclick = layAddRun;
+$("layAddPt").onclick = () => { const r = runById(lay.sel); if (r) layDrawOn(r); };
+$("layAddRing").onclick = layAddRing;
+$("layGhosts").onclick = () => { lay.ghosts = !lay.ghosts; store.set(LS.ghosts, lay.ghosts ? "1" : "0"); layRenderTools(); layDraw(); };
 $("layDone").onclick = () => layFinish();
 $("layUndo").onclick = layUndo;
 $("layZoom").onclick = () => {
