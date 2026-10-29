@@ -169,7 +169,7 @@ p { margin: 6px 0; }
 button.wire { cursor: pointer; }
 button.wire:disabled { cursor: default; }
 
-.banner { padding: 10px 14px; border-radius: var(--radius-panel); margin-bottom: 10px; font-size: 15px; border: 1px solid; }
+.banner { padding: 10px 14px; border-radius: var(--radius-panel); margin-bottom: 10px; font-size: 15px; border: 1px solid; overflow-wrap: anywhere; }
 .banner.bad { border-color: var(--bad); color: var(--bad); background: color-mix(in srgb, var(--bad) 8%, var(--panel)); }
 .banner.warn { border-color: var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); }
 
@@ -642,21 +642,46 @@ const rnd = v => Math.round(Number(v) || 0);
 const segArrs = g => g.slice(4).filter(Array.isArray);
 const isMapped = g => { const q = segArrs(g); return q.length >= 2 && [q[0], q[1]].some(p => p.some(v => Number(v) !== 0)); };
 const segPos = (g, n) => segArrs(g)[n] || [0, 0, 0];
-const segIdleOf = g => { const o = g.slice(4).find(e => e && typeof e === "object" && !Array.isArray(e)); return o && (o.idle === "accent" || o.idle === "color") ? o : null; };
+const segObjOf = g => g.slice(4).find(e => e && typeof e === "object" && !Array.isArray(e)) || null;
+const segIdleOf = g => { const o = segObjOf(g); return o && (o.idle === "accent" || o.idle === "color") ? o : null; };
+const segPctOf = g => { const o = segObjOf(g), p = o && o.pct != null ? Number(o.pct) : 100; return Number.isFinite(p) ? clamp(rnd(p), 0, 100) : 100; };
 const idleOk = role => role !== "accent" && role !== "none";   // accent/none have no idle look
 const idleObj = (mode, rgb) => mode === "color" ? { idle: "color", rgb: (rgb || [0, 0, 255]).map(v => clamp(rnd(v), 0, 255)) }
                              : mode === "accent" ? { idle: "accent" } : null;
+// The segment's trailing object: the idle look and/or its brightness (% of the strip's); null when both are at their defaults.
+const segObj = (mode, rgb, pct) => {
+  const o = idleObj(mode, rgb) || {}, p = pct == null ? 100 : clamp(rnd(pct), 0, 100);
+  if (p !== 100) o.pct = p;
+  return Object.keys(o).length ? o : null;
+};
+// Red-ish idle colors are refused (the board sets idle off) on brake-role and front-pod segments: they would read as a lit lamp.
+const isRedHue = c => c[0] > 0 && 4 * c[1] < c[0] && 4 * c[2] < c[0];
+const redBanned = role => role === "brake" || role === "turn_l" || role === "turn_r";
+const idleBad = (role, idl) => !!(idl && idl.idle === "color" && redBanned(role) && isRedHue(idl.rgb || [0, 0, 255]));
+const RED_NOTE = "Red isn't allowed here at rest; it would look like a lit brake/front signal.";
+const BRIGHT_NOTE = "Brighter than half the brake light — braking won't stand out.";
+const REAR_ROLES = ["tail", "brake", "tail_turn_l", "tail_turn_r"];
+const isTurnRole = r => r === "turn_l" || r === "turn_r" || r === "tail_turn_l" || r === "tail_turn_r";
+const lumY = c => 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
+// Decoration brightness: global underglow % x strip % x segment %, a whole percent (brake/tail/turn colors ignore all three).
+const decoPct = (global, strip, seg) => Math.round((global * (strip == null ? 100 : strip) * (seg == null ? 100 : seg)) / 10000);
+// A rear idle look brighter than half the brake light (what the board's `warn` reports): luminance x effective brightness.
+const idleTooBright = (s, role, idl, pct) => {
+  if (!REAR_ROLES.includes(role) || !idl || idl.idle === "off") return false;
+  const y = idl.idle === "color" ? lumY(idl.rgb || [0, 0, 255]) : (s.accent.mode === "rainbow" || s.accent.mode === "rainbow_x") ? 0.30 * 255 : lumY(s.accent.rgb);
+  return y * pct / 100 > 0.30 * 255 * s.brake_pct / 100 / 2;
+};
 const segOut = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
   if (isMapped(g)) o.push(segPos(g, 0).map(rnd), segPos(g, 1).map(rnd));
-  const idl = idleOk(g[2]) && segIdleOf(g);
-  if (idl) o.push(idleObj(idl.idle, idl.rgb));
+  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl) ? idl.idle : "off", idl && idl.rgb, segPctOf(g));
+  if (ob) o.push(ob);
   return o;
 };
 // Draft form used by the Strips tab: positions always present as arrays, idle object last.
 const canonSeg = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3], segPos(g, 0).slice(), segPos(g, 1).slice()];
-  const i = segIdleOf(g); if (i) o.push(idleObj(i.idle, i.rgb));
+  const i = segIdleOf(g), ob = segObj(i ? i.idle : "off", i && i.rgb, segPctOf(g)); if (ob) o.push(ob);
   return o;
 };
 const ROLE_LINE = { tail: "#e8352b", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
@@ -732,7 +757,7 @@ function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byte
 const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"button":{"short":"accent_toggle","double":"accent_next","long":"hazard"},"strips":[{"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
 // Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
 {
-  const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18 };
+  const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100 };
   DEFAULTS.strips = [
     { ...base, px: 24, seg: [[0, 12, "turn_l", false, [0, -300, 900], [0, -200, 900]],
                              [12, 12, "turn_r", false, [0, 200, 900], [0, 300, 900]]] },
@@ -755,9 +780,26 @@ function parseSeg(g) {
   const o = [g[0] | 0, g[1] | 0, ROLE_LINE[g[2]] ? g[2] : "none", !!g[3]];
   const arrs = segArrs(g);
   if (arrs.length >= 2) { const p0 = pt(arrs[0]), p1 = pt(arrs[1]); if ([...p0, ...p1].some(v => v)) o.push(p0, p1); }
-  const ob = segIdleOf(g);
-  if (ob && idleOk(o[2])) o.push(idleObj(ob.idle, Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null));
+  const ob = segIdleOf(g), mode = ob && idleOk(o[2]) ? ob.idle : "off";
+  const to = segObj(mode, mode === "color" && Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null, segPctOf(g));   // the board echoes it when idle is on or pct is not 100
+  if (to) o.push(to);
   return o;
+}
+// Would the board's segment reader accept this entry ([start, count, role, reverse?, [x,y,z]?, [x,y,z]?, {idle,rgb,pct}?])?
+function segEntryOk(a) {
+  if (!Array.isArray(a) || a.length < 3 || !Number.isFinite(Number(a[0])) || !Number.isFinite(Number(a[1])) || !ROLE_LINE[a[2]]) return false;
+  if (a.length > 3 && a[3] != null && typeof a[3] !== "boolean" && !Number.isFinite(Number(a[3]))) return false;
+  let npos = 0;
+  for (const e of a.slice(4)) {
+    if (e == null) continue;
+    if (Array.isArray(e)) { if (npos++ >= 2 || e.length !== 3 || e.some(v => !Number.isFinite(Number(v)))) return false; }
+    else if (typeof e === "object") {
+      if (e.idle != null && !["off", "accent", "color"].includes(e.idle)) return false;
+      if (e.pct != null && !Number.isFinite(Number(e.pct))) return false;
+      if (e.rgb != null && (!Array.isArray(e.rgb) || e.rgb.length !== 3 || e.rgb.some(v => !Number.isFinite(Number(v))))) return false;
+    } else return false;
+  }
+  return npos !== 1;
 }
 const parseSegs = list => (Array.isArray(list) ? list : []).slice(0, MAX_SEGS).map(parseSeg);
 
@@ -778,7 +820,7 @@ function hsv(h, s, v) {
   return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
 }
 // One underglow pixel in the demo preview. pos = [x,y,z] mm or null (unmapped: runs along the strip).
-function accentPix(s, idx, n, pos, bnd, now, scale) {
+function accentPix(s, idx, n, pos, bnd, now, scale, pct) {
   const A = s.accent;
   if (!A.on) return [0, 0, 0];
   const sp = A.speed || 5, ph = (now / 1000 * sp * 0.08) % 1;
@@ -796,7 +838,7 @@ function accentPix(s, idx, n, pos, bnd, now, scale) {
     case "breathe": k = 0.5 + 0.5 * Math.sin(now / 1000 * sp * 0.6); break;
     case "chase": k = ((Math.floor(ph * n) - idx + n) % n) < Math.max(2, n * 0.1) ? 1 : 0; break;
   }
-  const m = k * A.pct / 100 * scale;
+  const m = k * (pct == null ? A.pct : pct) / 100 * scale;
   return rgb.map(c => Math.round(c * m));
 }
 
@@ -808,33 +850,52 @@ function detectPreset(head) {
 function sortMask(s) { return HEAD_STATES.map(h => h[0]).filter(c => (s || "").toUpperCase().includes(c)).join(""); }
 
 // Merge a `set` patch the way firmware settingsPatch() does.
-function applyPatch(s, p) {
+// `pend` holds the staged `segi` batches (one per strip); returns the notes the board would send back.
+function applyPatch(s, p, pend = [null, null, null, null]) {
+  const notes = [];
   for (const [k, v] of Object.entries(p)) {
     if (k === "strips") {
       (v || []).forEach((e, i) => {
         if (!e || i > 3) return;
         const st = s.strips[i];
+        let nsegReq = null;
         // chip first (applies its preset), then the other keys in the same patch override it
         if (typeof e.chip === "string" && CHIP_BY[e.chip]) Object.assign(st, CHIP_BY[e.chip].f);
         for (const [sk, sv] of Object.entries(e)) {
           if (sk === "chip") continue;
-          if (sk === "seg") st.seg = parseSegs(sv);
+          if (sk === "seg") { st.seg = parseSegs(sv); pend[i] = null; }   // a full replace supersedes a staged batch
           else if (sk === "segi") {
+            // staged, not applied: a batch starts at index 0 (or on top of the live segments) and `nseg` commits it all at once
             (Array.isArray(sv) ? sv : []).forEach(a => {
-              const idx = Array.isArray(a) ? a[0] | 0 : -1;
-              if (idx < 0 || idx >= MAX_SEGS || a.length < 4) return;
-              while (st.seg.length <= idx) st.seg.push([0, 0, "none", false]);
-              st.seg[idx] = parseSeg(a.slice(1));
+              const idx = Array.isArray(a) && a.length >= 4 && Number.isInteger(a[0]) ? a[0] : -1;
+              let pd = pend[i];
+              if (idx < 0 || idx >= MAX_SEGS) {
+                notes.push(`strips[${i}].segi[${idx}]: segi entry must be [index 0..11, start, count, role, ...]`);
+                if (!pd) pd = pend[i] = { bad: false, seg: Array.from({ length: MAX_SEGS }, (_, j) => j < st.seg.length ? st.seg[j].slice() : [0, 0, "none", false]) };
+                pd.bad = true; return;
+              }
+              if (!pd || idx === 0) pd = pend[i] = { bad: false, seg: Array.from({ length: MAX_SEGS }, (_, j) => j < st.seg.length ? st.seg[j].slice() : [0, 0, "none", false]) };
+              if (!segEntryOk(a.slice(1))) { notes.push(`strips[${i}].segi[${idx}]: bad segment; this batch will not be applied`); pd.bad = true; return; }
+              pd.seg[idx] = parseSeg(a.slice(1));
             });
-          } else if (sk === "nseg") {
-            const n = clamp(sv | 0, 0, MAX_SEGS);
-            if (st.seg.length > n) st.seg.length = n;
-            while (st.seg.length < n) st.seg.push([0, 0, "none", false]);
-          }
+          } else if (sk === "nseg") nsegReq = sv;
+          else if (sk === "pct") st.pct = sv;
           else if (sk === "timing") { if (sv === "800k" || sv === "400k") st.timing = sv; }
           else if (sk === "order") { if (ORDERS.includes(sv)) st.order = sv; }
           else if (sk === "rgbw" || sk === "sum") st[sk] = !!sv;
           else st[sk] = sv;
+        }
+        if (nsegReq != null) {   // applied after everything else in this strip's object
+          const pd = pend[i], n = Number(nsegReq);
+          pend[i] = null;
+          if (!Number.isInteger(n) || n < 0 || n > MAX_SEGS) notes.push(`strips[${i}].nseg: nseg must be 0..12; segments unchanged`);
+          else if (pd) {
+            if (pd.bad) notes.push(`strips[${i}].nseg: segment batch had errors, nothing applied; resend from index 0`);
+            else st.seg = pd.seg.slice(0, n).map(g => g.slice());
+          } else {
+            if (st.seg.length > n) st.seg.length = n;
+            while (st.seg.length < n) st.seg.push([0, 0, "none", false]);
+          }
         }
         st.chip = chipOf(st, e.chip || st.chip);
       });
@@ -862,9 +923,15 @@ function applyPatch(s, p) {
   for (const st of s.strips) {
     st.px = clamp(st.px | 0, 0, 800); st.cap_ma = clamp(st.cap_ma | 0, 500, 7000); st.px_ma = clamp(st.px_ma | 0, 5, 80);
     st.lpp = clamp(st.lpp | 0, 1, 3);
-    st.seg = st.seg.map(g => [g[0], g[0] >= st.px ? 0 : Math.min(g[1], st.px - g[0]), g[2], g[3], ...g.slice(4)]);
+    st.pct = clamp(rnd(st.pct == null ? 100 : st.pct), 0, 100);
+    st.seg = st.seg.map(g => {
+      const q = [g[0], g[0] >= st.px ? 0 : Math.min(g[1], st.px - g[0]), g[2], g[3], ...g.slice(4)], i = segIdleOf(q);
+      if (i && idleBad(q[2], i)) { q.pop(); const ob = segObj("off", null, segPctOf(g)); if (ob) q.push(ob); }   // red idle on brake / front pod: refused, idle off
+      return q;
+    });
     st.chip = chipOf(st, st.chip);
   }
+  return notes;
 }
 
 // What a segment shows right now, as an RGB triple (mirrors core/render.cpp).
@@ -905,15 +972,18 @@ function segFree(s, role, st) {
   }
 }
 // One pixel of a segment in the demo: {c: rgb, acc: true when it is an underglow-class pixel (subject to the budget)}.
-function segPixel(s, g, k, n, st, bnd, now, scale) {
-  const role = g[2];
+// spct = the strip's brightness %. Decoration = global x strip x segment (never auto-dimmed); brake/tail/turn colors ignore it.
+function segPixel(s, g, k, n, st, bnd, now, scale, spct) {
+  const role = g[2], pct = decoPct(s.accent.pct, spct, segPctOf(g));
   const pos = () => isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
-  if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale), acc: true };
+  if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale, pct), acc: true };
   const idl = idleOk(role) && segIdleOf(g);
   if (idl && segFree(s, role, st)) {
-    if (!s.accent.on || !s.accent.pct) return { c: [0, 0, 0], acc: false };
-    if (idl.idle === "color") return { c: (idl.rgb || [0, 0, 255]).map(v => Math.round(v * s.accent.pct / 100 * scale)), acc: true };
-    return { c: accentPix(s, k, n, pos(), bnd, now, scale), acc: true };
+    // only turn-role segments drop their idle look while any signal or the hazards flash; front pods never show a red hue
+    if (!s.accent.on || !pct || (isTurnRole(role) && (st.l || st.r))) return { c: [0, 0, 0], acc: false };
+    let c = idl.idle === "color" ? (idl.rgb || [0, 0, 255]).map(v => Math.round(v * pct / 100 * scale)) : accentPix(s, k, n, pos(), bnd, now, scale, pct);
+    if ((role === "turn_l" || role === "turn_r") && isRedHue(c)) c = [0, 0, 0];
+    return { c, acc: true };
   }
   return { c: segRgb(s, role, st), acc: false };
 }
@@ -923,6 +993,8 @@ class DemoLink {
     this.h = h; this.s = structuredClone(DEFAULTS); this.inputs = 0;
     this.hazLatch = false; this.aux = false; this.blinkStart = 0; this.turning = false;
     this.gain = 1; this.find = null;
+    this.pend = [null, null, null, null];                    // staged `segi` batches, committed by `nseg`
+    this.sim = { save_err: false, board_mismatch: false };    // status faults to exercise the banners (tests set these)
   }
   async open() { this.timer = setInterval(() => this.h.onLive(JSON.stringify(this.status())), 250); }
   name() { return "Demo controller"; }
@@ -938,7 +1010,7 @@ class DemoLink {
       case "get": { const c = structuredClone(this.s); c.ota_pass = "********"; this.out(JSON.stringify(c)); break; }
       case "status": this.out(JSON.stringify(this.status())); break;
       case "set":
-        try { applyPatch(this.s, JSON.parse(args)); this.out(JSON.stringify({ ok: true, notes: "" })); }
+        try { const notes = applyPatch(this.s, JSON.parse(args), this.pend); this.out(JSON.stringify({ ok: true, notes: notes.join("; ") })); }
         catch (e) { this.out(JSON.stringify({ ok: false, notes: "json: " + e.message })); }
         break;
       case "preset":
@@ -968,7 +1040,7 @@ class DemoLink {
       case "save": this.out("saved"); break;
       case "ota": this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break;
       case "reboot": this.out("rebooting"); break;
-      case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
+      case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.pend = [null, null, null, null]; this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
       case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, bench off, cal CH AMPS, save, defaults yes, ota, reboot, pair"); break;
       default: this.out(`unknown command '${cmd}' (try help)`);
     }
@@ -995,9 +1067,9 @@ class DemoLink {
       let base = sp.px, acc = 0;
       for (const g of sp.seg) {
         const n = g[1]; if (n <= 0) continue;
-        if (g[2] !== "accent" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp); continue; }
+        if (g[2] !== "accent" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp); continue; }   // brake/tail/turn: never dimmed
         for (let k = 0; k < n; k++) {
-          const r = segPixel(s, g, k, n, st, bnd, now, 1), f = sp.px_ma * frac(r.c, sp);
+          const r = segPixel(s, g, k, n, st, bnd, now, 1, sp.pct), f = sp.px_ma * frac(r.c, sp);
           if (r.acc) acc += f; else base += f;
         }
       }
@@ -1007,7 +1079,8 @@ class DemoLink {
     const totPre = s.strips.reduce((m, sp, i) => m + Math.min(sp.cap_ma, loads[i].base + loads[i].acc), 0);
     const budget = (head === "low" || head === "high") ? s.budget.lit_ma : s.budget.dark_ma;
     const bud = totPre > budget ? Math.floor(budget / totPre * 100) : 100;
-    const sma = s.strips.map((sp, i) => Math.round(Math.min(sp.cap_ma, loads[i].base + loads[i].acc * bud / 100)));
+    const held = !!this.sim.board_mismatch;   // wrong image for this board: strips are held off
+    const sma = s.strips.map((sp, i) => held ? 0 : Math.round(Math.min(sp.cap_ma, loads[i].base + loads[i].acc * bud / 100)));
     const tot = sma.reduce((m, v) => m + v, 0);
     const lit = s.strips.map((sp, i) => sma[i] > sp.px + 1);
     en.push(...lit.map(v => v ? 1 : 0));
@@ -1021,11 +1094,18 @@ class DemoLink {
       const min = i < 4 ? (s.lamp_min_ma[["low","high","aux","drl"][i]] || 0) : 0;
       return !on ? "." : (min && v * 1000 < min ? "O" : "o");
     });
+    const warn = [];
+    if (s.accent.on && s.strips.some(sp => sp.px && sp.seg.some(g => g[1] > 0 && idleTooBright(s, g[2], segIdleOf(g), Math.floor(s.accent.pct * sp.pct * segPctOf(g) / 10000)))))
+      warn.push("a rear segment's idle look is brighter than half the brake light; lower its brightness so braking stands out");
+    if (this.sim.board_mismatch) warn.push("this firmware is built for rev D but the module has PSRAM (rev C board): strips are held off, flash the rcr_revc image");
+    if (this.sim.save_err) warn.push("settings could not be saved (storage full?): changes are lost at key-off");
     return { t: Math.round(now), v: 1, in: this.inputs, raw: this.inputs, head, brk: st.brk ? 1 : 0,
              l: st.l ? 1 : 0, r: st.r ? 1 : 0, hz: hz ? 1 : 0, blk: blk ? 1 : 0, aux: this.aux ? 1 : 0,
              en, rt: [0,0,0,0,0,0,0,0], lk: "........", ch: ch.join(""), a: a.map(v => Math.round(v * 100) / 100),
              sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find ? 1 : 0, ovr: 0, ble: 1,
-             pair: this.pairUntil > now ? 1 : 0, ota: 0 };
+             pair: this.pairUntil > now ? 1 : 0, ota: 0,
+             ...(this.sim.board_mismatch ? { board_mismatch: 1 } : {}), ...(this.sim.save_err ? { save_err: 1 } : {}),
+             ...(warn.length ? { warn: warn.join(", ") } : {}) };
   }
 }
 
@@ -1264,12 +1344,19 @@ function setStatus(s) {
     else if (code === "O") alerts.push(["warn", `${c.name}: no current. Lamp out or unplugged?`]);
     else if (code === "X") alerts.push(["bad", `${c.name}: output is live while switched off`]);
   });
-  if (s.warn) alerts.unshift(["bad", "Setup: " + s.warn]);
+  if (s.warn) {   // the board folds the wrong-image and save-failed texts into `warn`: they get their own banners below
+    const w = s.warn.replace(/this firmware is built for rev [CD][\s\S]*?flash the rcr_rev[cd] image/, "")
+                    .replace("settings could not be saved (storage full?): changes are lost at key-off", "")
+                    .split(",").map(x => x.trim()).filter(Boolean).join(", ");
+    if (w) alerts.unshift(["bad", "Setup: " + w]);
+  }
+  if (s.save_err) alerts.unshift(["bad", "Settings aren't being saved — storage full? Changes are lost at key-off.", "save_err"]);
+  if (s.board_mismatch) alerts.unshift(["bad", "Wrong firmware for this board — strips are off. Flash the other image.", "board_mismatch"]);
   if (s.strips_err) alerts.unshift(["bad", "LED strip outputs failed to start"]);
   if (s.v === 0) alerts.unshift(["warn", "Inputs not settled yet: low beam and rear red held on"]);
   if (s.bench) alerts.unshift(["warn", "Bench override active (pixel finder or USB console)"]);
   const al = $("alerts"); al.textContent = "";
-  for (const [cls, msg] of alerts) al.append(el("div", { class: "banner " + cls }, msg));
+  for (const [cls, msg, key] of alerts) al.append(el("div", { class: "banner " + cls, "data-alert": key || null }, msg));
   $("liveFoot").textContent = s.ota ? "Firmware update access point is on." : "";
   $("pairHint").textContent = s.pair ? "Pairing is open: pair the new phone now." : "Lets a new phone pair during the next 2 minutes.";
   // quick toggles
@@ -1336,7 +1423,7 @@ function setSettings(s) {
     (() => { const c = el("input", { type: "color", value: hex(A.rgb), "aria-label": "Color" });
              c.onchange = () => patch({ accent: { rgb: unhex(c.value) } });
              return el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), c); })(),
-    rangeField("Brightness", A.pct, 0, 100, 1, "%", v => patch({ accent: { pct: v } })),
+    rangeField("Brightness", A.pct, 0, 100, 1, "%", v => patch({ accent: { pct: v } }), "Global: multiplies each strip's and segment's brightness"),
     rangeField("Speed", A.speed, 1, 10, 1, "", v => patch({ accent: { speed: v } }), "For every effect except solid."));
 
   const tp = $("turnPanel"); tp.textContent = "";
@@ -1394,7 +1481,7 @@ const effStrip = i => app.drafts[i] || app.settings.strips[i];
 const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
 function normStrip(d) {
   d.chip = d.chip || "custom"; d.timing = d.timing || "800k"; d.rgbw = !!d.rgbw;
-  d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18;
+  d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18; d.pct = d.pct == null ? 100 : clamp(rnd(d.pct), 0, 100);
   d.seg = d.seg.map(canonSeg);
   return d;
 }
@@ -1490,6 +1577,11 @@ function buildStrips() {
           el("button", { class: "btn small", onclick: () => { draft.edit = false; drawDerived(); } }, "Done")));
     };
 
+    // ---- decoration brightness: this strip's share of the global underglow brightness ----
+    const pctField = rangeField("Brightness", draft.pct, 0, 100, 1, "%", v => { draft.pct = v; drawRows(); redraw(); },
+      "Decoration brightness (underglow and idle looks; brake/turn are not affected)");
+    pctField.querySelector("input").setAttribute("data-strip-pct", i);
+
     // ---- mA/pixel from the strip's label ----
     const hw = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Watts per meter" });
     const hp = el("input", { type: "number", min: 0, step: "any", inputmode: "decimal", "aria-label": "Pixels per meter" });
@@ -1522,7 +1614,7 @@ function buildStrips() {
     card.append(
       el("div", { class: "strip-head" }, el("h3", {}, `Strip ${i + 1}`), headNote),
       el("div", { class: "map", "aria-hidden": "true" }),
-      chipField, derived, helper,
+      chipField, derived, pctField, helper,
       el("div", { class: "strip-props" },
         numIn("Pixels", draft.px, 0, 800, 1, v => draft.px = clamp(v | 0, 0, 800)),
         el("label", {}, "Color order", order),
@@ -1539,17 +1631,31 @@ function buildStrips() {
       const key = `${i}.${k}`;
       const ensure = () => { if (!Array.isArray(g[4])) g[4] = [0, 0, 0]; if (!Array.isArray(g[5])) g[5] = [0, 0, 0]; };
       const status = el("span", { class: "note" });
-      const upd = () => { status.textContent = (isMapped(g) ? "mapped" : "not mapped") + (segIdleOf(g) && idleOk(g[2]) ? ", idle look" : ""); };
+      const upd = () => { status.textContent = (isMapped(g) ? "mapped" : "not mapped") + (segIdleOf(g) && idleOk(g[2]) ? ", idle look" : "") + (segPctOf(g) !== 100 ? `, ${segPctOf(g)}%` : ""); };
+      // inline notes: red is refused on brake/front-pod idle looks; a rear idle look brighter than half the brake light is a warning
+      const notes = el("div", { class: "idle-notes", "data-idle-notes": key }), effHint = el("div", { class: "hint", "data-seg-eff": key });
+      const refreshNotes = () => {
+        const idl = idleOk(g[2]) && segIdleOf(g), s0 = app.settings, eff = decoPct(s0.accent.pct, draft.pct, segPctOf(g));
+        effHint.textContent = `effective ${eff} % (global × strip × segment)`;
+        notes.textContent = "";
+        if (idleBad(g[2], idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
+        if (idleTooBright(s0, g[2], idl && !idleBad(g[2], idl) ? idl : null, eff)) notes.append(el("div", { class: "lay-warn", "data-note": "bright" }, BRIGHT_NOTE));
+      };
       // idle look: what a safety segment shows while its own function is off
       const cur = idleOk(g[2]) && segIdleOf(g);
       const idleSel = el("select", { "aria-label": "Idle look", "data-idle": key, disabled: !idleOk(g[2]) },
         ...[["off", "Off"], ["accent", "Join underglow"], ["color", "Color"]].map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
       const idleCol = el("input", { type: "color", "aria-label": "Idle color", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
-      const setIdle = () => {
-        g.length = 6; const o = idleObj(idleSel.value, unhex(idleCol.value)); if (o) g.push(o);
-        idleCol.hidden = idleSel.value !== "color"; upd(); redraw();
+      const setIdle = () => {   // a red pick on a brake / front-pod segment stays in the draft with its note, but goes out as idle off
+        const c = unhex(idleCol.value), pct = segPctOf(g);
+        ensure(); g.length = 6; const o = segObj(idleSel.value, c, pct); if (o) g.push(o);
+        idleCol.hidden = idleSel.value !== "color"; upd(); refreshNotes(); redraw();
       };
       idleSel.onchange = setIdle; idleCol.onchange = setIdle;
+      const setPct = v => { ensure(); const k0 = segIdleOf(g); g.length = 6; const o = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, v); if (o) g.push(o); upd(); refreshNotes(); };
+      const pf = rangeField("Brightness", segPctOf(g), 0, 100, 1, "%", v => { setPct(v); redraw(); });
+      const pin = pf.querySelector("input"); pin.setAttribute("data-seg-pct", key); pin.addEventListener("input", () => setPct(+pin.value));
+      pf.append(effHint);
       const mk = (r, c) => {
         const inp = el("input", { type: "number", step: 0.1, min: -400, max: 400, inputmode: "decimal", value: numLen(segPos(g, r)[c]),
                                   "aria-label": `${r ? "Last" : "First"} pixel ${"xyz"[c]} (${UNIT.name})`, "data-pos": `${r}${"xyz"[c]}` });
@@ -1569,15 +1675,17 @@ function buildStrips() {
         el("summary", {}, "Position and idle look ", status),
         el("div", { class: "body" },
           el("div", { class: "ph-row", style: "margin:0 0 6px" }, el("label", { class: "note" }, "Idle look "), idleSel, idleCol),
+          notes,
           el("p", { class: "note", style: "margin:0 0 8px" }, idleOk(g[2])
             ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Color: a steady color then. Both follow underglow on/off."
             : "Only tail, brake and turn segments have an idle look."),
+          pf,
           el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x " + UNIT.name), el("span", { class: "pos-head" }, "y " + UNIT.name), el("span", { class: "pos-head" }, "z " + UNIT.name)),
           row(0, "First pixel"), row(1, "Last pixel"),
           el("p", { class: "note" }, "x: front 0 → rear. y: left − → right +. z: up. Inches on the bike (the board keeps whole millimeters)."),
           el("div", { class: "btns", style: "margin-top:4px" }, mirror, clear)));
       det.addEventListener("toggle", () => { det.open ? app.open.add(key) : app.open.delete(key); });
-      upd();
+      upd(); refreshNotes();
       return el("tr", {}, el("td", { class: "posrow", colspan: 5 }, det));
     };
     const drawRows = () => {
@@ -1589,7 +1697,7 @@ function buildStrips() {
         const rv = el("input", { type: "checkbox", checked: !!g[3], "aria-label": "Reverse sweep direction" });
         s0.oninput = () => { g[0] = s0.value | 0; redraw(); };
         s1.oninput = () => { g[1] = s1.value | 0; redraw(); };
-        r.onchange = () => { g[2] = r.value; if (!idleOk(g[2])) g.length = 6; drawRows(); redraw(); };
+        r.onchange = () => { g[2] = r.value; if (!idleOk(g[2])) { const pct = segPctOf(g); g.length = 6; const ob = segObj("off", null, pct); if (ob) g.push(ob); } drawRows(); redraw(); };
         rv.onchange = () => { g[3] = rv.checked; redraw(); };
         tb.append(el("tr", {}, el("td", {}, s0), el("td", {}, s1), el("td", {}, r), el("td", {}, rv),
           el("td", {}, el("button", { class: "x", "aria-label": "Remove segment", onclick: () => {
@@ -1606,7 +1714,7 @@ function buildStrips() {
       draft.seg.push([Math.min(end, Math.max(0, draft.px - 1)), Math.max(0, draft.px - end), "accent", false, [0, 0, 0], [0, 0, 0]]);
       drawRows(); redraw(); } }, "Add segment");
     const apply = el("button", { class: "btn primary", "data-apply": i, onclick: () => {
-      const core = { px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma };
+      const core = { px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
       // A preset is sent by name (the board fills in the rest); Custom sends every field.
       if (draft.chip !== "custom") core.chip = draft.chip;
       else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
@@ -1829,7 +1937,13 @@ function runSegs(r) {
   runSegCounts(r).forEach((c, i) => { if (c > 0) out.push({ run: r, count: c, p0: r.pts[i].map(rnd), p1: r.pts[i + 1].map(rnd) }); });
   return out;
 }
-const runIdle = r => (idleOk(r.role) ? idleObj(r.idle, r.rgb) : null);
+// The run's trailing segment object (idle look + brightness); a red idle color on a brake / front-pod run is sent as idle off.
+const runObj = r => segObj(idleOk(r.role) && !idleBad(r.role, { idle: r.idle, rgb: r.rgb }) ? r.idle : "off", r.rgb, r.pct);
+// The brightness % of the strip this run's chain is wired to (100 when unassigned or the board does not report it).
+function runStripPct(r) {
+  const ch = chainsOf().find(c => c.runs.includes(r)), st = ch && ch.out && app.settings ? app.settings.strips[ch.out - 1] : null;
+  return st && st.pct != null ? st.pct : 100;
+}
 function chainsOf() {
   const byId = new Map(lay.runs.map(r => [r.id, r]));
   const hasIn = new Set(lay.runs.map(r => r.next).filter(id => byId.has(id)));
@@ -1935,7 +2049,7 @@ function layRemovePhoto() {
 
 // ---- runs ----
 const runDefaults = view => ({ name: "", view, pts: [], role: "accent", chip: lay.lastChip, dens: 60, densCustom: false,
-                               count: 0, countEdited: false, depth: 0, idle: "off", rgb: [0, 0, 255], next: null, out: 0 });
+                               count: 0, countEdited: false, depth: 0, idle: "off", rgb: [0, 0, 255], pct: 100, next: null, out: 0 });
 function newRun(view) {
   const r = { id: lay.nextId++, ...runDefaults(view) };
   let n = 1; while (lay.runs.some(x => x.name === "Run " + n)) n++;
@@ -1950,6 +2064,7 @@ function laySanitize() {
     if (!ROLE_LINE[o.role]) o.role = "none";
     if (!["off", "accent", "color"].includes(o.idle)) o.idle = "off";
     if (!Array.isArray(o.rgb) || o.rgb.length !== 3) o.rgb = [0, 0, 255];
+    o.pct = Number.isFinite(Number(o.pct)) ? clamp(rnd(o.pct), 0, 100) : 100;
     o.count = Math.max(0, o.count | 0); o.dens = Number(o.dens) || 60; o.depth = Number(o.depth) || 0; o.out = (o.out | 0) >= 1 && (o.out | 0) <= 4 ? o.out | 0 : 0;
     o.densCustom = !!o.densCustom || !DENSITIES.includes(o.dens);
     return o;
@@ -1971,22 +2086,22 @@ function laySanitize() {
 function runsFromStrips(strips) {
   const tmp = { nextId: 1 }, runs = [];
   const mk = (view, name, st, g) => ({ id: tmp.nextId++, name, view, pts: [], role: g.role, chip: st.chip || "custom", dens: 60, densCustom: false,
-                                       count: 0, countEdited: true, depth: 0, idle: g.idle ? g.idle.idle : "off", rgb: (g.idle && g.idle.rgb) || [0, 0, 255], next: null, out: 0 });
+                                       count: 0, countEdited: true, depth: 0, idle: g.idle ? g.idle.idle : "off", rgb: (g.idle && g.idle.rgb) || [0, 0, 255], pct: g.pct == null ? 100 : g.pct, next: null, out: 0 });
   strips.forEach((st, i) => {
     const segs = (st.seg || []).filter(g => g[1] > 0).sort((a, b) => a[0] - b[0]).map(g => ({
-      start: g[0], count: g[1], role: g[2], idle: idleOk(g[2]) ? segIdleOf(g) : null,
+      start: g[0], count: g[1], role: g[2], idle: idleOk(g[2]) ? segIdleOf(g) : null, pct: segPctOf(g),
       p0: isMapped(g) ? segPos(g, 0) : null, p1: isMapped(g) ? segPos(g, 1) : null }));
     const made = []; let cur = null;
     for (const sg of segs) {
       const sameIdle = cur && (cur.idle ? cur.idle.idle : "off") === (sg.idle ? sg.idle.idle : "off") &&
                        JSON.stringify(cur.idle && cur.idle.rgb) === JSON.stringify(sg.idle && sg.idle.rgb);
-      const joins = cur && cur.role === sg.role && sameIdle && cur.end === sg.start &&
+      const joins = cur && cur.role === sg.role && sameIdle && cur.pct === sg.pct && cur.end === sg.start &&
                     (sg.p0 ? cur.pts.length && dist3(cur.pts[cur.pts.length - 1], sg.p0) <= 2 : !cur.pts.length);
       if (joins) {
         cur.count += sg.count; cur.end += sg.count;
         if (sg.p1) cur.pts.push(sg.p1.slice());
       } else {
-        cur = { role: sg.role, idle: sg.idle, count: sg.count, end: sg.start + sg.count, pts: sg.p0 ? [sg.p0.slice(), sg.p1.slice()] : [] };
+        cur = { role: sg.role, idle: sg.idle, pct: sg.pct, count: sg.count, end: sg.start + sg.count, pts: sg.p0 ? [sg.p0.slice(), sg.p1.slice()] : [] };
         made.push(cur);
       }
     }
@@ -2044,7 +2159,7 @@ function layFrame(view) {
 }
 // Runs drawn on the other view, shown on this one at their depth: {r, h (across this view), v0, v1 (z range)}.
 function layRunGs(r) {   // the run as demo/board segments [start,count,role,rev,p0,p1,idle?] with unrounded positions
-  const out = []; const idl = runIdle(r);
+  const out = []; const idl = runObj(r);
   runSegCounts(r).forEach((c, i) => { if (c > 0) out.push([0, c, r.role, false, r.pts[i], r.pts[i + 1], ...(idl ? [idl] : [])]); });
   return out;
 }
@@ -2145,6 +2260,8 @@ function layDraw() {
     const live = app.demo && app.settings && app.status;
     const bnd = live ? posBounds([{ seg: lay.runs.flatMap(layRunGs) }]) : null, now = performance.now();
     const scale = live ? (typeof app.status.bud === "number" ? app.status.bud : 100) / 100 : 1;
+    const outOf = live ? new Map(chainsOf().flatMap(ch => ch.runs.map(q => [q.id, ch.out]))) : null;
+    const spctOf = q => { const o = outOf && outOf.get(q.id), sp = o && app.settings.strips[o - 1]; return sp && sp.pct != null ? sp.pct : 100; };
     // selected run last so it sits on top
     const order = [...runs.filter(r => r.id !== lay.sel), ...runs.filter(r => r.id === lay.sel)];
     for (const r of order) {
@@ -2175,7 +2292,7 @@ function layDraw() {
             const t = n > 1 ? j / (n - 1) : 0;
             let fill = col;
             if (live) {
-              const px = segPixel(s, g, j, n, st, bnd, now, scale).c;
+              const px = segPixel(s, g, j, n, st, bnd, now, scale, spctOf(r)).c;
               fill = Math.max(...px) > 10 ? `rgb(${px.join(",")})` : "rgba(150,160,170,.55)";
             }
             x.beginPath(); x.arc(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, rad, 0, 7);
@@ -2550,14 +2667,28 @@ function layRenderEditor() {
   box.append(el("div", { class: "field" }, el("label", {}, side ? `Sideways position y (${UNIT.name})` : `From the front axle x (${UNIT.name})`), ed.depth, chips,
     el("div", { class: "hint" }, (side ? "How far left (−) or right (+) of the centerline this strip is. The side photo cannot see it."
                                       : "Distance from the front axle toward the rear. The rear photo cannot see it.") + " Drag its ghost on the other view to set it by eye.")));
-  // idle look (safety roles only)
+  // idle look (safety roles only), with its inline notes; brightness for every role
+  const notes = el("div", { class: "idle-notes", "data-ed": "idle-notes" }), eff = el("div", { class: "hint", "data-ed": "eff" });
+  const refreshNotes = () => {
+    const s0 = app.settings, sp = runStripPct(r), e = decoPct(s0 ? s0.accent.pct : 100, sp, r.pct), idl = idleOk(r.role) ? { idle: r.idle, rgb: r.rgb } : null;
+    eff.textContent = `effective ${e} % (global × strip × run)`;
+    notes.textContent = "";
+    if (idleBad(r.role, idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
+    if (s0 && idleTooBright(s0, r.role, idl && !idleBad(r.role, idl) ? idl : null, e)) notes.append(el("div", { class: "lay-warn", "data-note": "bright" }, BRIGHT_NOTE));
+  };
   if (idleOk(r.role)) {
     const col = el("input", { type: "color", value: hex(r.rgb), "aria-label": "Idle color", "data-ed": "idle-color", hidden: r.idle !== "color" });
-    col.onchange = () => { r.rgb = unhex(col.value); layChanged({}); };
+    col.onchange = () => { r.rgb = unhex(col.value); layChanged({}); refreshNotes(); };   // red on a brake / front-pod run: note shown, sent as idle off
     const idleBtns = IDLE_MODES.map(([v, t]) => el("button", { class: "btn small", "data-idle": v, "aria-pressed": String(r.idle === v), onclick: () => { r.idle = v; layChanged({ editor: true }); } }, t));
     box.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Idle look"), el("div", { class: "chips" }, ...idleBtns, col),
-      el("div", { class: "hint" }, "What this strip shows while its own light is off. Join underglow and Color follow the underglow on/off.")));
+      el("div", { class: "hint" }, "What this strip shows while its own light is off. Join underglow and Color follow the underglow on/off."), notes));
   }
+  const pf = rangeField("Brightness", r.pct, 0, 100, 1, "%", v => { r.pct = v; layChanged({ editor: true }); },
+    idleOk(r.role) ? "Underglow and idle look. Brake, tail and turn colors are not affected." : r.role === "accent" ? "Underglow brightness for this run." : "Only underglow and idle looks use this.");
+  const pin = pf.querySelector("input"); pin.setAttribute("data-ed", "pct");
+  pin.addEventListener("input", () => { r.pct = +pin.value; refreshNotes(); });
+  pf.append(eff); box.append(pf);
+  refreshNotes();
   // direction
   const rev = el("button", { class: "btn small", "data-ed": "reverse", onclick: () => layReverse(r) }, "Reverse");
   box.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Direction"),
@@ -2618,7 +2749,7 @@ function laySend() {
     const segs = fl.segs.map(sg => {
       const g = [sg.start, sg.count, sg.run.role, false];
       if (sg.p0 && sg.p1) g.push(sg.p0, sg.p1);
-      const idl = runIdle(sg.run); if (idl) g.push(idl);
+      const ob = runObj(sg.run); if (ob) g.push(ob);
       return segOut(g);
     });
     if (new Set(ch.runs.map(r => r.chip)).size > 1) notes.push(`output ${o} mixes chips, sent as ${first.chip}`);
