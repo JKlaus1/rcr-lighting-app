@@ -400,7 +400,8 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
           <button class="btn small" data-layview="side" aria-pressed="true">Side view</button>
           <button class="btn small" data-layview="rear" aria-pressed="false">Rear view</button>
         </div>
-        <div class="lay-file" data-fileview="side"><label>Side view photo <input type="file" id="layFile-side" data-photo="side" accept="image/*" capture="environment"></label></div>
+        <div class="lay-file" data-fileview="side"><label>Side view photo <input type="file" id="layFile-side" data-photo="side" accept="image/*" capture="environment"></label>
+          <button class="btn small" id="layBikeOnyx" type="button">Use built-in Onyx RCR side view</button></div>
         <div class="lay-file" data-fileview="rear" hidden><label>Rear view photo <input type="file" id="layFile-rear" data-photo="rear" accept="image/*" capture="environment"></label></div>
         <div id="layCal"></div>
         <p class="note ph-how" id="layHow"></p>
@@ -2021,6 +2022,28 @@ function layAttach(view, url, done) {
   img.onerror = () => { lay.cal[view] = newCal(); store.del(LS.img(view)); };
   img.src = url;
 }
+// Built-in bike pictures, already calibrated. Image px: zero = ground under the front axle,
+// scale points = the two axle centers, mm = wheelbase. The Onyx RCR wheelbase is estimated from
+// the render (tire 2.75-17, about 22.5" OD = 346 px, so 693 px axle to axle = 45.1"): typing the
+// tape-measured wheelbase into the distance field rescales everything drawn on it.
+const BIKES = {
+  onyx_rcr: { name: "Onyx RCR", side: { url: "bikes/onyx-rcr-side.jpg", cal: { zero: [930, 635], a: [237, 462], b: [930, 462], mm: 1145, front: "right", preset: "wheelbase" } } },
+};
+function layUseBike(id, view) {
+  const b = BIKES[id], v = b && b[view];
+  if (!v) return;
+  layAttach(view, v.url, () => {
+    // A new picture: start its calibration fresh (runs keep their bike mm, like a picked photo).
+    lay.cal[view] = Object.assign(newCal(), JSON.parse(JSON.stringify(v.cal)), { typed: true });
+    saveCal();
+    lay.vw[view] = { z: 1, cx: 0, cy: 0 };
+    if (!store.set(LS.img(view), v.url)) toast("Couldn't keep the picture choice on this phone", true);
+    lay.view = view; lay.mode = "none"; lay.drawing = null;
+    toast(b.name + " " + view + " view loaded and calibrated. Measure your wheelbase axle to axle and type it in the distance field to fine-tune the scale.");
+    layRenderAll();
+  });
+}
+
 // Photos are shrunk to 1600 px on the long side and kept as JPEG so they fit in localStorage.
 function layPickPhoto(view, file) {
   const objUrl = URL.createObjectURL(file), im = new Image();
@@ -2910,6 +2933,7 @@ function tag2(f, k) { f.querySelector("select").setAttribute("data-ring", k); re
 
 // ---- wiring ----
 document.querySelectorAll("#layTabs [data-layview]").forEach(b => b.onclick = () => laySetView(b.dataset.layview));
+$("layBikeOnyx").addEventListener("click", () => layUseBike("onyx_rcr", "side"));
 document.querySelectorAll("input[data-photo]").forEach(inp => inp.addEventListener("change", () => {
   const f = inp.files && inp.files[0]; if (f) layPickPhoto(inp.dataset.photo, f);
   inp.value = "";
