@@ -745,23 +745,26 @@ class BleLink {
     try { localStorage.setItem(DEV_KEY, dev.id); } catch (e) { /* private mode */ }
     if (!dev.rcrHooked) { dev.rcrHooked = true; dev.addEventListener("gattserverdisconnected", () => this.h.onDrop()); }
   }
+  // BleLink.why says why the last remembered() came back empty.
   static async remembered(ms) {
     let id = null;
-    try { id = localStorage.getItem(DEV_KEY); } catch (e) { return null; }
-    if (!id || !navigator.bluetooth.getDevices) return null;
+    try { id = localStorage.getItem(DEV_KEY); } catch (e) { BleLink.why = "no storage"; return null; }
+    if (!id) { BleLink.why = "no controller remembered yet"; return null; }
+    if (!navigator.bluetooth.getDevices) { BleLink.why = "this Chrome does not keep Bluetooth permissions (no getDevices)"; return null; }
     let devs;
-    try { devs = await navigator.bluetooth.getDevices(); } catch (e) { return null; }
+    try { devs = await navigator.bluetooth.getDevices(); } catch (e) { BleLink.why = "getDevices failed: " + e.message; return null; }
     const dev = devs.find(d => d.id === id);
-    if (!dev) return null;
+    if (!dev) { BleLink.why = "Chrome no longer lists the controller as permitted (" + devs.length + " remembered)"; return null; }
     if (dev.gatt.connected) return dev;
     if (!dev.watchAdvertisements) return dev;  // older Chrome: connect() alone may work
     // Chrome only lets a permitted device connect once it has been heard advertising.
     const ctl = new AbortController();
     const heard = new Promise(res => dev.addEventListener("advertisementreceived", () => res(true), { once: true }));
     const timeout = new Promise(res => setTimeout(() => res(false), ms));
-    try { await dev.watchAdvertisements({ signal: ctl.signal }); } catch (e) { return null; }
+    try { await dev.watchAdvertisements({ signal: ctl.signal }); } catch (e) { BleLink.why = "watchAdvertisements failed: " + e.message; return null; }
     const ok = await Promise.race([heard, timeout]);
     ctl.abort();
+    if (!ok) BleLink.why = "controller not heard advertising within " + Math.round(ms / 1000) + " s";
     return ok ? dev : null;
   }
   async attach() {
@@ -1187,13 +1190,22 @@ const handlers = {
     finder.active = false; app.testPrev = null;
     setLink("Disconnected", false);
     $("linkBtn").textContent = "Reconnect"; $("linkBtn").hidden = false;
-    if (!app.demo && !app.userClosed) scheduleReconnect(0);
+    if (app.demo || app.userClosed) return;
+    // A link the controller cuts within 20 s of coming up is a refusal (not paired, pairing
+    // closed), not a radio drop: retrying would only make the phone ask to pair again and again.
+    recon.quick = Date.now() - (app.attachedAt || 0) < 20000 ? recon.quick + 1 : 0;
+    if (recon.quick >= 2) {
+      toast("The controller keeps closing the link: it does not have this " + (/Windows/.test(navigator.userAgent) ? "PC" : "phone")
+        + " paired. Open pairing (hold the handlebar button 5 s, or Add a phone from a paired phone), then Reconnect.", true);
+      return;
+    }
+    scheduleReconnect(0);
   },
 };
 
 // Automatic reconnect after a drop: 1, 2, 4 ... 30 s between tries until the link is back or
 // the user disconnects. Reconnect reuses the device Chrome already granted, so no chooser.
-const recon = { timer: null, attempt: 0, busy: false };
+const recon = { timer: null, attempt: 0, busy: false, quick: 0 };
 function scheduleReconnect(attempt) {
   clearTimeout(recon.timer);
   recon.attempt = attempt;
@@ -1207,6 +1219,7 @@ async function tryReconnect() {
   try {
     setLink("Reconnecting", false);
     await app.link.reconnect();
+    app.attachedAt = Date.now();
     setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect";
     recon.attempt = 0;
     send("get");
@@ -1296,7 +1309,12 @@ async function start(demo, auto) {
   try {
     setLink(demo ? "Starting demo…" : auto ? "Looking for the controller…" : "Connecting…", false);
     if (auto) {
-      if (!(await app.link.openRemembered(4000))) { app.link = null; setLink("Not connected", false); return; }
+      if (!(await app.link.openRemembered(4000))) {
+        app.link = null; setLink("Not connected", false);
+        $("connectErr").textContent = "Didn't reconnect by itself: " + (BleLink.why || "unknown") + ". Tap Connect.";
+        $("connectErr").hidden = false;
+        return;
+      }
     } else {
       await app.link.open();
     }
@@ -1305,6 +1323,7 @@ async function start(demo, auto) {
     if (!auto && e.name !== "NotFoundError") { $("connectErr").textContent = connectHelp(e); $("connectErr").hidden = false; }
     return;
   }
+  app.attachedAt = Date.now(); recon.quick = 0;
   setLink(app.link.name(), true);
   $("linkBtn").textContent = "Disconnect"; $("linkBtn").hidden = false;
   document.querySelectorAll("nav button").forEach(b => b.disabled = false);
@@ -1330,7 +1349,7 @@ $("linkBtn").onclick = async () => {
   if (!app.link) return;
   if ($("linkBtn").textContent === "Reconnect") {
     cancelReconnect();
-    try { setLink("Reconnecting…", false); await app.link.reconnect(); setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect"; send("get"); }
+    try { setLink("Reconnecting…", false); await app.link.reconnect(); app.attachedAt = Date.now(); recon.quick = 0; setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect"; send("get"); }
     catch (e) { setLink("Disconnected", false); toast(connectHelp(e), true); if (!app.demo) scheduleReconnect(1); }
     return;
   }
