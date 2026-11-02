@@ -1234,12 +1234,28 @@ async function tryReconnect() {
     app.attachedAt = Date.now();
     setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect";
     recon.attempt = 0;
-    send("get");
+    wantSettings();
   } catch (e) {
     if (!app.userClosed) scheduleReconnect(recon.attempt + 1);
   } finally { recon.busy = false; }
 }
 function cancelReconnect() { clearTimeout(recon.timer); recon.timer = null; recon.attempt = 0; }
+
+// The board's settings come back as one long line; if it never arrives (cut short over BLE) the
+// app stays "connected" but every Setup/Map action says connect first. Ask again, up to 3 times.
+let settingsWatch = { timer: null, tries: 0 };
+function wantSettings() {
+  clearTimeout(settingsWatch.timer);
+  settingsWatch.tries = 0;
+  send("get");
+  const check = () => {
+    if (!app.link || app.demo || app.settings) return;
+    if (++settingsWatch.tries > 3) { toast("The board's settings did not come through. Tap Reconnect, or type get on the Console tab.", true); return; }
+    send("get");
+    settingsWatch.timer = setTimeout(check, 2500);
+  };
+  settingsWatch.timer = setTimeout(check, 2500);
+}
 
 function log(text, mine) {
   const L = $("log");
@@ -1342,7 +1358,7 @@ async function start(demo, auto) {
   layUse(demo); layRenderAll();
   buildWires();
   showTab("live");
-  send("info"); send("get");
+  send("info"); wantSettings();
 }
 
 function connectHelp(e) {
@@ -1361,7 +1377,7 @@ $("linkBtn").onclick = async () => {
   if (!app.link) return;
   if ($("linkBtn").textContent === "Reconnect") {
     cancelReconnect();
-    try { setLink("Reconnecting…", false); await app.link.reconnect(); app.attachedAt = Date.now(); recon.quick = 0; setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect"; send("get"); }
+    try { setLink("Reconnecting…", false); await app.link.reconnect(); app.attachedAt = Date.now(); recon.quick = 0; setLink(app.link.name(), true); $("linkBtn").textContent = "Disconnect"; wantSettings(); }
     catch (e) { setLink("Disconnected", false); toast(connectHelp(e), true); if (!app.demo) scheduleReconnect(1); }
     return;
   }
