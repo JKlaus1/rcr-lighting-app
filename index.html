@@ -2249,19 +2249,19 @@ function runsFromStrips(strips) {
                                        count: 0, countEdited: true, depth: 0, idle: g.idle ? g.idle.idle : "off", rgb: (g.idle && g.idle.rgb) || [0, 0, 255], pct: g.pct == null ? 100 : g.pct, next: null, out: 0 });
   strips.forEach((st, i) => {
     const segs = (st.seg || []).filter(g => g[1] > 0).sort((a, b) => a[0] - b[0]).map(g => ({
-      start: g[0], count: g[1], role: g[2], idle: idleOk(g[2]) ? segIdleOf(g) : null, pct: segPctOf(g),
+      start: g[0], count: g[1], role: g[2], rev: !!g[3], idle: idleOk(g[2]) ? segIdleOf(g) : null, pct: segPctOf(g),
       p0: isMapped(g) ? segPos(g, 0) : null, p1: isMapped(g) ? segPos(g, 1) : null }));
     const made = []; let cur = null;
     for (const sg of segs) {
       const sameIdle = cur && (cur.idle ? cur.idle.idle : "off") === (sg.idle ? sg.idle.idle : "off") &&
                        JSON.stringify(cur.idle && cur.idle.rgb) === JSON.stringify(sg.idle && sg.idle.rgb);
-      const joins = cur && cur.role === sg.role && sameIdle && cur.pct === sg.pct && cur.end === sg.start &&
+      const joins = cur && cur.role === sg.role && sameIdle && cur.pct === sg.pct && cur.rev === sg.rev && cur.end === sg.start &&
                     (sg.p0 ? cur.pts.length && dist3(cur.pts[cur.pts.length - 1], sg.p0) <= 2 : !cur.pts.length);
       if (joins) {
         cur.count += sg.count; cur.end += sg.count;
         if (sg.p1) cur.pts.push(sg.p1.slice());
       } else {
-        cur = { role: sg.role, idle: sg.idle, pct: sg.pct, count: sg.count, end: sg.start + sg.count, pts: sg.p0 ? [sg.p0.slice(), sg.p1.slice()] : [] };
+        cur = { role: sg.role, rev: sg.rev, idle: sg.idle, pct: sg.pct, count: sg.count, end: sg.start + sg.count, pts: sg.p0 ? [sg.p0.slice(), sg.p1.slice()] : [] };
         made.push(cur);
       }
     }
@@ -2270,7 +2270,7 @@ function runsFromStrips(strips) {
       const span = a => a.length ? Math.max(...a) - Math.min(...a) : 0;
       const view = m.pts.length && span(ys) > 20 && span(xs) <= 20 ? "rear" : "side";
       const r = mk(view, "Run " + tmp.nextId, st, m);
-      r.pts = m.pts; r.count = m.count;
+      r.pts = m.pts; r.count = m.count; r.rev = !!m.rev;
       r.depth = m.pts.length ? m.pts[0][VIEWS[view].di] : 0;
       const len = runLen(r), lpp = CHIP_BY[r.chip] ? CHIP_BY[r.chip].f.lpp : (st.lpp || 1);
       r.dens = len > 0 ? Math.round(r.count * lpp / (len / 1000)) || 60 : 60;
@@ -2320,7 +2320,7 @@ function layFrame(view) {
 // Runs drawn on the other view, shown on this one at their depth: {r, h (across this view), v0, v1 (z range)}.
 function layRunGs(r) {   // the run as demo/board segments [start,count,role,rev,p0,p1,idle?] with unrounded positions
   const out = []; const idl = runObj(r);
-  runSegCounts(r).forEach((c, i) => { if (c > 0) out.push([0, c, r.role, false, r.pts[i], r.pts[i + 1], ...(idl ? [idl] : [])]); });
+  runSegCounts(r).forEach((c, i) => { if (c > 0) out.push([0, c, r.role, !!r.rev, r.pts[i], r.pts[i + 1], ...(idl ? [idl] : [])]); });
   return out;
 }
 function layDraw() {
@@ -2685,7 +2685,7 @@ function layMirror(r) {   // copy on the other side of the bike: y negated, left
   if (m.ring) { m.ring.id = "m" + m.id; m.ring.yc = m.ring.yc ? -m.ring.yc : 0; }
   lay.runs.push(m); lay.sel = m.id; saveRuns(); layRenderAll(); toast(`${m.name} added`);
 }
-function layReverse(r) { r.pts.reverse(); layChanged({ editor: true }); }
+function layReverse(r) { r.rev = !r.rev; r.pts.reverse(); layChanged({ editor: true }); }
 
 // ---- panels ----
 function layHow() {
@@ -2851,7 +2851,9 @@ function layRenderEditor() {
   // direction
   const rev = el("button", { class: "btn small", "data-ed": "reverse", onclick: () => layReverse(r) }, "Reverse");
   box.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Direction"),
-    el("span", { class: "arrowtxt" }, "○ → ●"), el("div", { class: "chips" }, rev, el("span", { class: "note" }, "Data flows from the first tapped point (hollow) to the last (filled).")))); 
+    el("span", { class: "arrowtxt" }, r.rev ? "● → ○" : "○ → ●"), el("div", { class: "chips" }, rev, el("span", { class: "note" },
+      (r.rev ? "Reversed: data enters at the last tapped point (filled). " : "Data flows from the first tapped point (hollow) to the last (filled). ")
+      + "Takes effect after Send layout.")))); 
   // actions
   const del = el("button", { class: "btn small danger", "data-ed": "delete" }, "Delete run");
   armed(del, "Tap again to delete", () => layDelete(r.id));
@@ -2906,7 +2908,7 @@ function laySend() {
     if (fl.segs.length > MAX_SEGS) { toast(`Output ${o} would have ${fl.segs.length} segments; the limit is ${MAX_SEGS}`, true); return; }
     const core = { px: fl.px }; if (CHIP_BY[first.chip]) core.chip = first.chip;
     const segs = fl.segs.map(sg => {
-      const g = [sg.start, sg.count, sg.run.role, false];
+      const g = [sg.start, sg.count, sg.run.role, !!sg.run.rev];
       if (sg.p0 && sg.p1) g.push(sg.p0, sg.p1);
       const ob = runObj(sg.run); if (ob) g.push(ob);
       return segOut(g);
