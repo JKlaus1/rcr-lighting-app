@@ -511,6 +511,10 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
       </div>
       <div class="strip-actions"><button class="btn" id="calBtn">Calibrate</button></div>
     </div>
+    <h2>Output test</h2>
+    <div class="panel" id="outTestPanel"></div>
+    <p class="note">Forces one output at a time for bench checks: lamps get 12 V, strips get 12 V and a dim white fill.
+      Only while the bike is parked (lights off, no brake or turn signal). Overrides last 10 minutes; Clear all or key off ends them.</p>
     <h2>Radio</h2>
     <div class="panel">
       <div class="field"><span class="lbl">Phones</span><button class="btn" id="pairBtn">Add a phone</button>
@@ -662,18 +666,11 @@ const isRedHue = c => c[0] > 0 && 4 * c[1] < c[0] && 4 * c[2] < c[0];
 const redBanned = role => role === "brake" || role === "turn_l" || role === "turn_r";
 const idleBad = (role, idl) => !!(idl && idl.idle === "color" && redBanned(role) && isRedHue(idl.rgb || [0, 0, 255]));
 const RED_NOTE = "Red isn't allowed here at rest; it would look like a lit brake/front signal.";
-const BRIGHT_NOTE = "Brighter than half the brake light — braking won't stand out.";
 const REAR_ROLES = ["tail", "brake", "tail_turn_l", "tail_turn_r"];
 const isTurnRole = r => r === "turn_l" || r === "turn_r" || r === "tail_turn_l" || r === "tail_turn_r";
 const lumY = c => 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
 // Decoration brightness: global underglow % x strip % x segment %, a whole percent (brake/tail/turn colors ignore all three).
 const decoPct = (global, strip, seg) => Math.round((global * (strip == null ? 100 : strip) * (seg == null ? 100 : seg)) / 10000);
-// A rear idle look brighter than half the brake light (what the board's `warn` reports): luminance x effective brightness.
-const idleTooBright = (s, role, idl, pct) => {
-  if (!REAR_ROLES.includes(role) || !idl || idl.idle === "off") return false;
-  const y = idl.idle === "color" ? lumY(idl.rgb || [0, 0, 255]) : (s.accent.mode === "rainbow" || s.accent.mode === "rainbow_x") ? 0.30 * 255 : lumY(s.accent.rgb);
-  return y * pct / 100 > 0.30 * 255 * s.brake_pct / 100 / 2;
-};
 const segOut = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
   if (isMapped(g)) o.push(segPos(g, 0).map(rnd), segPos(g, 1).map(rnd));
@@ -1067,7 +1064,21 @@ class DemoLink {
         } else this.out("usage: find <strip 1-4> <pixel>|off (pixel must be inside the strip)");
         break;
       }
-      case "bench": if (args === "off") { this.find = null; this.out("bench off"); } else this.out("bench: not simulated (try find)"); break;
+      case "bench": if (args === "off") { this.find = null; this.force = {}; this.fillc = [null, null, null, null]; this.out("bench overrides cleared"); } else this.out("bench " + (this.find || Object.keys(this.force || {}).length ? "active" : "inactive")); break;
+      case "out": {
+        const m = /^(low|high|aux|drl|s[1-4])\s+(on|off|auto)$/.exec(args);
+        if (!m) { this.out("usage: out low|high|aux|drl|s1|s2|s3|s4 on|off|auto"); break; }
+        this.force = this.force || {};
+        if (m[2] === "auto") delete this.force[m[1]]; else this.force[m[1]] = m[2] === "on" ? 1 : 0;
+        this.out(`out ${m[1]} ${m[2]}`); break;
+      }
+      case "fill": {
+        const m = /^([1-4])\s+(off|\d+\s+\d+\s+\d+)$/.exec(args);
+        if (!m) { this.out("usage: fill N R G B | fill N off   (N = 1..4)"); break; }
+        this.fillc = this.fillc || [null, null, null, null];
+        this.fillc[m[1] - 1] = m[2] === "off" ? null : m[2].split(/\s+/).map(Number);
+        this.out(`fill ${m[1]} ${m[2]}`); break;
+      }
       case "hazard": if (onoff >= 0) this.hazLatch = !!onoff; this.out("hazard " + (this.hazLatch ? "on" : "off")); break;
       case "aux": if (onoff >= 0) this.aux = !!onoff; this.out("aux " + (this.aux ? "on" : "off")); break;
       case "accent":
@@ -1082,7 +1093,7 @@ class DemoLink {
       case "ota": this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break;
       case "reboot": this.out("rebooting"); break;
       case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.pend = [null, null, null, null]; this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
-      case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, bench off, cal CH AMPS, save, defaults yes, ota, reboot, pair"); break;
+      case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, out CH on|off|auto, fill N R G B|off, bench off, cal CH AMPS, save, defaults yes, ota, reboot, pair"); break;
       default: this.out(`unknown command '${cmd}' (try help)`);
     }
     return Promise.resolve();
@@ -1099,6 +1110,8 @@ class DemoLink {
     const hb = { off: "O", running: "R", low: "L", high: "H" }[head];
     const en = ["low","high","aux","drl"].map(l => s.head[l].includes(hb) ? 1 : 0);
     if (this.aux && head !== "off") en[2] = 1;
+    const force = this.force || {};
+    ["low","high","aux","drl"].forEach((l, i) => { if (l in force) en[i] = force[l]; });
     const st = { v: 1, head, brk: !!b(0), l: L || hz, r: R || hz, blk };
     // strips: 1 mA per pixel idle + px_ma x brightness for lit pixels (channels add up when `sum`)
     if (this.find && now > this.find.until) this.find = null;
@@ -1123,7 +1136,8 @@ class DemoLink {
     const held = !!this.sim.board_mismatch;   // wrong image for this board: strips are held off
     const sma = s.strips.map((sp, i) => held ? 0 : Math.round(Math.min(sp.cap_ma, loads[i].base + loads[i].acc * bud / 100)));
     const tot = sma.reduce((m, v) => m + v, 0);
-    const lit = s.strips.map((sp, i) => sma[i] > sp.px + 1);
+    const fillc = this.fillc || [null, null, null, null];
+    const lit = s.strips.map((sp, i) => ("s" + (i + 1)) in force ? !!force["s" + (i + 1)] : sma[i] > sp.px + 1 || !!fillc[i]);
     en.push(...lit.map(v => v ? 1 : 0));
     const lampA = [3.2, 3.0, 4.1, 0.6];
     const a = [];
@@ -1136,14 +1150,12 @@ class DemoLink {
       return !on ? "." : (min && v * 1000 < min ? "O" : "o");
     });
     const warn = [];
-    if (s.accent.on && s.strips.some(sp => sp.px && sp.seg.some(g => g[1] > 0 && idleTooBright(s, g[2], segIdleOf(g), Math.floor(s.accent.pct * sp.pct * segPctOf(g) / 10000)))))
-      warn.push("a rear segment's idle look is brighter than half the brake light; lower its brightness so braking stands out");
     if (this.sim.board_mismatch) warn.push("this firmware is built for rev D but the module has PSRAM (rev C board): strips are held off, flash the rcr_revc image");
     if (this.sim.save_err) warn.push("settings could not be saved (storage full?): changes are lost at key-off");
     return { t: Math.round(now), v: 1, in: this.inputs, raw: this.inputs, head, brk: st.brk ? 1 : 0,
              l: st.l ? 1 : 0, r: st.r ? 1 : 0, hz: hz ? 1 : 0, blk: blk ? 1 : 0, aux: this.aux ? 1 : 0,
              en, rt: [0,0,0,0,0,0,0,0], lk: "........", ch: ch.join(""), a: a.map(v => Math.round(v * 100) / 100),
-             sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find ? 1 : 0, ovr: 0, ble: 1,
+             sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find || Object.keys(this.force || {}).length || (this.fillc || []).some(Boolean) ? 1 : 0, ovr: 0, ble: 1,
              pair: this.pairUntil > now ? 1 : 0, ota: 0,
              ...(this.sim.board_mismatch ? { board_mismatch: 1 } : {}), ...(this.sim.save_err ? { save_err: 1 } : {}),
              ...(warn.length ? { warn: warn.join(", ") } : {}) };
@@ -1454,7 +1466,7 @@ function setStatus(s) {
   if (s.board_mismatch) alerts.unshift(["bad", "Wrong firmware for this board — strips are off. Flash the other image.", "board_mismatch"]);
   if (s.strips_err) alerts.unshift(["bad", "LED strip outputs failed to start"]);
   if (s.v === 0) alerts.unshift(["warn", "Inputs not settled yet: low beam and rear red held on"]);
-  if (s.bench) alerts.unshift(["warn", "Bench override active (pixel finder or USB console)"]);
+  if (s.bench) alerts.unshift(["warn", "Bench override active (Output test, pixel finder or USB console)"]);
   const al = $("alerts"); al.textContent = "";
   for (const [cls, msg, key] of alerts) al.append(el("div", { class: "banner " + cls, "data-alert": key || null }, msg));
   $("liveFoot").textContent = s.ota ? "Firmware update access point is on." : "";
@@ -1739,7 +1751,6 @@ function buildStrips() {
         effHint.textContent = `effective ${eff} % (global × strip × segment)`;
         notes.textContent = "";
         if (idleBad(g[2], idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
-        if (idleTooBright(s0, g[2], idl && !idleBad(g[2], idl) ? idl : null, eff)) notes.append(el("div", { class: "lay-warn", "data-note": "bright" }, BRIGHT_NOTE));
       };
       // idle look: what a safety segment shows while its own function is off
       const cur = idleOk(g[2]) && segIdleOf(g);
@@ -1884,6 +1895,26 @@ $("radioBtn").onclick = () => {
 };
 $("saveBtn").onclick = () => send("save");
 $("pairBtn").onclick = () => send("pair");
+
+// Output test: one row per output with On / Off / Auto (= back to the firmware), Clear all = bench off.
+const OUT_TEST = [["low", "Low beam", "J6 pin 5"], ["high", "High beam", "J6 pin 6"], ["aux", "Pods", "J6 pin 7"], ["drl", "DRL", "J6 pin 8"],
+  ["s1", "Strip 1", "J3"], ["s2", "Strip 2", "J4"], ["s3", "Strip 3", "J5"], ["s4", "Strip 4", "J15"]];
+function outTestUi() {
+  const P = $("outTestPanel"); P.textContent = "";
+  for (const [key, name, pin] of OUT_TEST) {
+    const n = /^s(\d)$/.exec(key);
+    const b = (label, cmds) => { const x = el("button", { class: "btn", "data-out": key + ":" + label.toLowerCase() }, label); x.onclick = () => cmds.forEach(c => send(c)); return x; };
+    const row = el("div", { class: "field" }, el("span", { class: "lbl" }, name, el("small", { style: "opacity:.6;margin-left:6px" }, pin)),
+      el("div", { class: "btns" },
+        b("On", n ? [`out ${key} on`, `fill ${n[1]} 48 48 48`] : [`out ${key} on`]),
+        b("Off", n ? [`fill ${n[1]} off`, `out ${key} off`] : [`out ${key} off`]),
+        b("Auto", n ? [`fill ${n[1]} off`, `out ${key} auto`] : [`out ${key} auto`])));
+    P.append(row);
+  }
+  const clr = el("button", { class: "btn", id: "outClearBtn" }, "Clear all overrides"); clr.onclick = () => send("bench off");
+  P.append(el("div", { class: "strip-actions" }, clr));
+}
+outTestUi();
 // Second tap within 4 s confirms (no browser dialogs: they don't work in every viewer).
 function armed(btn, prompt, action) {
   const label = btn.textContent;
@@ -2803,7 +2834,6 @@ function layRenderEditor() {
     eff.textContent = `effective ${e} % (global × strip × run)`;
     notes.textContent = "";
     if (idleBad(r.role, idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
-    if (s0 && idleTooBright(s0, r.role, idl && !idleBad(r.role, idl) ? idl : null, e)) notes.append(el("div", { class: "lay-warn", "data-note": "bright" }, BRIGHT_NOTE));
   };
   if (idleOk(r.role)) {
     const col = el("input", { type: "color", value: hex(r.rgb), "aria-label": "Idle color", "data-ed": "idle-color", hidden: r.idle !== "color" });
