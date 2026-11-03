@@ -1241,8 +1241,10 @@ async function tryReconnect() {
 }
 function cancelReconnect() { clearTimeout(recon.timer); recon.timer = null; recon.attempt = 0; }
 
-// The board's settings come back as one long line; if it never arrives (cut short over BLE) the
-// app stays "connected" but every Setup/Map action says connect first. Ask again, up to 3 times.
+// The board's settings come back as one long line in several notifications. Firmware before
+// v0.3.11 split it into 514-byte chunks, which Android 13+ discards (GATT values are 512 bytes
+// max), so only the tail ever arrived and the app stayed "connected" with no settings: every
+// Setup/Map action said connect first. Ask again, up to 3 times, then say why.
 let settingsWatch = { timer: null, tries: 0 };
 function wantSettings() {
   clearTimeout(settingsWatch.timer);
@@ -1250,7 +1252,7 @@ function wantSettings() {
   send("get");
   const check = () => {
     if (!app.link || app.demo || app.settings) return;
-    if (++settingsWatch.tries > 3) { toast("The board's settings did not come through. Tap Reconnect, or type get on the Console tab.", true); return; }
+    if (++settingsWatch.tries > 3) { toast("The board's settings did not come through. Firmware before v0.3.11 sends them in chunks this phone discards (over 512 bytes); update the firmware, or tap Reconnect.", true); return; }
     send("get");
     settingsWatch.timer = setTimeout(check, 2500);
   };
@@ -1492,23 +1494,27 @@ function setStatus(s) {
   $("qPods").setAttribute("aria-pressed", !!s.aux);
   paintMaps();
 }
-// Total strip current and the shared-budget scale (status `tot` mA, `bud` %), on Live and Map.
+// Total strip current on Live and Map. The big number is the sum of the four measured strip
+// channels (status `a[4..7]`); the budget works on the board's pixel-model estimate (`tot` mA,
+// what the commanded pixels should draw), which is shown alongside so an unplugged strip
+// does not look like 3 A of load.
 function paintTotals(s) {
   const has = typeof s.tot === "number";
   const li = $("oTot"); if (li) li.hidden = !has;
   if (!has) { $("budTot").textContent = "–"; $("budDim").hidden = true; return; }
-  const tot = s.tot / 1000, bud = typeof s.bud === "number" ? s.bud : 100;
+  const est = s.tot / 1000, bud = typeof s.bud === "number" ? s.bud : 100;
+  const meas = Array.isArray(s.a) ? [4, 5, 6, 7].reduce((m, i) => m + (Number(s.a[i]) || 0), 0) : est;
   const B = app.settings && app.settings.budget;
   const cap = B ? ((s.head === "low" || s.head === "high") ? B.lit_ma : B.dark_ma) / 1000 : 0;
   if (li) {
-    li.querySelector(".amps").textContent = tot.toFixed(2) + " A";
+    li.querySelector(".amps").textContent = meas.toFixed(2) + " A";
     const st = li.querySelector(".state");
-    st.textContent = bud < 100 ? `underglow dimmed to ${bud} %` : "budget " + bud + " %, not limiting";
+    st.textContent = `model ${est.toFixed(2)} A · ` + (bud < 100 ? `underglow dimmed to ${bud} %` : "budget " + bud + " %, not limiting");
     st.className = "state " + (bud < 100 ? "warn" : "ok");
-    li.querySelector(".bar i").style.width = (cap ? Math.min(100, tot / cap * 100) : 0) + "%";
-    li.querySelector(".where").textContent = cap ? `shared budget ${cap.toFixed(1)} A` : "shared budget";
+    li.querySelector(".bar i").style.width = (cap ? Math.min(100, est / cap * 100) : 0) + "%";
+    li.querySelector(".where").textContent = (cap ? `shared budget ${cap.toFixed(1)} A` : "shared budget") + ", measured";
   }
-  $("budTot").textContent = tot.toFixed(2) + " A" + (cap ? ` of ${cap.toFixed(1)} A` : "");
+  $("budTot").textContent = meas.toFixed(2) + " A measured, model " + est.toFixed(2) + " A" + (cap ? ` of ${cap.toFixed(1)} A` : "");
   const d = $("budDim"); d.hidden = !(bud < 100);
   if (bud < 100) d.textContent = `Dimming underglow to ${bud} %`;
 }
