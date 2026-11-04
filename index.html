@@ -703,6 +703,12 @@ const PRESETS = {  // same tables as firmware applyHeadPreset()
   lp6:           { low: "L", high: "H", aux: "H", drl: "RLH" },
 };
 const STRIP_JACK = ["J3", "J4", "J5", "J15"];
+// What a strip output drives (firmware OutMode). Anything but pixels makes the output a plain switched 12 V lamp feed.
+const OUT_MODES = [["pixels", "Addressable LED strip"], ["turn_l", "Left turn lamp (12 V)"], ["turn_r", "Right turn lamp (12 V)"],
+                   ["brake", "Brake lamp (12 V)"], ["running", "Running lamp (12 V)"], ["always", "Always on (12 V)"]];
+const OUT_LABEL = Object.fromEntries(OUT_MODES);
+const OUT_SHORT = { turn_l: "left turn lamp", turn_r: "right turn lamp", brake: "brake lamp", running: "running lamp", always: "always on" };
+const isLampOut = sp => !!(sp && sp.out && sp.out !== "pixels");
 
 // ---------------------------------------------------------------------------
 // Newline framing over notifications (replies are split to the MTU).
@@ -797,7 +803,7 @@ function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byte
 // ---------------------------------------------------------------------------
 // Demo: a simulated controller with the firmware's defaults and logic.
 // ---------------------------------------------------------------------------
-const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
+const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100,"follow":false},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"out":"pixels","lamp_min_ma":0,"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"out":"pixels","lamp_min_ma":0,"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
 // Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
 {
   const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100 };
@@ -966,6 +972,8 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
   s.in_hold_ms = clamp(s.in_hold_ms | 0, 0, 2000);
   s.button.long_ms = clamp(s.button.long_ms | 0, 300, 3000); s.button.gap_ms = clamp(s.button.gap_ms | 0, 150, 800);
   for (const st of s.strips) {
+    if (!OUT_LABEL[st.out]) st.out = "pixels";
+    st.lamp_min_ma = clamp(st.lamp_min_ma | 0, 0, 7000);
     st.px = clamp(st.px | 0, 0, 800); st.cap_ma = clamp(st.cap_ma | 0, 500, 7000); st.px_ma = clamp(st.px_ma | 0, 5, 80);
     st.lpp = clamp(st.lpp | 0, 1, 3);
     st.pct = clamp(rnd(st.pct == null ? 100 : st.pct), 0, 100);
@@ -1159,7 +1167,7 @@ class DemoLink {
       if (this.find && this.find.strip === i) base += sp.px_ma;
       return { base, acc };
     });
-    const totPre = s.strips.reduce((m, sp, i) => m + Math.min(sp.cap_ma, loads[i].base + loads[i].acc), 0);
+    const totPre = s.strips.reduce((m, sp, i) => isLampOut(sp) ? m : m + Math.min(sp.cap_ma, loads[i].base + loads[i].acc), 0);
     const budget = (head === "low" || head === "high") ? s.budget.lit_ma : s.budget.dark_ma;
     const bud = totPre > budget ? Math.floor(budget / totPre * 100) : 100;
     const held = !!this.sim.board_mismatch;   // wrong image for this board: strips are held off
@@ -1167,15 +1175,22 @@ class DemoLink {
     const tot = sma.reduce((m, v) => m + v, 0);
     const fillc = this.fillc || [null, null, null, null];
     const lit = s.strips.map((sp, i) => ("s" + (i + 1)) in force ? !!force["s" + (i + 1)] : sma[i] > sp.px + 1 || !!fillc[i]);
+    // Lamp outputs: the supply is the lamp, switched by the function (a 21 W bulb's worth of current).
+    s.strips.forEach((sp, i) => {
+      if (!isLampOut(sp)) return;
+      const fn = { turn_l: st.l && blk, turn_r: st.r && blk, brake: st.brk, running: head !== "off", always: true }[sp.out];
+      lit[i] = ("s" + (i + 1)) in force ? !!force["s" + (i + 1)] : !!fn;
+      sma[i] = 0;
+    });
     en.push(...lit.map(v => v ? 1 : 0));
     const lampA = [3.2, 3.0, 4.1, 0.6];
     const a = [];
     for (let i = 0; i < 4; i++) a.push(en[i] ? lampA[i] + (Math.random() - 0.5) * 0.06 : 0);
-    for (let i = 0; i < 4; i++) a.push(en[4 + i] ? sma[i] / 1000 : 0);
+    for (let i = 0; i < 4; i++) a.push(en[4 + i] ? (isLampOut(s.strips[i]) ? 1.75 : sma[i] / 1000) : 0);
     a.push(0.8, 0);
     const ch = a.map((v, i) => {
       const on = i < 8 ? en[SENSE[i].en] : 1;
-      const min = i < 4 ? (s.lamp_min_ma[["low","high","aux","drl"][i]] || 0) : 0;
+      const min = i < 4 ? (s.lamp_min_ma[["low","high","aux","drl"][i]] || 0) : i < 8 && isLampOut(s.strips[i - 4]) ? s.strips[i - 4].lamp_min_ma : 0;
       return !on ? "." : (min && v * 1000 < min ? "O" : "o");
     });
     const warn = [];
@@ -1511,8 +1526,12 @@ function setStatus(s) {
     const amps = (s.a || [])[i] || 0;
     let rating = c.rating, extra = "";
     if (c.strip != null && app.settings) {
-      rating = app.settings.strips[c.strip].cap_ma / 1000;
-      if (!app.settings.strips[c.strip].px) extra = " (unused)";
+      const sp = app.settings.strips[c.strip];
+      if (isLampOut(sp)) extra = " · " + OUT_SHORT[sp.out];
+      else {
+        rating = sp.cap_ma / 1000;
+        if (!sp.px) extra = " (unused)";
+      }
     }
     const locked = c.en >= 0 && (s.lk || "")[c.en] === "L";
     const retries = c.en >= 0 ? (s.rt || [])[c.en] : 0;
@@ -1628,7 +1647,9 @@ function setSettings(s) {
     selectField("Style", [["flash", "Flash"], ["sweep", "Sweep"]], s.turn.style, v => patch({ turn: { style: v } })),
     selectField("Rear color", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
     rangeField("Brightness", s.turn.pct, 40, 100, 1, "%", v => patch({ turn: { pct: v } })),
-    rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."));
+    rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."),
+    switchField("Stock flasher still fitted", !!s.turn.follow, v => patch({ turn: { follow: v } }),
+      "On when the bike's own flasher relay is still in place, so the turn leads pulse: the lights follow the pulses instead of flashing on their own. Off when the flasher was removed and the leads carry steady 12 V."));
 
   const rp = $("rearPanel"); rp.textContent = "";
   rp.append(
@@ -1675,6 +1696,7 @@ function paintMaps() {
 const effStrip = i => app.drafts[i] || app.settings.strips[i];
 const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
 function normStrip(d) {
+  d.out = OUT_LABEL[d.out] ? d.out : "pixels"; d.lamp_min_ma = clamp(d.lamp_min_ma | 0, 0, 7000);
   d.chip = d.chip || "custom"; d.timing = d.timing || "800k"; d.rgbw = !!d.rgbw;
   d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18; d.pct = d.pct == null ? 100 : clamp(rnd(d.pct), 0, 100);
   d.seg = d.seg.map(canonSeg);
@@ -1709,7 +1731,7 @@ function buildStrips() {
     const card = el("div", { class: "panel" });
     const headNote = el("p", { class: "note" });
     const est = el("div", { class: "est" });
-    const refreshHead = () => { headNote.textContent = `${STRIP_JACK[i]}, ${draft.px ? draft.px + " pixels" : "unused"}`; };
+    const refreshHead = () => { headNote.textContent = `${STRIP_JACK[i]}, ${isLampOut(draft) ? OUT_SHORT[draft.out] : draft.px ? draft.px + " pixels" : "unused"}`; };
     const refreshEst = () => {
       const px = draft.px | 0, ma = Math.max(1, draft.px_ma | 0);
       if (!px) { est.textContent = "Unused."; est.className = "est"; return; }
@@ -1806,8 +1828,31 @@ function buildStrips() {
           el("label", {}, "or LEDs per meter", hl)),
         hres, hbtn));
 
+    // ---- output mode: addressable strip, or a switched 12 V lamp feed ----
+    const outField = selectField("Output", OUT_MODES, draft.out, v => { draft.out = v; showMode(); redraw(); });
+    outField.querySelector("select").setAttribute("data-strip-out", i);
+    const lampMin = el("input", { type: "number", min: 0, max: 7000, step: 50, value: draft.lamp_min_ma, inputmode: "numeric", "aria-label": "Lamp-out below (mA)", "data-strip-lampmin": i });
+    lampMin.addEventListener("input", () => { draft.lamp_min_ma = clamp(Number(lampMin.value) | 0, 0, 7000); redraw(); });
+    const lampNote = el("p", { class: "note" });
+    const lampPanel = el("div", { class: "lamp-out" },
+      el("div", { class: "field" }, el("span", { class: "lbl" }, "Lamp-out below (mA)"), lampMin,
+        el("div", { class: "hint" }, "Warn when the lamp is on but draws less than this (a 21 W bulb draws about 1700 mA). 0 = no check.")),
+      lampNote);
+    const pixelNodes = [];
+    const showMode = () => {
+      const lamp = isLampOut(draft);
+      pixelNodes.forEach(n => n.hidden = lamp);
+      lampPanel.hidden = !lamp;
+      lampNote.textContent = lamp ? `${STRIP_JACK[i]} pin 1 carries 12 V ${
+        { turn_l: "flashing with the left turn signal", turn_r: "flashing with the right turn signal", brake: "while braking", running: "while the lights are on", always: "whenever the key is on" }[draft.out]
+      }, pin 3 is ground, the data pin stays off. Up to 7.5 A; the current shows on the Live tab.` : "";
+      refreshHead();
+    };
+
     card.append(
       el("div", { class: "strip-head" }, el("h3", {}, `Strip ${i + 1}`), headNote),
+      outField, lampPanel);
+    pixelNodes.push(
       el("div", { class: "map", "aria-hidden": "true" }),
       chipField, derived, pctField, helper,
       el("div", { class: "strip-props" },
@@ -1815,6 +1860,7 @@ function buildStrips() {
         el("label", {}, "Color order", order),
         numIn("Current cap (A)", draft.cap_ma / 1000, 0.5, 7, 0.1, v => draft.cap_ma = Math.round(v * 1000))),
       est);
+    card.append(...pixelNodes);
     drawDerived(); refreshHead(); refreshEst();
 
     // ---- segments ----
@@ -1908,7 +1954,7 @@ function buildStrips() {
       draft.seg.push([Math.min(end, Math.max(0, draft.px - 1)), Math.max(0, draft.px - end), "accent", false, [0, 0, 0], [0, 0, 0]]);
       drawRows(); redraw(); } }, "Add segment");
     const apply = el("button", { class: "btn primary", "data-apply": i, onclick: () => {
-      const core = { px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
+      const core = { out: draft.out, lamp_min_ma: draft.lamp_min_ma | 0, px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
       // A preset is sent by name (the board fills in the rest); Custom sends every field.
       if (draft.chip !== "custom") core.chip = draft.chip;
       else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
@@ -1922,8 +1968,10 @@ function buildStrips() {
         el("p", { class: "note" }, "The Map tab's Layout is the easy way to set segments, positions and idle looks: draw the strips on photos of the bike. Edit here only to fine-tune."),
         table, el("div", { class: "strip-actions", style: "padding:8px 0 0" }, add)));
     adv.addEventListener("toggle", () => { adv.open ? app.open.add(advKey) : app.open.delete(advKey); });
+    pixelNodes.push(adv);
     card.append(adv, el("div", { class: "strip-actions" }, apply, reset));
     box.append(card);
+    showMode();
     drawRows();
     card.querySelector(".map").replaceChildren(...mapNodes(draft));
   });
@@ -2967,7 +3015,8 @@ function layRenderChains() {
     ch.runs.forEach(r => { if (r.count > 0 && r.pts.length < 2) warns.push(["warn", `${r.name} has no drawn positions; it will be sent unmapped.`]); });
     const sel = el("select", { "data-chain-out": ch.head.id, "aria-label": `Output for ${chainName(ch)}` },
       el("option", { value: "" }, "Not assigned"),
-      ...[1, 2, 3, 4].map(o => el("option", { value: o, selected: ch.out === o }, `Output ${o} (${STRIP_JACK[o - 1]})`)));
+      ...[1, 2, 3, 4].map(o => el("option", { value: o, selected: ch.out === o, disabled: app.settings && isLampOut(app.settings.strips[o - 1]) && ch.out !== o },
+        `Output ${o} (${STRIP_JACK[o - 1]})` + (app.settings && isLampOut(app.settings.strips[o - 1]) ? " – " + OUT_SHORT[app.settings.strips[o - 1].out] : ""))));
     sel.onchange = () => { ch.head.out = +sel.value || 0; layChanged({}); };
     box.append(el("div", { class: "lay-chain", "data-chain": ch.head.id },
       el("h3", {}, chainName(ch)),
