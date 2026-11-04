@@ -368,7 +368,7 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
     <ul class="panel rows" id="outRows"></ul>
     <h2>Bike inputs</h2>
     <div class="panel wires" id="wires"></div>
-    <div class="btns"><button class="btn" id="cntReset">Reset counters</button></div>
+    <div class="btns"><button class="btn" id="cntShow">Counter details</button><button class="btn" id="cntReset">Reset counters</button></div>
     <p class="note">Changes = how often an input switched since key-on or the last reset. Cut-outs = a lamp's current dropping out while its output was on (low/high beam checked every millisecond). A lamp that cuts out with no input changes is the lamp or its supply; an input that changes with nobody at the switch is a signal line dropping out.</p>
     <p class="note" id="liveFoot"></p>
   </section>
@@ -1477,6 +1477,7 @@ function wireNote(inp, bit, s) {
 }
 function fmtAge(ms) { return ms < 60000 ? Math.round(ms / 1000) + " s" : Math.round(ms / 60000) + " min"; }
 $("cntReset").onclick = () => { app.lastBn = null; send("counters reset"); };
+$("cntShow").onclick = () => { send("counters"); showTab("console"); };
 
 function buildWires() {
   const w = $("wires"); w.textContent = "";
