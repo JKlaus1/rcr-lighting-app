@@ -368,6 +368,8 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
     <ul class="panel rows" id="outRows"></ul>
     <h2>Bike inputs</h2>
     <div class="panel wires" id="wires"></div>
+    <div class="btns"><button class="btn" id="cntReset">Reset counters</button></div>
+    <p class="note">Changes = how often an input switched since key-on or the last reset. Cut-outs = a lamp's current dropping out while its output was on (low/high beam checked every millisecond). A lamp that cuts out with no input changes is the lamp or its supply; an input that changes with nobody at the switch is a signal line dropping out.</p>
     <p class="note" id="liveFoot"></p>
   </section>
 
@@ -498,6 +500,9 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
     <p class="note">Ticks set which outputs light in each switch position. Two feeds: separate low and high beam wires. Baja LP6 DOT: the high-beam wire lights the whole lamp, so low and high are never on together; pods with high.</p>
     <h2>Lamp-out warning</h2>
     <div class="panel" id="lampMinPanel"></div>
+    <h2>Switch inputs</h2>
+    <div class="panel" id="inputsPanel"></div>
+    <p class="note">If the Live tab counts input changes while nobody touches the switch, the bike's signal lines are dropping out. A hold keeps every light and signal on through gaps shorter than this; it only delays the switch-off, never the switch-on.</p>
     <h2>Handlebar button</h2>
     <div class="panel" id="btnPanel"></div>
     <h2>Current readings</h2>
@@ -792,7 +797,7 @@ function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byte
 // ---------------------------------------------------------------------------
 // Demo: a simulated controller with the firmware's defaults and logic.
 // ---------------------------------------------------------------------------
-const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"button":{"short":"accent_toggle","double":"accent_next","long":"hazard"},"strips":[{"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
+const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
 // Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
 {
   const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100 };
@@ -958,6 +963,8 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
   s.turn.pct = clamp(s.turn.pct, 40, 100); s.brake_pct = clamp(s.brake_pct, 50, 100);
   s.tail_pct = clamp(Math.min(s.tail_pct, Math.floor(s.brake_pct / 3)), 5, 33);
   s.marker_pct = clamp(s.marker_pct, 0, 50); s.boot_red_pct = clamp(s.boot_red_pct, 10, 60);
+  s.in_hold_ms = clamp(s.in_hold_ms | 0, 0, 2000);
+  s.button.long_ms = clamp(s.button.long_ms | 0, 300, 3000); s.button.gap_ms = clamp(s.button.gap_ms | 0, 150, 800);
   for (const st of s.strips) {
     st.px = clamp(st.px | 0, 0, 800); st.cap_ma = clamp(st.cap_ma | 0, 500, 7000); st.px_ma = clamp(st.px_ma | 0, 5, 80);
     st.lpp = clamp(st.lpp | 0, 1, 3);
@@ -1033,12 +1040,27 @@ class DemoLink {
     this.gain = 1; this.find = null;
     this.pend = [null, null, null, null];                    // staged `segi` batches, committed by `nseg`
     this.sim = { save_err: false, board_mismatch: false };    // status faults to exercise the banners (tests set these)
+    this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
+    this.bn = 0; this.bev = null; this.bevAt = 0;
+  }
+  // The handlebar button in the demo: tapping its wire on, then off, is a short press.
+  press(kind) {
+    const a = this.s.button[kind];
+    this.bn++; this.bev = kind; this.bevAt = performance.now();
+    if (a === "accent_toggle") this.s.accent.on = !this.s.accent.on;
+    else if (a === "accent_next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
+    else if (a === "hazard") this.hazLatch = !this.hazLatch;
+    else if (a === "aux_toggle") this.aux = !this.aux;
   }
   async open() { this.timer = setInterval(() => this.h.onLive(JSON.stringify(this.status())), 250); }
   name() { return "Demo controller"; }
   close() { clearInterval(this.timer); }
   reconnect() { return this.open(); }
-  toggleInput(bit) { this.inputs ^= (1 << bit); this.h.onLive(JSON.stringify(this.status())); }
+  toggleInput(bit) {
+    this.inputs ^= (1 << bit); this.edges[bit]++;
+    if (bit === 5 && !((this.inputs >> 5) & 1)) this.press("short");
+    this.h.onLive(JSON.stringify(this.status()));
+  }
   out(text) { for (const l of text.split("\n")) if (l) setTimeout(() => this.h.onOut(l), 40); }
   send(line) {
     const t = line.trim(); const sp = t.indexOf(" ");
@@ -1089,11 +1111,18 @@ class DemoLink {
       case "pair": this.pairUntil = performance.now() + 120000; this.out("BLE pairing open for 2 minutes"); break;
       case "sense": this.out(SENSE.map((c, i) => `${SENSE_KEYS[i].padEnd(6)} ${this.status().a[i].toFixed(2)} A`).join("\n")); break;
       case "cal": this.out("cal: simulated, nothing to calibrate"); break;
+      case "counters":
+        if (args === "reset") { this.edges.fill(0); this.dip.fill(0); this.dipms.fill(0); this.bn = 0; this.bev = null; this.out("counters reset"); }
+        else this.out("input changes: " + INPUTS.map((x, i) => `${x.key}=${this.edges[i]}`).join(" ") + `\ndropout hold: ${this.s.in_hold_ms} ms\n`
+          + LAMPS.map((l, i) => `${l[0]} dips: ${this.dip[i]}${this.dip[i] ? `, longest ${this.dipms[i]} ms` : ""}`).join("\n")
+          + `\nbutton: released, ${this.bn} presses, last ${this.bev || "none"}`);
+        break;
+      case "bonds": this.out("BLE 1 bond: aa:bb:cc:dd:ee:ff (slots: 3)"); break;
       case "save": this.out("saved"); break;
       case "ota": this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break;
       case "reboot": this.out("rebooting"); break;
       case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.pend = [null, null, null, null]; this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
-      case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, out CH on|off|auto, fill N R G B|off, bench off, cal CH AMPS, save, defaults yes, ota, reboot, pair"); break;
+      case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, out CH on|off|auto, fill N R G B|off, bench off, cal CH AMPS, counters [reset], bonds, save, defaults yes, ota, reboot, pair"); break;
       default: this.out(`unknown command '${cmd}' (try help)`);
     }
     return Promise.resolve();
@@ -1157,6 +1186,8 @@ class DemoLink {
              en, rt: [0,0,0,0,0,0,0,0], lk: "........", ch: ch.join(""), a: a.map(v => Math.round(v * 100) / 100),
              sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find || Object.keys(this.force || {}).length || (this.fillc || []).some(Boolean) ? 1 : 0, ovr: 0, ble: 1,
              pair: this.pairUntil > now ? 1 : 0, ota: 0,
+             edges: this.edges.slice(), dip: this.dip.slice(), dipms: this.dipms.slice(),
+             btn: b(5), bn: this.bn, ...(this.bev ? { bev: this.bev, bage: Math.round(now - this.bevAt) } : {}),
              ...(this.sim.board_mismatch ? { board_mismatch: 1 } : {}), ...(this.sim.save_err ? { save_err: 1 } : {}),
              ...(warn.length ? { warn: warn.join(", ") } : {}) };
   }
@@ -1334,7 +1365,7 @@ function showTab(name) {
 async function start(demo, auto) {
   if (app.link) return;
   $("connectErr").hidden = true;
-  app.demo = demo; app.userClosed = false; cancelReconnect();
+  app.demo = demo; app.userClosed = false; cancelReconnect(); app.lastBn = null;
   app.link = demo ? new DemoLink(handlers) : new BleLink(handlers);
   try {
     setLink(demo ? "Starting demo…" : auto ? "Looking for the controller…" : "Connecting…", false);
@@ -1416,6 +1447,22 @@ function paintDash(s) {
   $("tHaz").classList.toggle("on", !!s.hz);
 }
 
+const BTN_EVENTS = { short: "short press", double: "double press", long: "long press", "hold-5s": "held 5 s (pairing)" };
+// Second line of an input row: where the lead goes, plus the diagnostics counters.
+function wireNote(inp, bit, s) {
+  const edges = Array.isArray(s.edges) ? (s.edges[bit] | 0) : 0;
+  if (inp.key === "btn") {
+    const parts = [];
+    if (s.btn) parts.push("pressed");
+    if (s.bev) parts.push(`last: ${BTN_EVENTS[s.bev] || s.bev}` + (typeof s.bage === "number" ? ` ${fmtAge(s.bage)} ago` : ""));
+    if (typeof s.bn === "number") parts.push(`${s.bn} press${s.bn === 1 ? "" : "es"}`);
+    return parts.length ? parts.join(" · ") : inp.where;
+  }
+  return inp.where + (edges ? ` · ${edges} change${edges === 1 ? "" : "s"}` : "");
+}
+function fmtAge(ms) { return ms < 60000 ? Math.round(ms / 1000) + " s" : Math.round(ms / 60000) + " min"; }
+$("cntReset").onclick = () => { app.lastBn = null; send("counters reset"); };
+
 function buildWires() {
   const w = $("wires"); w.textContent = "";
   INPUTS.forEach((inp, bit) => {
@@ -1431,12 +1478,18 @@ function buildWires() {
 function setStatus(s) {
   app.status = s; app.lastLive = Date.now();
   paintDash(s);
-  INPUTS.forEach((_, bit) => {
+  INPUTS.forEach((inp, bit) => {
     const w = $("w" + bit); if (!w) return;
     const on = !!((s.in >> bit) & 1);
     w.classList.toggle("on", on);
     if (app.demo) w.setAttribute("aria-pressed", on);
+    w.querySelector(".txt span").textContent = wireNote(inp, bit, s);
   });
+  // A decoded button press (status `bn` counts them) gets a toast, so wiring the button can be checked from any tab.
+  if (typeof s.bn === "number") {
+    if (app.lastBn != null && s.bn > app.lastBn) toast(`Button: ${BTN_EVENTS[s.bev] || s.bev || "press"}`);
+    app.lastBn = s.bn;
+  }
   const rows = $("outRows");
   if (!rows.childNodes.length) {
     SENSE.forEach((c, i) => {
@@ -1465,8 +1518,11 @@ function setStatus(s) {
     const retries = c.en >= 0 ? (s.rt || [])[c.en] : 0;
     li.querySelector(".amps").textContent = amps.toFixed(2) + " A";
     const stEl = li.querySelector(".state");
-    stEl.textContent = locked ? "fault, gave up retrying" : label + (retries && code === "F" ? `, retry ${retries}` : "") + extra;
-    stEl.className = "state " + (locked ? "bad" : cls);
+    const dips = i < 4 && Array.isArray(s.dip) ? (s.dip[i] | 0) : 0;
+    const dipTxt = dips ? ` · ${dips} cut-out${dips === 1 ? "" : "s"}, longest ${(s.dipms || [])[i] | 0} ms` : "";
+    stEl.textContent = (locked ? "fault, gave up retrying" : label + (retries && code === "F" ? `, retry ${retries}` : "") + extra) + dipTxt;
+    stEl.className = "state " + (locked ? "bad" : dips && cls === "ok" ? "warn" : cls);
+    if (dips && code === "o") alerts.push(["warn", `${c.name}: current cut out ${dips}× (longest ${(s.dipms || [])[i] | 0} ms) — lamp or supply flicker`]);
     const bar = li.querySelector(".bar i");
     bar.style.width = Math.min(100, amps / rating * 100) + "%";
     bar.classList.toggle("lit", code === "o");
@@ -1533,6 +1589,11 @@ function switchField(label, on, onCommit, hint) {
   const b = el("button", { class: "switch", role: "switch", "aria-checked": on ? "true" : "false", "aria-label": label });
   b.onclick = () => { const nv = b.getAttribute("aria-checked") !== "true"; b.setAttribute("aria-checked", nv); onCommit(nv); };
   return el("div", { class: "field" }, el("span", { class: "lbl" }, label), b, hint ? el("div", { class: "hint" }, hint) : null);
+}
+function numField(label, value, min, max, step, onCommit, hint, key) {
+  const n = el("input", { type: "number", min, max, step, value, inputmode: "numeric", "aria-label": label, "data-num": key || null });
+  n.onchange = () => { const v = clamp(Number(n.value) | 0, min, max); n.value = v; onCommit(v); };
+  return el("div", { class: "field" }, el("span", { class: "lbl" }, label), n, hint ? el("div", { class: "hint" }, hint) : null);
 }
 function selectField(label, options, value, onCommit) {
   const id = "f" + Math.random().toString(36).slice(2);
@@ -1896,12 +1957,18 @@ function buildSetup() {
   lm.append(el("div", { class: "field" }, el("div", { class: "hint" }, "Warn when an output is on but draws less than this. 0 means nothing is expected on that output.")));
   lm.append(switchField("Tail white counts as lights on", s.spare_as_run, v => patch({ spare_as_run: v })));
 
+  const ip = $("inputsPanel"); ip.textContent = "";
+  ip.append(numField("Ride through switch dropouts up to (ms)", s.in_hold_ms | 0, 0, 2000, 10, v => patch({ in_hold_ms: v }), "0 = off. Try 200 if the Live tab counts input changes on its own.", "in_hold_ms"));
+
   const bp = $("btnPanel"); bp.textContent = "";
+  const longMs = s.button.long_ms || 1000;
   bp.append(
     selectField("Short press", ACTIONS, s.button.short, v => patch({ button: { short: v } })),
     selectField("Double press", ACTIONS, s.button.double, v => patch({ button: { double: v } })),
-    selectField("Hold 1 s", ACTIONS, s.button.long, v => patch({ button: { long: v } })),
-    el("div", { class: "field" }, el("div", { class: "hint" }, "Holding the button while switching the key on starts the firmware update access point.")));
+    selectField(`Hold ${(longMs / 1000).toFixed(longMs % 1000 ? 1 : 0)} s`, ACTIONS, s.button.long, v => patch({ button: { long: v } })),
+    numField("Long press after (ms)", longMs, 300, 3000, 100, v => patch({ button: { long_ms: v } }), null, "btn_long_ms"),
+    numField("Double-press gap (ms)", s.button.gap_ms || 350, 150, 800, 50, v => patch({ button: { gap_ms: v } }), "A single press waits this long for a second one when a double-press action is set.", "btn_gap_ms"),
+    el("div", { class: "field" }, el("div", { class: "hint" }, "Holding the button 5 s opens Bluetooth pairing; holding it while switching the key on starts the firmware update access point. The Live tab shows every press as it is decoded.")));
 
   const cal = $("calCh");
   if (!cal.options.length) SENSE.forEach((c, i) => cal.append(el("option", { value: SENSE_KEYS[i] }, c.name)));
