@@ -614,7 +614,11 @@ const ROLES = [
 ];
 const ORDERS = ["GRB", "RGB", "BRG", "RBG", "GBR", "BGR"];
 const MODES = [["solid", "Solid"], ["breathe", "Breathe"], ["rainbow", "Rainbow"], ["chase", "Chase"],
-               ["wave", "Wave (front→rear)"], ["sweep", "Sweep (left↔right)"], ["rise", "Rise"], ["rainbow_x", "Rainbow along bike"]];
+               ["wave", "Wave (front→rear)"], ["sweep", "Sweep (left↔right)"], ["rise", "Rise"], ["rainbow_x", "Rainbow along bike"],
+               ["scanner", "Scanner (KITT)"]];
+// Turn animations (firmware TurnStyle). A strip can override the global one ("global" = use it).
+const TURN_STYLES = [["flash", "Solid flash"], ["sweep", "Sequential fill"], ["comet", "Sequential comet"], ["wipe", "Sequential wipe (on, then off)"]];
+const LOOK_DEFAULT = { mode: "scanner", rgb: [255, 96, 0], speed: 5, rev: false, master: false };
 const POS_MODES = ["wave", "sweep", "rise", "rainbow_x"];  // use segment positions
 // Chip presets: same table as firmware. Sending `chip` applies timing/rgbw/lpp/sum/px_ma.
 const CHIPS = [
@@ -655,11 +659,11 @@ const segArrs = g => g.slice(4).filter(Array.isArray);
 const isMapped = g => { const q = segArrs(g); return q.length >= 2 && [q[0], q[1]].some(p => p.some(v => Number(v) !== 0)); };
 const segPos = (g, n) => segArrs(g)[n] || [0, 0, 0];
 const segObjOf = g => g.slice(4).find(e => e && typeof e === "object" && !Array.isArray(e)) || null;
-const segIdleOf = g => { const o = segObjOf(g); return o && (o.idle === "accent" || o.idle === "color") ? o : null; };
+const segIdleOf = g => { const o = segObjOf(g); return o && (o.idle === "accent" || o.idle === "color" || o.idle === "look") ? o : null; };
 const segPctOf = g => { const o = segObjOf(g), p = o && o.pct != null ? Number(o.pct) : 100; return Number.isFinite(p) ? clamp(rnd(p), 0, 100) : 100; };
 const idleOk = role => role !== "accent" && role !== "none";   // accent/none have no idle look
 const idleObj = (mode, rgb) => mode === "color" ? { idle: "color", rgb: (rgb || [0, 0, 255]).map(v => clamp(rnd(v), 0, 255)) }
-                             : mode === "accent" ? { idle: "accent" } : null;
+                             : mode === "accent" ? { idle: "accent" } : mode === "look" ? { idle: "look" } : null;
 // The segment's trailing object: the idle look and/or its brightness (% of the strip's); null when both are at their defaults.
 const segObj = (mode, rgb, pct) => {
   const o = idleObj(mode, rgb) || {}, p = pct == null ? 100 : clamp(rnd(pct), 0, 100);
@@ -671,6 +675,9 @@ const isRedHue = c => c[0] > 0 && 4 * c[1] < c[0] && 4 * c[2] < c[0];
 const redBanned = role => role === "brake" || role === "turn_l" || role === "turn_r";
 const idleBad = (role, idl) => !!(idl && idl.idle === "color" && redBanned(role) && isRedHue(idl.rgb || [0, 0, 255]));
 const RED_NOTE = "Red isn't allowed here at rest; it would look like a lit brake/front signal.";
+// The strip look's color is used by every mode except the rainbows; red on a brake / front-pod segment is refused like a red idle color.
+const lookRed = lk => !!lk && lk.mode !== "rainbow" && lk.mode !== "rainbow_x" && isRedHue(lk.rgb || [0, 0, 0]);
+const LOOK_RED_NOTE = "Texas law bars red lights that show to the front, so the board turns a red strip look off on front turn and brake segments. Pick amber, white or another color, or use red on a rear bar.";
 const REAR_ROLES = ["tail", "brake", "tail_turn_l", "tail_turn_r"];
 const isTurnRole = r => r === "turn_l" || r === "turn_r" || r === "tail_turn_l" || r === "tail_turn_r";
 const lumY = c => 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
@@ -806,7 +813,8 @@ function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byte
 const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100,"follow":false},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"lamp_relight":true,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"out":"pixels","lamp_min_ma":0,"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"out":"pixels","lamp_min_ma":0,"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
 // Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
 {
-  const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100 };
+  const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100,
+                 turn_style: "global", look: { mode: "scanner", rgb: [255, 96, 0], speed: 5, rev: false, master: false } };
   DEFAULTS.strips = [
     { ...base, px: 24, seg: [[0, 12, "turn_l", false, [0, -300, 900], [0, -200, 900]],
                              [12, 12, "turn_r", false, [0, 200, 900], [0, 300, 900]]] },
@@ -843,7 +851,7 @@ function segEntryOk(a) {
     if (e == null) continue;
     if (Array.isArray(e)) { if (npos++ >= 2 || e.length !== 3 || e.some(v => !Number.isFinite(Number(v)))) return false; }
     else if (typeof e === "object") {
-      if (e.idle != null && !["off", "accent", "color"].includes(e.idle)) return false;
+      if (e.idle != null && !["off", "accent", "color", "look"].includes(e.idle)) return false;
       if (e.pct != null && !Number.isFinite(Number(e.pct))) return false;
       if (e.rgb != null && (!Array.isArray(e.rgb) || e.rgb.length !== 3 || e.rgb.some(v => !Number.isFinite(Number(v))))) return false;
     } else return false;
@@ -886,9 +894,29 @@ function accentPix(s, idx, n, pos, bnd, now, scale, pct) {
     case "rainbow": rgb = hsv((lin * 360 + ph * 360) % 360, 1, 1); break;
     case "breathe": k = 0.5 + 0.5 * Math.sin(now / 1000 * sp * 0.6); break;
     case "chase": k = ((Math.floor(ph * n) - idx + n) % n) < Math.max(2, n * 0.1) ? 1 : 0; break;
+    case "scanner": k = scannerLevel(idx, n, now, sp); break;
   }
   const m = k * (pct == null ? A.pct : pct) / 100 * scale;
   return rgb.map(c => Math.round(c * m));
+}
+
+// KITT scanner (mirrors scannerLevel in core/render.cpp): the eye bounces end to end once per
+// 8 s / speed; each pixel lights as the eye passes and decays over a tenth of the period.
+function scannerLevel(pos, len, now, speed) {
+  if (len <= 1) return 1;
+  const period = Math.floor(8000 / (speed || 1)), ph = (now % period) / period;
+  const a = pos / (len - 1) * 0.5, b = 1 - a, d = x => ((ph - x) % 1 + 1) % 1, dt = Math.min(d(a), d(b));
+  return dt >= 0.1 ? 0 : (1 - dt / 0.1) ** 2;
+}
+// The run a strip's "look" segments cover together (the look runs across all of them).
+function lookSpan(sp) {
+  let lo = Infinity, hi = -Infinity;
+  for (const g of (sp && sp.seg) || []) {
+    const i = segIdleOf(g);
+    if (!i || i.idle !== "look" || !idleOk(g[2]) || g[1] <= 0) continue;
+    lo = Math.min(lo, g[0]); hi = Math.max(hi, g[0] + g[1]);
+  }
+  return hi > lo ? { lo, len: hi - lo } : null;
 }
 
 function detectPreset(head) {
@@ -929,6 +957,8 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
             });
           } else if (sk === "nseg") nsegReq = sv;
           else if (sk === "pct") st.pct = sv;
+          else if (sk === "look") { if (sv && typeof sv === "object") st.look = { ...LOOK_DEFAULT, ...(st.look || {}), ...sv }; }
+          else if (sk === "turn_style") { if (sv === "global" || TURN_STYLES.some(t => t[0] === sv)) st.turn_style = sv; }
           else if (sk === "timing") { if (sv === "800k" || sv === "400k") st.timing = sv; }
           else if (sk === "order") { if (ORDERS.includes(sv)) st.order = sv; }
           else if (sk === "rgbw" || sk === "sum") st[sk] = !!sv;
@@ -979,9 +1009,12 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
     st.pct = clamp(rnd(st.pct == null ? 100 : st.pct), 0, 100);
     st.seg = st.seg.map(g => {
       const q = [g[0], g[0] >= st.px ? 0 : Math.min(g[1], st.px - g[0]), g[2], g[3], ...g.slice(4)], i = segIdleOf(q);
-      if (i && idleBad(q[2], i)) { q.pop(); const ob = segObj("off", null, segPctOf(g)); if (ob) q.push(ob); }   // red idle on brake / front pod: refused, idle off
+      if (i && (idleBad(q[2], i) || (i.idle === "look" && redBanned(q[2]) && lookRed(st.look)))) { q.pop(); const ob = segObj("off", null, segPctOf(g)); if (ob) q.push(ob); }   // red idle on brake / front pod: refused, idle off
       return q;
     });
+    st.look = { ...LOOK_DEFAULT, ...(st.look || {}) }; st.look.speed = clamp(st.look.speed | 0, 1, 10);
+    if (!MODES.some(m => m[0] === st.look.mode)) st.look.mode = "scanner";
+    if (st.turn_style !== "global" && !TURN_STYLES.some(t => t[0] === st.turn_style)) st.turn_style = "global";
     st.chip = chipOf(st, st.chip);
   }
   return notes;
@@ -1026,14 +1059,22 @@ function segFree(s, role, st) {
 }
 // One pixel of a segment in the demo: {c: rgb, acc: true when it is an underglow-class pixel (subject to the budget)}.
 // spct = the strip's brightness %. Decoration = global x strip x segment (never auto-dimmed); brake/tail/turn colors ignore it.
-function segPixel(s, g, k, n, st, bnd, now, scale, spct) {
-  const role = g[2], pct = decoPct(s.accent.pct, spct, segPctOf(g));
+function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
+  const role = g[2], own = (segIdleOf(g) || {}).idle === "look", pct = decoPct(own ? 100 : s.accent.pct, spct, segPctOf(g));
   const pos = () => isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
   if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale, pct), acc: true };
   const idl = idleOk(role) && segIdleOf(g);
   if (idl && segFree(s, role, st)) {
     // only turn-role segments drop their idle look while any signal or the hazards flash; front pods never show a red hue
-    if (!s.accent.on || !pct || (isTurnRole(role) && (st.l || st.r))) return { c: [0, 0, 0], acc: false };
+    const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) };
+    const on = own ? (s.accent.on || !lk.master) : s.accent.on;
+    if (!on || !pct || (isTurnRole(role) && (st.l || st.r))) return { c: [0, 0, 0], acc: false };
+    if (own) {
+      const span = lookSpan(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
+      let c = accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct } }, p, span.len, pos(), bnd, now, scale, pct);
+      if ((role === "turn_l" || role === "turn_r") && isRedHue(c)) c = [0, 0, 0];
+      return { c, acc: true };
+    }
     let c = idl.idle === "color" ? (idl.rgb || [0, 0, 255]).map(v => Math.round(v * pct / 100 * scale)) : accentPix(s, k, n, pos(), bnd, now, scale, pct);
     if ((role === "turn_l" || role === "turn_r") && isRedHue(c)) c = [0, 0, 0];
     return { c, acc: true };
@@ -1161,7 +1202,7 @@ class DemoLink {
         const n = g[1]; if (n <= 0) continue;
         if (g[2] !== "accent" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp); continue; }   // brake/tail/turn: never dimmed
         for (let k = 0; k < n; k++) {
-          const r = segPixel(s, g, k, n, st, bnd, now, 1, sp.pct), f = sp.px_ma * frac(r.c, sp);
+          const r = segPixel(s, g, k, n, st, bnd, now, 1, sp.pct, sp), f = sp.px_ma * frac(r.c, sp);
           if (r.acc) acc += f; else base += f;
         }
       }
@@ -1646,7 +1687,7 @@ function setSettings(s) {
   tp.append(
     rangeField("Flash rate", s.blink.fpm, 60, 120, 1, " /min", v => patch({ blink: { fpm: v } })),
     rangeField("On time", s.blink.duty, 30, 75, 1, "%", v => patch({ blink: { duty: v } })),
-    selectField("Style", [["flash", "Flash"], ["sweep", "Sweep"]], s.turn.style, v => patch({ turn: { style: v } })),
+    selectField("Style", TURN_STYLES, s.turn.style, v => patch({ turn: { style: v } })),
     selectField("Rear color", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
     rangeField("Brightness", s.turn.pct, 40, 100, 1, "%", v => patch({ turn: { pct: v } })),
     rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."),
@@ -1701,6 +1742,7 @@ function normStrip(d) {
   d.out = OUT_LABEL[d.out] ? d.out : "pixels"; d.lamp_min_ma = clamp(d.lamp_min_ma | 0, 0, 7000);
   d.chip = d.chip || "custom"; d.timing = d.timing || "800k"; d.rgbw = !!d.rgbw;
   d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18; d.pct = d.pct == null ? 100 : clamp(rnd(d.pct), 0, 100);
+  d.look = { ...LOOK_DEFAULT, ...(d.look || {}) }; d.turn_style = d.turn_style || "global";
   d.seg = d.seg.map(canonSeg);
   return d;
 }
@@ -1878,20 +1920,21 @@ function buildStrips() {
       // inline notes: red is refused on brake/front-pod idle looks; a rear idle look brighter than half the brake light is a warning
       const notes = el("div", { class: "idle-notes", "data-idle-notes": key }), effHint = el("div", { class: "hint", "data-seg-eff": key });
       const refreshNotes = () => {
-        const idl = idleOk(g[2]) && segIdleOf(g), s0 = app.settings, eff = decoPct(s0.accent.pct, draft.pct, segPctOf(g));
-        effHint.textContent = `effective ${eff} % (global × strip × segment)`;
+        const idl = idleOk(g[2]) && segIdleOf(g), s0 = app.settings, own = !!idl && idl.idle === "look", eff = decoPct(own ? 100 : s0.accent.pct, draft.pct, segPctOf(g));
+        effHint.textContent = own ? `effective ${eff} % (strip × segment)` : `effective ${eff} % (global × strip × segment)`;
         notes.textContent = "";
         if (idleBad(g[2], idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
+        if (own && redBanned(g[2]) && lookRed(draft.look)) notes.append(el("div", { class: "lay-warn bad", "data-note": "look-red" }, LOOK_RED_NOTE));
       };
       // idle look: what a safety segment shows while its own function is off
       const cur = idleOk(g[2]) && segIdleOf(g);
       const idleSel = el("select", { "aria-label": "Idle look", "data-idle": key, disabled: !idleOk(g[2]) },
-        ...[["off", "Off"], ["accent", "Join underglow"], ["color", "Color"]].map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
+        ...IDLE_MODES.map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
       const idleCol = el("input", { type: "color", "aria-label": "Idle color", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
       const setIdle = () => {   // a red pick on a brake / front-pod segment stays in the draft with its note, but goes out as idle off
         const c = unhex(idleCol.value), pct = segPctOf(g);
         ensure(); g.length = 6; const o = segObj(idleSel.value, c, pct); if (o) g.push(o);
-        idleCol.hidden = idleSel.value !== "color"; upd(); refreshNotes(); redraw();
+        idleCol.hidden = idleSel.value !== "color"; upd(); refreshNotes(); refreshLook(); redraw();
       };
       idleSel.onchange = setIdle; idleCol.onchange = setIdle;
       const setPct = v => { ensure(); const k0 = segIdleOf(g); g.length = 6; const o = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, v); if (o) g.push(o); upd(); refreshNotes(); };
@@ -1919,7 +1962,7 @@ function buildStrips() {
           el("div", { class: "ph-row", style: "margin:0 0 6px" }, el("label", { class: "note" }, "Idle look "), idleSel, idleCol),
           notes,
           el("p", { class: "note", style: "margin:0 0 8px" }, idleOk(g[2])
-            ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Color: a steady color then. Both follow underglow on/off."
+            ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Color: a steady color then (both follow underglow on/off). Strip look: this strip's own effect from \"Bar setup and idle look\" above, running across all its strip-look segments."
             : "Only tail, brake and turn segments have an idle look."),
           pf,
           el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x " + UNIT.name), el("span", { class: "pos-head" }, "y " + UNIT.name), el("span", { class: "pos-head" }, "z " + UNIT.name)),
@@ -1957,11 +2000,12 @@ function buildStrips() {
       drawRows(); redraw(); } }, "Add segment");
     const apply = el("button", { class: "btn primary", "data-apply": i, onclick: () => {
       const core = { out: draft.out, lamp_min_ma: draft.lamp_min_ma | 0, px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
+      const lookOut = { mode: draft.look.mode, rgb: draft.look.rgb, speed: draft.look.speed | 0, rev: !!draft.look.rev, master: !!draft.look.master };
       // A preset is sent by name (the board fills in the rest); Custom sends every field.
       if (draft.chip !== "custom") core.chip = draft.chip;
       else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
       delete app.drafts[i];
-      patchMany([stripWrap(i, core), ...segPatches(i, draft.seg.map(segOut))]); } }, `Apply to strip ${i + 1}`);
+      patchMany([stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...segPatches(i, draft.seg.map(segOut))]); } }, `Apply to strip ${i + 1}`);
     const reset = el("button", { class: "btn", onclick: () => { delete app.drafts[i]; buildStrips(); } }, "Discard changes");
     const advKey = "adv." + i;
     const adv = el("details", { class: "sub", "data-adv": i, open: app.open.has(advKey) },
@@ -1970,8 +2014,72 @@ function buildStrips() {
         el("p", { class: "note" }, "The Map tab's Layout is the easy way to set segments, positions and idle looks: draw the strips on photos of the bike. Edit here only to fine-tune."),
         table, el("div", { class: "strip-actions", style: "padding:8px 0 0" }, add)));
     adv.addEventListener("toggle", () => { adv.open ? app.open.add(advKey) : app.open.delete(advKey); });
-    pixelNodes.push(adv);
-    card.append(adv, el("div", { class: "strip-actions" }, apply, reset));
+    // ---- one strip as a bar (left + right halves), its turn animation and its own idle look ----
+    const lk = draft.look, lookKey = "look." + i;
+    const lookNote = el("div", { class: "idle-notes", "data-look-notes": i }), lookUse = el("p", { class: "note", style: "margin:4px 0 0" });
+    const refreshLook = () => {
+      lookNote.textContent = "";
+      const users = draft.seg.filter(g => idleOk(g[2]) && (segIdleOf(g) || {}).idle === "look");
+      if (users.some(g => redBanned(g[2])) && lookRed(lk)) lookNote.append(el("div", { class: "lay-warn bad", "data-note": "look-red" }, LOOK_RED_NOTE));
+      lookUse.textContent = users.length ? `Shown by ${users.length} segment${users.length > 1 ? "s" : ""} of this strip (pixels ${Math.min(...users.map(g => g[0]))}–${Math.max(...users.map(g => g[0] + g[1])) - 1}), whenever they are not signalling, braking or lit as a tail.`
+                                         : "No segment of this strip uses the strip look yet: pick \"Strip look\" as a segment's idle look, or set the strip up as a bar below.";
+    };
+    const lookChanged = () => { refreshLook(); drawRows(); redraw(); };
+    const lookCol = el("input", { type: "color", value: hex(lk.rgb), "aria-label": "Look color", "data-look-color": i });
+    lookCol.onchange = () => { lk.rgb = unhex(lookCol.value); lookChanged(); };
+    const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
+    const tsField = selectField("Turn animation", [["global", `Same as the Lights tab (${gName})`], ...TURN_STYLES], draft.turn_style, v => { draft.turn_style = v; redraw(); });
+    tsField.querySelector("select").setAttribute("data-strip-turnstyle", i);
+    const lmField = selectField("Idle look effect", MODES, lk.mode, v => { lk.mode = v; lookChanged(); });
+    lmField.querySelector("select").setAttribute("data-look-mode", i);
+    // bar preset
+    const bType = el("select", { "aria-label": "Bar type", "data-bar-type": i },
+      el("option", { value: "front" }, "Front bar: left + right turn signals"), el("option", { value: "rear" }, "Rear bar: tail/brake + left + right turn"));
+    const bFeed = el("select", { "aria-label": "Data wire enters at", "data-bar-feed": i },
+      el("option", { value: "right" }, "the bike-right end"), el("option", { value: "left" }, "the bike-left end"));
+    const bPx = el("input", { type: "number", min: 2, max: 800, value: draft.px || 65, inputmode: "numeric", "aria-label": "Bar pixels", "data-bar-px": i });
+    const bMid = el("input", { type: "number", min: 0, max: 798, value: 0, inputmode: "numeric", "aria-label": "Middle tail/brake-only pixels", "data-bar-mid": i });
+    const midRow = el("label", { hidden: true }, "Middle tail/brake-only pixels", bMid);
+    bType.onchange = () => { midRow.hidden = bType.value !== "rear"; };
+    const bGo = el("button", { class: "btn small", "data-bar-go": i, onclick: () => {
+      const n = clamp(Number(bPx.value) | 0, 2, 800), rear = bType.value === "rear", mid = rear ? clamp(Number(bMid.value) | 0, 0, n - 2) : 0;
+      const [L, R] = rear ? ["tail_turn_l", "tail_turn_r"] : ["turn_l", "turn_r"];
+      const [first, second] = bFeed.value === "right" ? [R, L] : [L, R];
+      const a = rear ? Math.floor((n - mid) / 2) : bFeed.value === "right" ? Math.ceil(n / 2) : Math.floor(n / 2), b = n - mid - a;
+      const seg = (st0, c, role, rev) => [st0, c, role, rev, [0, 0, 0], [0, 0, 0], { idle: "look" }];
+      // Sequential turns grow outward from the middle: the first half runs reversed (towards pixel 0).
+      draft.px = n;
+      draft.seg = [seg(0, a, first, true), ...(mid ? [seg(a, mid, "tail", false)] : []), seg(a + mid, b, second, false)];
+      Object.assign(draft.look, { mode: "scanner", rgb: rear ? [255, 0, 0] : [255, 96, 0], speed: 5, rev: false });
+      if (draft.turn_style === "global" && app.settings.turn.style === "flash") draft.turn_style = "sweep";
+      app.drafts[i] = draft; app.open.add(lookKey);
+      buildStrips();
+      toast(`Strip ${i + 1} set up as a ${rear ? "rear" : "front"} bar (${n} px). Check it, then Apply.`);
+    } }, "Set up this strip as a bar");
+    const barLook = el("details", { class: "sub", "data-look": i, open: app.open.has(lookKey) },
+      el("summary", {}, "Bar setup and idle look"),
+      el("div", { class: "body" },
+        tsField,
+        el("p", { class: "note", style: "margin:0 0 8px" }, "Sequential styles grow from each turn segment's start (its end when Rev. is ticked). Any turn signal or the hazards blank the idle look on every turn segment until the signal ends; the look comes straight back after."),
+        lmField,
+        el("div", { class: "field" }, el("span", { class: "lbl" }, "Look color"), lookCol, el("div", { class: "hint" }, "Not used by the two rainbow effects.")),
+        rangeField("Look speed", lk.speed, 1, 10, 1, "", v => { lk.speed = v; redraw(); }, "Scanner: one sweep there and back in 1.6 s at 5."),
+        switchField("Reverse direction", !!lk.rev, v => { lk.rev = v; redraw(); }),
+        switchField("Follows the underglow switch", !!lk.master, v => { lk.master = v; redraw(); },
+          "Off: the look runs on its own, whatever the underglow is doing. On: switching the underglow off (handlebar button or app) turns this off too."),
+        lookNote, lookUse,
+        el("p", { class: "note", style: "margin:8px 0 4px" }, "Brightness is this strip's Brightness × each segment's; the global underglow brightness does not apply."),
+        el("details", { class: "sub" },
+          el("summary", {}, "Set up this strip as one bar"),
+          el("div", { class: "body" },
+            el("p", { class: "note", style: "margin:0 0 6px" }, "Splits the strip into a left and a right turn half that meet in the middle, both showing the strip look (a scanner) when free, with sequential turns growing outward from the middle. A rear bar is also the tail and brake light across its whole length; the half that is not signalling stays tail/brake. Segment positions are cleared: map the bar in the Map tab if you use position effects."),
+            el("div", { class: "helper-grid" }, el("label", {}, "Bar", bType), el("label", {}, "Data wire enters at", bFeed), el("label", {}, "Pixels", bPx), midRow),
+            el("p", { class: "note" }, "Fork bracket: 65 px, data at the bike-right end (front center ≈ pixel 32). A middle section (rear) keeps its look while a turn signal flashes."),
+            bGo))));
+    barLook.addEventListener("toggle", () => { barLook.open ? app.open.add(lookKey) : app.open.delete(lookKey); });
+    refreshLook();
+    pixelNodes.push(barLook, adv);
+    card.append(barLook, adv, el("div", { class: "strip-actions" }, apply, reset));
     box.append(card);
     showMode();
     drawRows();
@@ -2158,7 +2266,7 @@ const VIEWS = {
 const RUN_ROLES = [["accent", "Underglow"], ["tail", "Tail"], ["brake", "Brake"], ["turn_l", "Turn L"], ["turn_r", "Turn R"],
                    ["tail_turn_l", "Tail + Turn L"], ["tail_turn_r", "Tail + Turn R"], ["none", "Unused"]];
 const DENSITIES = [144, 96, 60, 30];
-const IDLE_MODES = [["off", "Off"], ["accent", "Join underglow"], ["color", "Color"]];
+const IDLE_MODES = [["off", "Off"], ["accent", "Join underglow"], ["color", "Color"], ["look", "Strip look"]];
 const CAL_PRESETS = [["", "Preset…"], ["wheel", "Wheel diameter"], ["wheelbase", "Wheelbase"], ["bars", "Handlebar width"], ["axle", "Ground to axle center"]];
 const CAL_TYPICAL = { wheel: 27.5, wheelbase: 57, bars: 30.7, axle: 11.3 };   // suggestions in inches; a typed number always wins
 const LS = { ghosts: "rcr.lay.ghosts", cal: "rcr.lay.cal.v1", runs: "rcr.lay.runs.v1", runsDemo: "rcr.lay.runs.demo.v1", img: v => "rcr.lay.img." + v };
@@ -2363,7 +2471,7 @@ function laySanitize() {
     const o = { ...runDefaults(r.view), ...r };
     o.pts = r.pts.map(p => [0, 1, 2].map(j => Number(p && p[j]) || 0));
     if (!ROLE_LINE[o.role]) o.role = "none";
-    if (!["off", "accent", "color"].includes(o.idle)) o.idle = "off";
+    if (!["off", "accent", "color", "look"].includes(o.idle)) o.idle = "off";
     if (!Array.isArray(o.rgb) || o.rgb.length !== 3) o.rgb = [0, 0, 255];
     o.pct = Number.isFinite(Number(o.pct)) ? clamp(rnd(o.pct), 0, 100) : 100;
     o.count = Math.max(0, o.count | 0); o.dens = Number(o.dens) || 60; o.depth = Number(o.depth) || 0; o.out = (o.out | 0) >= 1 && (o.out | 0) <= 4 ? o.out | 0 : 0;
@@ -2593,7 +2701,7 @@ function layDraw() {
             const t = n > 1 ? j / (n - 1) : 0;
             let fill = col;
             if (live) {
-              const px = segPixel(s, g, j, n, st, bnd, now, scale, spctOf(r)).c;
+              const px = segPixel(s, g, j, n, st, bnd, now, scale, spctOf(r), r.out ? effStrip(r.out - 1) : null).c;
               fill = Math.max(...px) > 10 ? `rgb(${px.join(",")})` : "rgba(150,160,170,.55)";
             }
             x.beginPath(); x.arc(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, rad, 0, 7);
