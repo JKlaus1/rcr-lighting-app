@@ -803,7 +803,7 @@ function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byte
 // ---------------------------------------------------------------------------
 // Demo: a simulated controller with the firmware's defaults and logic.
 // ---------------------------------------------------------------------------
-const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100,"follow":false},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"out":"pixels","lamp_min_ma":0,"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"out":"pixels","lamp_min_ma":0,"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
+const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100,"follow":false},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"lamp_relight":true,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"out":"pixels","lamp_min_ma":0,"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"out":"pixels","lamp_min_ma":0,"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
 // Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
 {
   const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100 };
@@ -1123,6 +1123,7 @@ class DemoLink {
         if (args === "reset") { this.edges.fill(0); this.dip.fill(0); this.dipms.fill(0); this.bn = 0; this.bev = null; this.out("counters reset"); }
         else this.out("input changes: " + INPUTS.map((x, i) => `${x.key}=${this.edges[i]}`).join(" ") + `\ndropout hold: ${this.s.in_hold_ms} ms\n`
           + LAMPS.map((l, i) => `${l[0]} dips: ${this.dip[i]}${this.dip[i] ? `, longest ${this.dipms[i]} ms` : ""}`).join("\n")
+          + `\nrelights (feed cycled to wake a lamp that went dark): low 0, high 0, aux 0, drl 0${this.s.lamp_relight === false ? " (off: lamp_relight)" : ""}`
           + `\nbutton: released, ${this.bn} presses, last ${this.bev || "none"}`);
         break;
       case "bonds": this.out("BLE 1 bond: aa:bb:cc:dd:ee:ff (slots: 3)"); break;
@@ -1201,7 +1202,7 @@ class DemoLink {
              en, rt: [0,0,0,0,0,0,0,0], lk: "........", ch: ch.join(""), a: a.map(v => Math.round(v * 100) / 100),
              sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find || Object.keys(this.force || {}).length || (this.fillc || []).some(Boolean) ? 1 : 0, ovr: 0, ble: 1,
              pair: this.pairUntil > now ? 1 : 0, ota: 0,
-             edges: this.edges.slice(), dip: this.dip.slice(), dipms: this.dipms.slice(),
+             edges: this.edges.slice(), dip: this.dip.slice(), dipms: this.dipms.slice(), rl: [0, 0, 0, 0],
              btn: b(5), bn: this.bn, ...(this.bev ? { bev: this.bev, bage: Math.round(now - this.bevAt) } : {}),
              ...(this.sim.board_mismatch ? { board_mismatch: 1 } : {}), ...(this.sim.save_err ? { save_err: 1 } : {}),
              ...(warn.length ? { warn: warn.join(", ") } : {}) };
@@ -2007,7 +2008,9 @@ function buildSetup() {
   lm.append(switchField("Tail white counts as lights on", s.spare_as_run, v => patch({ spare_as_run: v })));
 
   const ip = $("inputsPanel"); ip.textContent = "";
-  ip.append(numField("Ride through switch dropouts up to (ms)", s.in_hold_ms | 0, 0, 2000, 10, v => patch({ in_hold_ms: v }), "0 = off. Try 200 if the Live tab counts input changes on its own.", "in_hold_ms"));
+  ip.append(numField("Ride through switch dropouts up to (ms)", s.in_hold_ms | 0, 0, 2000, 10, v => patch({ in_hold_ms: v }), "0 = off. Try 200 if the Live tab counts input changes on its own.", "in_hold_ms"),
+    switchField("Re-strike a lamp that goes dark", s.lamp_relight !== false, v => patch({ lamp_relight: v }),
+      "A lamp that was drawing current and reads nothing for 0.4 s while on gets its feed cycled off for 0.5 s to clear a latched driver, at most every 5 s. Counted on the Console under counters."));
 
   const bp = $("btnPanel"); bp.textContent = "";
   const longMs = s.button.long_ms || 1000;
