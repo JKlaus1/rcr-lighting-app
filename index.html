@@ -672,12 +672,13 @@ const segObj = (mode, rgb, pct) => {
 };
 // Red-ish idle colors are refused (the board sets idle off) on brake-role and front-pod segments: they would read as a lit lamp.
 const isRedHue = c => c[0] > 0 && 4 * c[1] < c[0] && 4 * c[2] < c[0];
-const redBanned = role => role === "brake" || role === "turn_l" || role === "turn_r";
-const idleBad = (role, idl) => !!(idl && idl.idle === "color" && redBanned(role) && isRedHue(idl.rgb || [0, 0, 255]));
+// `s` = the settings in force: front_red (off-road / show) lets the front turn segments show red; brake segments never do.
+const redBanned = (role, s) => role === "brake" || (!(s && s.front_red) && (role === "turn_l" || role === "turn_r"));
+const idleBad = (role, idl, s) => !!(idl && idl.idle === "color" && redBanned(role, s) && isRedHue(idl.rgb || [0, 0, 255]));
 const RED_NOTE = "Red isn't allowed here at rest; it would look like a lit brake/front signal.";
 // The strip look's color is used by every mode except the rainbows; red on a brake / front-pod segment is refused like a red idle color.
 const lookRed = lk => !!lk && lk.mode !== "rainbow" && lk.mode !== "rainbow_x" && isRedHue(lk.rgb || [0, 0, 0]);
-const LOOK_RED_NOTE = "Texas law bars red lights that show to the front, so the board turns a red strip look off on front turn and brake segments. Pick amber, white or another color, or use red on a rear bar.";
+const LOOK_RED_NOTE = "Red is refused on front turn and brake segments, so the board turns this look off there. For off-road / show use, turn on \"Allow red at the front\" on the Lights tab (front turn segments only; brake segments never take red at rest).";
 const REAR_ROLES = ["tail", "brake", "tail_turn_l", "tail_turn_r"];
 const isTurnRole = r => r === "turn_l" || r === "turn_r" || r === "tail_turn_l" || r === "tail_turn_r";
 const lumY = c => 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
@@ -686,7 +687,7 @@ const decoPct = (global, strip, seg) => Math.round((global * (strip == null ? 10
 const segOut = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
   if (isMapped(g)) o.push(segPos(g, 0).map(rnd), segPos(g, 1).map(rnd));
-  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl) ? idl.idle : "off", idl && idl.rgb, segPctOf(g));
+  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl, app.settings) ? idl.idle : "off", idl && idl.rgb, segPctOf(g));
   if (ob) o.push(ob);
   return o;
 };
@@ -810,7 +811,7 @@ function viewBytes(dv) { return new Uint8Array(dv.buffer, dv.byteOffset, dv.byte
 // ---------------------------------------------------------------------------
 // Demo: a simulated controller with the firmware's defaults and logic.
 // ---------------------------------------------------------------------------
-const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100,"follow":false},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"lamp_relight":true,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"out":"pixels","lamp_min_ma":0,"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"out":"pixels","lamp_min_ma":0,"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
+const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl":"RLH"},"lamp_min_ma":{"low":500,"high":500,"aux":0,"drl":0},"spare_as_run":true,"blink":{"fpm":85,"duty":50},"turn":{"color":"amber","style":"flash","pct":100,"follow":false},"brake_pct":100,"tail_pct":20,"marker_pct":0,"boot_red_pct":30,"tail_always":false,"front_red":false,"accent":{"on":false,"mode":"solid","rgb":[255,255,255],"pct":30,"speed":5},"in_hold_ms":0,"lamp_relight":true,"button":{"short":"accent_toggle","double":"accent_next","long":"hazard","long_ms":1000,"gap_ms":350},"strips":[{"out":"pixels","lamp_min_ma":0,"px":24,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"turn_l",false],[12,12,"turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":36,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,12,"tail_turn_l",false],[12,12,"tail",false],[24,12,"tail_turn_r",false]]},{"out":"pixels","lamp_min_ma":0,"px":144,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[[0,144,"accent",false]]},{"out":"pixels","lamp_min_ma":0,"px":0,"order":"GRB","cap_ma":3500,"px_ma":18,"seg":[]}],"sense_gain":{"low":1000,"high":1000,"aux":1000,"drl":1000,"s1":1000,"s2":1000,"s3":1000,"s4":1000,"acc1":1000,"acc2":1000},"ble_name":"RCR Lighting","ota_pass":"********"};
 // Demo bike: pods at the front, rear bar, two underglow runs (mm: x front->rear, y left-/right+, z up).
 {
   const base = { chip: "ws2815", timing: "800k", rgbw: false, lpp: 1, sum: false, order: "GRB", cap_ma: 3500, px_ma: 18, pct: 100,
@@ -1009,7 +1010,7 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
     st.pct = clamp(rnd(st.pct == null ? 100 : st.pct), 0, 100);
     st.seg = st.seg.map(g => {
       const q = [g[0], g[0] >= st.px ? 0 : Math.min(g[1], st.px - g[0]), g[2], g[3], ...g.slice(4)], i = segIdleOf(q);
-      if (i && (idleBad(q[2], i) || (i.idle === "look" && redBanned(q[2]) && lookRed(st.look)))) { q.pop(); const ob = segObj("off", null, segPctOf(g)); if (ob) q.push(ob); }   // red idle on brake / front pod: refused, idle off
+      if (i && (idleBad(q[2], i, s) || (i.idle === "look" && redBanned(q[2], s) && lookRed(st.look)))) { q.pop(); const ob = segObj("off", null, segPctOf(g)); if (ob) q.push(ob); }   // red idle on brake / front pod: refused, idle off
       return q;
     });
     st.look = { ...LOOK_DEFAULT, ...(st.look || {}) }; st.look.speed = clamp(st.look.speed | 0, 1, 10);
@@ -1072,11 +1073,11 @@ function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
     if (own) {
       const span = lookSpan(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
       let c = accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct } }, p, span.len, pos(), bnd, now, scale, pct);
-      if ((role === "turn_l" || role === "turn_r") && isRedHue(c)) c = [0, 0, 0];
+      if ((role === "turn_l" || role === "turn_r") && !s.front_red && isRedHue(c)) c = [0, 0, 0];
       return { c, acc: true };
     }
     let c = idl.idle === "color" ? (idl.rgb || [0, 0, 255]).map(v => Math.round(v * pct / 100 * scale)) : accentPix(s, k, n, pos(), bnd, now, scale, pct);
-    if ((role === "turn_l" || role === "turn_r") && isRedHue(c)) c = [0, 0, 0];
+    if ((role === "turn_l" || role === "turn_r") && !s.front_red && isRedHue(c)) c = [0, 0, 0];
     return { c, acc: true };
   }
   return { c: segRgb(s, role, st), acc: false };
@@ -1690,6 +1691,8 @@ function setSettings(s) {
     selectField("Style", TURN_STYLES, s.turn.style, v => patch({ turn: { style: v } })),
     selectField("Rear color", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
     rangeField("Brightness", s.turn.pct, 40, 100, 1, "%", v => patch({ turn: { pct: v } })),
+    switchField("Allow red at the front", !!s.front_red, v => patch({ front_red: v }),
+      "Off-road / show use: lets the front turn segments show a red idle color or strip look (a red scanner). Off by default; red visible from the front is not road legal. Turn signals stay amber."),
     rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."),
     switchField("Stock flasher still fitted", !!s.turn.follow, v => patch({ turn: { follow: v } }),
       "On when the bike's own flasher relay is still in place, so the turn leads pulse: the lights follow the pulses instead of flashing on their own. Off when the flasher was removed and the leads carry steady 12 V."));
@@ -1923,8 +1926,8 @@ function buildStrips() {
         const idl = idleOk(g[2]) && segIdleOf(g), s0 = app.settings, own = !!idl && idl.idle === "look", eff = decoPct(own ? 100 : s0.accent.pct, draft.pct, segPctOf(g));
         effHint.textContent = own ? `effective ${eff} % (strip × segment)` : `effective ${eff} % (global × strip × segment)`;
         notes.textContent = "";
-        if (idleBad(g[2], idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
-        if (own && redBanned(g[2]) && lookRed(draft.look)) notes.append(el("div", { class: "lay-warn bad", "data-note": "look-red" }, LOOK_RED_NOTE));
+        if (idleBad(g[2], idl, s0)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
+        if (own && redBanned(g[2], s0) && lookRed(draft.look)) notes.append(el("div", { class: "lay-warn bad", "data-note": "look-red" }, LOOK_RED_NOTE));
       };
       // idle look: what a safety segment shows while its own function is off
       const cur = idleOk(g[2]) && segIdleOf(g);
@@ -2020,7 +2023,7 @@ function buildStrips() {
     const refreshLook = () => {
       lookNote.textContent = "";
       const users = draft.seg.filter(g => idleOk(g[2]) && (segIdleOf(g) || {}).idle === "look");
-      if (users.some(g => redBanned(g[2])) && lookRed(lk)) lookNote.append(el("div", { class: "lay-warn bad", "data-note": "look-red" }, LOOK_RED_NOTE));
+      if (users.some(g => redBanned(g[2], app.settings)) && lookRed(lk)) lookNote.append(el("div", { class: "lay-warn bad", "data-note": "look-red" }, LOOK_RED_NOTE));
       lookUse.textContent = users.length ? `Shown by ${users.length} segment${users.length > 1 ? "s" : ""} of this strip (pixels ${Math.min(...users.map(g => g[0]))}–${Math.max(...users.map(g => g[0] + g[1])) - 1}), whenever they are not signalling, braking or lit as a tail.`
                                          : "No segment of this strip uses the strip look yet: pick \"Strip look\" as a segment's idle look, or set the strip up as a bar below.";
     };
@@ -2318,7 +2321,7 @@ function runSegs(r) {
   return out;
 }
 // The run's trailing segment object (idle look + brightness); a red idle color on a brake / front-pod run is sent as idle off.
-const runObj = r => segObj(idleOk(r.role) && !idleBad(r.role, { idle: r.idle, rgb: r.rgb }) ? r.idle : "off", r.rgb, r.pct);
+const runObj = r => segObj(idleOk(r.role) && !idleBad(r.role, { idle: r.idle, rgb: r.rgb }, app.settings) ? r.idle : "off", r.rgb, r.pct);
 // The brightness % of the strip this run's chain is wired to (100 when unassigned or the board does not report it).
 function runStripPct(r) {
   const ch = chainsOf().find(c => c.runs.includes(r)), st = ch && ch.out && app.settings ? app.settings.strips[ch.out - 1] : null;
@@ -3082,7 +3085,7 @@ function layRenderEditor() {
     const s0 = app.settings, sp = runStripPct(r), e = decoPct(s0 ? s0.accent.pct : 100, sp, r.pct), idl = idleOk(r.role) ? { idle: r.idle, rgb: r.rgb } : null;
     eff.textContent = `effective ${e} % (global × strip × run)`;
     notes.textContent = "";
-    if (idleBad(r.role, idl)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
+    if (idleBad(r.role, idl, app.settings)) notes.append(el("div", { class: "lay-warn bad", "data-note": "red" }, RED_NOTE + " It is sent with idle off."));
   };
   if (idleOk(r.role)) {
     const col = el("input", { type: "color", value: hex(r.rgb), "aria-label": "Idle color", "data-ed": "idle-color", hidden: r.idle !== "color" });
