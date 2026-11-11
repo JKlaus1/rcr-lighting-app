@@ -357,6 +357,9 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
         <button class="btn" id="btnDemo">Try the demo</button>
       </div>
       <p class="err" id="connectErr" hidden></p>
+      <p class="note" id="connectHint" hidden>To have this page find the controller by itself every time it opens: in Chrome, open
+        <code style="user-select:all">chrome://flags/#enable-web-bluetooth-new-permissions-backend</code>, set it to Enabled, relaunch Chrome, then Connect here once.
+        After that there is no chooser on a reload, and the page connects when the key comes on.</p>
     </div>
     <p class="note" style="margin:14px 2px">The demo runs a simulated controller in this page. Tap the bike inputs on the Live tab to work the switches.</p>
   </section>
@@ -748,10 +751,12 @@ class BleLink {
   }
   // Reconnect to the last controller without the chooser (page load, no tap needed). Needs
   // navigator.bluetooth.getDevices (Chrome's persistent permissions); resolves false when the
-  // controller is not in range within `ms` or the permission is gone.
-  async openRemembered(ms) {
-    const dev = await BleLink.remembered(ms);
+  // controller is not in range within `ms` or the permission is gone. ms = 0 waits until the
+  // controller is heard (key switched on later) or `signal` aborts.
+  async openRemembered(ms, signal) {
+    const dev = await BleLink.remembered(ms, signal);
     if (!dev) return false;
+    if (signal && signal.aborted) { BleLink.why = "cancelled"; return false; }
     this.use(dev);
     await this.attach();
     return true;
@@ -762,7 +767,8 @@ class BleLink {
     if (!dev.rcrHooked) { dev.rcrHooked = true; dev.addEventListener("gattserverdisconnected", () => this.h.onDrop()); }
   }
   // BleLink.why says why the last remembered() came back empty.
-  static async remembered(ms) {
+  static async remembered(ms, signal) {
+    BleLink.why = "";
     let id = null;
     try { id = localStorage.getItem(DEV_KEY); } catch (e) { BleLink.why = "no storage"; return null; }
     if (!id) { BleLink.why = "no controller remembered yet"; return null; }
@@ -776,11 +782,15 @@ class BleLink {
     // Chrome only lets a permitted device connect once it has been heard advertising.
     const ctl = new AbortController();
     const heard = new Promise(res => dev.addEventListener("advertisementreceived", () => res(true), { once: true }));
-    const timeout = new Promise(res => setTimeout(() => res(false), ms));
+    const timeout = new Promise(res => {
+      if (ms) setTimeout(() => res(false), ms);
+      if (signal) signal.addEventListener("abort", () => res(false), { once: true });
+    });
+    if (signal && signal.aborted) { BleLink.why = "cancelled"; return null; }
     try { await dev.watchAdvertisements({ signal: ctl.signal }); } catch (e) { BleLink.why = "watchAdvertisements failed: " + e.message; return null; }
     const ok = await Promise.race([heard, timeout]);
     ctl.abort();
-    if (!ok) BleLink.why = "controller not heard advertising within " + Math.round(ms / 1000) + " s";
+    if (!ok) BleLink.why = signal && signal.aborted ? "cancelled" : "controller not heard advertising within " + Math.round(ms / 1000) + " s";
     return ok ? dev : null;
   }
   async attach() {
@@ -1418,28 +1428,49 @@ function showTab(name) {
   if (name === "map") buildMap();
 }
 
+// Stop the page-load wait for the remembered controller (Connect, the demo, or the page hidden).
+function stopAutoWait() {
+  const w = app.autoWait;
+  if (!w) return;
+  app.autoWait = null; app.link = null;
+  w.abort();
+  setLink("Not connected", false);
+}
+
 // demo: the simulated controller. auto: page load, reconnect to the remembered controller
-// without the chooser; quietly does nothing when that is not possible.
+// without the chooser. It keeps listening until the controller is heard (page opened before
+// the key is on) and steps aside the moment Connect or the demo is tapped (stopAutoWait).
 async function start(demo, auto) {
+  if (!auto) stopAutoWait();
   if (app.link) return;
   $("connectErr").hidden = true;
   app.demo = demo; app.userClosed = false; cancelReconnect(); app.lastBn = null;
-  app.link = demo ? new DemoLink(handlers) : new BleLink(handlers);
+  const mine = app.link = demo ? new DemoLink(handlers) : new BleLink(handlers);
   try {
     setLink(demo ? "Starting demo…" : auto ? "Looking for the controller…" : "Connecting…", false);
     if (auto) {
-      if (!(await app.link.openRemembered(4000))) {
+      const wait = app.autoWait = new AbortController();
+      const slow = setTimeout(() => { if (app.autoWait === wait) setLink("Waiting for the controller (key on?)", false); }, 4000);
+      let found;
+      try { found = await mine.openRemembered(0, wait.signal); }
+      finally { clearTimeout(slow); if (app.autoWait === wait) app.autoWait = null; }
+      if (app.link !== mine) return;          // Connect or the demo took over while this waited
+      if (!found) {
         app.link = null; setLink("Not connected", false);
-        $("connectErr").textContent = "Didn't reconnect by itself: " + (BleLink.why || "unknown") + ". Tap Connect.";
-        $("connectErr").hidden = false;
+        if (BleLink.why !== "cancelled" && BleLink.why !== "no controller remembered yet") {
+          $("connectErr").textContent = "Didn't reconnect by itself: " + (BleLink.why || "unknown") + ". Tap Connect.";
+          $("connectErr").hidden = false;
+        }
         return;
       }
     } else {
       await app.link.open();
     }
   } catch (e) {
+    if (app.link !== mine) return;
     app.link = null; setLink("Not connected", false);
-    if (!auto && e.name !== "NotFoundError") { $("connectErr").textContent = connectHelp(e); $("connectErr").hidden = false; }
+    if (auto) { $("connectErr").textContent = "Found the controller but couldn't connect by itself: " + e.message + ". Tap Connect."; $("connectErr").hidden = false; }
+    else if (e.name !== "NotFoundError") { $("connectErr").textContent = connectHelp(e); $("connectErr").hidden = false; }
     return;
   }
   app.attachedAt = Date.now(); recon.quick = 0;
@@ -1493,6 +1524,16 @@ if (!navigator.bluetooth || framed) {
 } else if (navigator.bluetooth.getDevices) {
   // Reload or reopen: go straight back to the controller this page last used, no chooser.
   start(false, true);
+  // Hidden page: stop listening (no scan with the phone in a pocket). Shown again: listen again,
+  // and if a reconnect after a drop is waiting on its timer, try it now.
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) { stopAutoWait(); return; }
+    if (!app.link && !app.userClosed) start(false, true);
+    else if (app.link && !app.demo && recon.timer && !recon.busy) { clearTimeout(recon.timer); tryReconnect(); }
+  });
+} else {
+  // This Chrome forgets the controller on every reload: say how to switch that off.
+  $("connectHint").hidden = false;
 }
 
 // ---- live status -----------------------------------------------------------
