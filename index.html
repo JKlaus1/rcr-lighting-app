@@ -350,6 +350,57 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 .bike-sum b { font-weight: 600; text-align: right; }
 .bike-pending { position: sticky; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 4; margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--warn); border-radius: var(--radius-panel); }
 .bike-pend-txt { flex: 1; min-width: 0; font-weight: 600; color: var(--warn); }
+/* control tab */
+#ctlBody { display: flex; flex-direction: column; gap: 12px; }
+.ct-h { margin: 0; color: var(--muted); font: 600 13px/1.2 var(--sans); letter-spacing: .06em; text-transform: uppercase; }
+.ct-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ct-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ct-tile { min-height: 68px; padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); text-align: left; display: flex; flex-direction: column; justify-content: center; gap: 2px; cursor: pointer; }
+.ct-tile b { font: 700 19px/1.15 var(--cond); overflow-wrap: anywhere; }
+.ct-tile small { font-size: 13px; color: var(--muted); }
+.ct-tile[aria-pressed=true] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.ct-tile[aria-pressed=true] small { color: var(--panel); opacity: .8; }
+.ct-map { background: var(--cluster); border-radius: 10px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; color: #c3cad1; font-size: 13px; }
+.ct-map .cap { font-weight: 600; }
+.ct-cells { display: flex; gap: 1px; height: 20px; }
+.ct-cells span { flex: 1; min-width: 0; border-radius: 1px; background: #39414a; }
+.ct-cells.many { gap: 0; }
+.ct-cells span.off { background: #39414a !important; box-shadow: none !important; }
+.ct-edit .ct-cells { height: 22px; padding: 4px; background: var(--cluster); border-radius: 6px; box-sizing: content-box; }
+.ct-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.ct-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.big.ct-tog { flex-direction: row; gap: 10px; justify-content: flex-start; padding: 8px 12px; text-align: left; color: var(--ink); }
+.big.ct-tog > span { display: flex; flex-direction: column; }
+.big[aria-pressed=true].glow { background: var(--blue); color: #fff; border-color: var(--blue); }
+.big[aria-pressed=true].glow small { color: #e2ecff; }
+.big[aria-pressed=true].drl { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.big[aria-pressed=true].drl small { color: var(--panel); opacity: .8; }
+.ct-light { border-top: 1px solid var(--line); }
+.ct-light-head { width: 100%; min-height: 56px; display: flex; align-items: center; gap: 12px; padding: 4px 14px; background: none; border: 0; color: var(--ink); text-align: left; cursor: pointer; }
+.ct-light-head .sw { flex: none; width: 14px; height: 30px; border-radius: 3px; border: 1.5px solid var(--ink); }
+.ct-light-body { padding: 4px 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.ct-light-body[hidden] { display: none; }
+.ct-light-body h4 { margin: 0; font: 600 15px/1.2 var(--sans); }
+.ct-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+.ct-pills .btn { min-height: 44px; padding: 0 14px; font-size: 15px; }
+.ct-pills .btn[aria-pressed=true] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.ct-sw { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; padding: 0; }
+.ct-sw[aria-pressed=true] { box-shadow: 0 0 0 3px var(--panel), 0 0 0 6px var(--ink); }
+.ct-body input[type=range], .ct-lbl input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--ink); }
+.ct-body input[type=color] { width: 56px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--field); padding: 2px; }
+.ct-body select, .ct-body input[type=text] { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); min-height: 44px; padding: 0 10px; width: 100%; }
+.ct-lbl { display: flex; flex-direction: column; gap: 2px; font-weight: 600; font-size: 15px; }
+.ct-pend { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--warn); border-radius: var(--radius-panel); background: var(--panel); margin: 8px 14px 4px; }
+.ct-rows button { width: 100%; min-height: 50px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 14px; background: var(--panel); border: 0; border-top: 1px solid var(--line); color: var(--ink); font-weight: 500; font-size: 16px; text-align: left; cursor: pointer; }
+.ct-rows button:first-child { border-top: 0; }
+.ct-zone { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.ct-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.ct-actions .btn { min-height: 48px; }
+.ct-actions .btn.save { background: var(--ok); border-color: var(--ok); color: #fff; }
+.ct-note { padding: 10px 14px; border-radius: var(--radius-panel); border: 1px solid var(--warn); color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); font-size: 15px; font-weight: 500; }
+.btn[data-goto=control] { min-height: 44px; }
+.ct-ask { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ct-ask input { flex: 1 1 10em; min-width: 0; }
 </style>
 </head>
 <body>
@@ -373,6 +424,12 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 </header>
 
 <main>
+  <!-- control: the first screen after connecting -->
+  <section class="tab" id="tab-control">
+    <div id="ctlAlerts"></div>
+    <div id="ctlBody"></div>
+  </section>
+
   <!-- not connected -->
   <section class="tab active" id="tab-connect">
     <div class="panel hello">
@@ -408,6 +465,7 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 
   <!-- lights -->
   <section class="tab" id="tab-lights">
+    <div class="btns" style="margin:0 0 10px"><button class="btn small" data-goto="control">Back to Control</button></div>
     <h2>Quick</h2>
     <div class="big-toggles">
       <button class="big haz" id="qHaz" aria-pressed="false">Hazards<small>both sides flash</small></button>
@@ -428,7 +486,7 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
   </section>
 
   <section class="tab" id="tab-strips">
-    <div class="btns" style="margin:0 0 10px"><button class="btn small" data-goto="bike">Back to Bike</button></div>
+    <div class="btns" style="margin:0 0 10px"><button class="btn small" data-goto="bike" id="stripsBackBike">Back to Bike</button><button class="btn small" data-goto="control" id="stripsBackCtl" hidden>Back to Control</button></div>
     <p class="note">Each output drives one chain of LEDs. Pick the LED chip, split the chain into segments and give each a job. Bike → Add a light is the easy way to set a strip up; drawing strips on photos (Photo layout) is the way to set segments and positions for the position-based underglow effects. The segment editor under each strip is for fine tuning. Changes apply when you tap Apply.</p>
     <div id="stripCards"></div>
   </section>
@@ -597,9 +655,9 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 
 <nav aria-label="Sections">
   <div class="in" role="tablist">
-    <button role="tab" data-tab="live" aria-selected="false" disabled>Live</button>
-    <button role="tab" data-tab="lights" aria-selected="false" disabled>Lights</button>
+    <button role="tab" data-tab="control" aria-selected="false" disabled>Control</button>
     <button role="tab" data-tab="bike" aria-selected="false" disabled>Bike</button>
+    <button role="tab" data-tab="live" aria-selected="false" disabled>Live</button>
     <button role="tab" data-tab="setup" aria-selected="false" disabled>Setup</button>
     <button role="tab" data-tab="console" aria-selected="false" disabled>Console</button>
   </div>
@@ -698,15 +756,17 @@ const segArrs = g => g.slice(4).filter(Array.isArray);
 const isMapped = g => { const q = segArrs(g); return q.length >= 2 && [q[0], q[1]].some(p => p.some(v => Number(v) !== 0)); };
 const segPos = (g, n) => segArrs(g)[n] || [0, 0, 0];
 const segObjOf = g => g.slice(4).find(e => e && typeof e === "object" && !Array.isArray(e)) || null;
-const segIdleOf = g => { const o = segObjOf(g); return o && (o.idle === "accent" || o.idle === "color" || o.idle === "look") ? o : null; };
+const segIdleOf = g => { const o = segObjOf(g); return o && (o.idle === "accent" || o.idle === "color" || o.idle === "look" || o.idle === "drl") ? o : null; };
+const segNbOf = g => { const o = segObjOf(g); return !!(o && o.nb); };   // 0.4.1: this tail segment never brightens on brake
 const segPctOf = g => { const o = segObjOf(g), p = o && o.pct != null ? Number(o.pct) : 100; return Number.isFinite(p) ? clamp(rnd(p), 0, 100) : 100; };
-const idleOk = role => role !== "accent" && role !== "none";   // accent/none have no idle look
+const idleOk = role => role !== "accent" && role !== "none" && role !== "drl" && role !== "look";   // these have no idle look
 const idleObj = (mode, rgb) => mode === "color" ? { idle: "color", rgb: (rgb || [0, 0, 255]).map(v => clamp(rnd(v), 0, 255)) }
-                             : mode === "accent" ? { idle: "accent" } : mode === "look" ? { idle: "look" } : null;
+                             : mode === "accent" ? { idle: "accent" } : mode === "look" ? { idle: "look" } : mode === "drl" ? { idle: "drl" } : null;
 // The segment's trailing object: the idle look and/or its brightness (% of the strip's); null when both are at their defaults.
-const segObj = (mode, rgb, pct) => {
+const segObj = (mode, rgb, pct, nb) => {
   const o = idleObj(mode, rgb) || {}, p = pct == null ? 100 : clamp(rnd(pct), 0, 100);
   if (p !== 100) o.pct = p;
+  if (nb) o.nb = true;
   return Object.keys(o).length ? o : null;
 };
 // Red-ish idle colors are refused (the board sets idle off) on brake-role and front-pod segments: they would read as a lit lamp.
@@ -717,7 +777,7 @@ const idleBad = (role, idl, s) => !!(idl && idl.idle === "color" && redBanned(ro
 const RED_NOTE = "Red isn't allowed here at rest; it would look like a lit brake/front signal.";
 // The strip look's color is used by every mode except the rainbows; red on a brake / front-pod segment is refused like a red idle color.
 const lookRed = lk => !!lk && lk.mode !== "rainbow" && lk.mode !== "rainbow_x" && isRedHue(lk.rgb || [0, 0, 0]);
-const LOOK_RED_NOTE = "Red is refused on front turn and brake segments, so the board turns this look off there. For off-road / show use, turn on \"Allow red at the front\" on the Lights tab (front turn segments only; brake segments never take red at rest).";
+const LOOK_RED_NOTE = "Red is refused on front turn and brake segments, so the board turns this look off there. For off-road / show use, turn on \"Allow red at the front\" in All light settings (front turn segments only; brake segments never take red at rest).";
 const REAR_ROLES = ["tail", "brake", "tail_turn_l", "tail_turn_r"];
 const isTurnRole = r => r === "turn_l" || r === "turn_r" || r === "tail_turn_l" || r === "tail_turn_r";
 const lumY = c => 0.30 * c[0] + 0.59 * c[1] + 0.11 * c[2];
@@ -726,22 +786,24 @@ const decoPct = (global, strip, seg) => Math.round((global * (strip == null ? 10
 const segOut = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
   if (isMapped(g)) o.push(segPos(g, 0).map(rnd), segPos(g, 1).map(rnd));
-  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl, app.settings) ? idl.idle : "off", idl && idl.rgb, segPctOf(g));
+  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl, app.settings) ? idl.idle : "off", idl && idl.rgb, segPctOf(g), segNbOf(g));
   if (ob) o.push(ob);
   return o;
 };
 // Draft form used by the Strips tab: positions always present as arrays, idle object last.
 const canonSeg = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3], segPos(g, 0).slice(), segPos(g, 1).slice()];
-  const i = segIdleOf(g), ob = segObj(i ? i.idle : "off", i && i.rgb, segPctOf(g)); if (ob) o.push(ob);
+  const i = segIdleOf(g), ob = segObj(i ? i.idle : "off", i && i.rgb, segPctOf(g), segNbOf(g)); if (ob) o.push(ob);
   return o;
 };
 const ROLE_LINE = { tail: "#e8352b", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
-                    tail_turn_l: "#ffa41b", tail_turn_r: "#ffa41b", accent: "#3b82ff", none: "#8a949e" };
+                    tail_turn_l: "#ffa41b", tail_turn_r: "#ffa41b", accent: "#3b82ff", none: "#8a949e", drl: "#d9dde1", look: "#3d8bff" };
+const ROLES_V4 = [["drl", "DRL section"], ["look", "Strip look (always)"]];   // firmware 0.4.1 and newer only
 const MIRROR_ROLE = { turn_l: "turn_r", turn_r: "turn_l", tail_turn_l: "tail_turn_r", tail_turn_r: "tail_turn_l" };
 const SIDE_OF = { turn_l: "right", turn_r: "left", tail_turn_l: "right", tail_turn_r: "left" };  // side we copy FROM
 const ACTIONS = [["none", "Nothing"], ["accent_toggle", "Underglow on/off"], ["accent_next", "Next underglow effect"],
                  ["hazard", "Hazards on/off"], ["aux_toggle", "Pods on/off"]];
+const actionsFor = () => fw4() ? [...ACTIONS, ["preset_next", "Next preset"]] : ACTIONS;
 const LAMPS = [["low", "Low beam feed"], ["high", "High beam feed"], ["aux", "Pods"], ["drl", "DRL"]];
 const HEAD_STATES = [["O", "Off"], ["R", "Running"], ["L", "Low"], ["H", "High"]];
 const PRESETS = {  // same tables as firmware applyHeadPreset()
@@ -873,7 +935,12 @@ const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl
     { ...base, px: 0, seg: [] },
   ];
   DEFAULTS.budget = { lit_ma: 14000, dark_ma: 20000 };  // firmware defaults
+  DEFAULTS.drl = { on: true, rgb: [255, 255, 255], pct: 80 };   // firmware 0.4.1 (the demo drops it again when it plays 0.3.18)
+  DEFAULTS.preset = -1;
 }
+function cmpVer(a, b) { for (let i = 0; i < 3; i++) if ((a[i] | 0) !== (b[i] | 0)) return (a[i] | 0) - (b[i] | 0); return 0; }
+const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m ? [+m[1], +m[2], +m[3]] : null; };
+const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);   // the demo is playing firmware older than 0.4.1
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp3 = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
@@ -885,20 +952,22 @@ function parseSeg(g) {
   const arrs = segArrs(g);
   if (arrs.length >= 2) { const p0 = pt(arrs[0]), p1 = pt(arrs[1]); if ([...p0, ...p1].some(v => v)) o.push(p0, p1); }
   const ob = segIdleOf(g), mode = ob && idleOk(o[2]) ? ob.idle : "off";
-  const to = segObj(mode, mode === "color" && Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null, segPctOf(g));   // the board echoes it when idle is on or pct is not 100
+  const to = segObj(mode, mode === "color" && Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null, segPctOf(g), segNbOf(g));   // the board echoes it when idle is on or pct is not 100
   if (to) o.push(to);
   return o;
 }
 // Would the board's segment reader accept this entry ([start, count, role, reverse?, [x,y,z]?, [x,y,z]?, {idle,rgb,pct}?])?
 function segEntryOk(a) {
   if (!Array.isArray(a) || a.length < 3 || !Number.isFinite(Number(a[0])) || !Number.isFinite(Number(a[1])) || !ROLE_LINE[a[2]]) return false;
+  if (demoOld() && (a[2] === "drl" || a[2] === "look")) return false;     // 0.3.18 does not know these roles
   if (a.length > 3 && a[3] != null && typeof a[3] !== "boolean" && !Number.isFinite(Number(a[3]))) return false;
   let npos = 0;
   for (const e of a.slice(4)) {
     if (e == null) continue;
     if (Array.isArray(e)) { if (npos++ >= 2 || e.length !== 3 || e.some(v => !Number.isFinite(Number(v)))) return false; }
     else if (typeof e === "object") {
-      if (e.idle != null && !["off", "accent", "color", "look"].includes(e.idle)) return false;
+      if (e.idle != null && !["off", "accent", "color", "look", ...(demoOld() ? [] : ["drl"])].includes(e.idle)) return false;
+      if (e.nb != null && demoOld()) return false;
       if (e.pct != null && !Number.isFinite(Number(e.pct))) return false;
       if (e.rgb != null && (!Array.isArray(e.rgb) || e.rgb.length !== 3 || e.rgb.some(v => !Number.isFinite(Number(v))))) return false;
     } else return false;
@@ -1036,6 +1105,8 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
       s.head.preset = detectPreset(s.head);
     } else if (k === "ota_pass") {
       /* write-only */
+    } else if (k === "drl" && !s.drl) {
+      notes.push("drl: unknown key");
     } else if (v && typeof v === "object" && !Array.isArray(v) && s[k] && typeof s[k] === "object") {
       Object.assign(s[k], v);
     } else {
@@ -1047,6 +1118,7 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
   s.tail_pct = clamp(Math.min(s.tail_pct, Math.floor(s.brake_pct / 3)), 5, 33);
   s.marker_pct = clamp(s.marker_pct, 0, 50); s.boot_red_pct = clamp(s.boot_red_pct, 10, 60);
   s.in_hold_ms = clamp(s.in_hold_ms | 0, 0, 2000);
+  if (s.drl) s.drl.pct = clamp(s.drl.pct | 0, 5, 100);
   s.button.long_ms = clamp(s.button.long_ms | 0, 300, 3000); s.button.gap_ms = clamp(s.button.gap_ms | 0, 150, 800);
   for (const st of s.strips) {
     if (!OUT_LABEL[st.out]) st.out = "pixels";
@@ -1068,11 +1140,11 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
 }
 
 // What a segment shows right now, as an RGB triple (mirrors core/render.cpp).
-function segRgb(s, role, st) {
+function segRgb(s, role, st, g) {
   const pct = (c, p) => c.map(x => Math.round(x * p / 100));
   const RED = [255, 0, 0], AMBER = [255, 96, 0], BLACK = [0, 0, 0];
-  const running = st.head && st.head !== "off";
-  const tail = () => !st.v ? pct(RED, s.boot_red_pct) : st.brk ? pct(RED, s.brake_pct)
+  const running = st.head && st.head !== "off", nb = !!(g && segNbOf(g));
+  const tail = () => !st.v ? pct(RED, s.boot_red_pct) : st.brk && !nb ? pct(RED, s.brake_pct)
                  : (running || s.tail_always) ? pct(RED, s.tail_pct) : BLACK;
   switch (role) {
     case "tail": return tail();
@@ -1088,6 +1160,7 @@ function segRgb(s, role, st) {
       return tail();
     }
     case "accent": return s.accent.on ? pct(s.accent.rgb, s.accent.pct) : BLACK;
+    case "drl": return st.v && s.drl && s.drl.on ? pct(s.drl.rgb, s.drl.pct) : BLACK;
     default: return BLACK;
   }
 }
@@ -1107,13 +1180,23 @@ function segFree(s, role, st) {
 // One pixel of a segment in the demo: {c: rgb, acc: true when it is an underglow-class pixel (subject to the budget)}.
 // spct = the strip's brightness %. Decoration = global x strip x segment (never auto-dimmed); brake/tail/turn colors ignore it.
 function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
-  const role = g[2], own = (segIdleOf(g) || {}).idle === "look", pct = decoPct(own ? 100 : s.accent.pct, spct, segPctOf(g));
+  const role = g[2], own = role === "look" || (segIdleOf(g) || {}).idle === "look", pct = decoPct(own ? 100 : s.accent.pct, spct, segPctOf(g));
   const pos = () => isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
   if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale, pct), acc: true };
+  if (role === "look") {   // a section with no signal job: always the strip's own look
+    const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) };
+    if (!(s.accent.on || !lk.master) || !pct) return { c: [0, 0, 0], acc: false };
+    const span = lookSpan(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
+    return { c: accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct } }, p, span.len, pos(), bnd, now, scale, pct), acc: true };
+  }
   const idl = idleOk(role) && segIdleOf(g);
   if (idl && segFree(s, role, st)) {
     // only turn-role segments drop their idle look while any signal or the hazards flash; front pods never show a red hue
     const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) };
+    if (idl.idle === "drl") {   // the DRL color: follows drl.on, ignores every brightness but drl.pct
+      if (!(s.drl && s.drl.on) || (isTurnRole(role) && (st.l || st.r))) return { c: [0, 0, 0], acc: false };
+      return { c: s.drl.rgb.map(v => Math.round(v * s.drl.pct / 100)), acc: false };
+    }
     const on = own ? (s.accent.on || !lk.master) : s.accent.on;
     if (!on || !pct || (isTurnRole(role) && (st.l || st.r))) return { c: [0, 0, 0], acc: false };
     if (own) {
@@ -1126,7 +1209,30 @@ function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
     if ((role === "turn_l" || role === "turn_r") && !s.front_red && isRedHue(c)) c = [0, 0, 0];
     return { c, acc: true };
   }
-  return { c: segRgb(s, role, st), acc: false };
+  return { c: segRgb(s, role, st, g), acc: false };
+}
+// The firmware's three setup warnings for a missing brake light / turn signal (safetyWarnings in core/settings.cpp).
+function demoWarn(s) {
+  let brake = false, left = false, right = false;
+  for (const st of s.strips) {
+    if (isLampOut(st)) { if (st.out === "turn_l") left = true; if (st.out === "turn_r") right = true; if (st.out === "brake") brake = true; continue; }
+    if (!st.px) continue;
+    for (const g of st.seg) {
+      if (!(g[1] > 0)) continue;
+      const nb = segNbOf(g);
+      if (g[2] === "tail" && !nb) brake = true;
+      else if (g[2] === "brake") brake = true;
+      else if (g[2] === "tail_turn_l") { left = true; if (!nb) brake = true; }
+      else if (g[2] === "tail_turn_r") { right = true; if (!nb) brake = true; }
+      else if (g[2] === "turn_l") left = true;
+      else if (g[2] === "turn_r") right = true;
+    }
+  }
+  const w = [];
+  if (!brake) w.push("no brake light configured");
+  if (!left) w.push("no left turn signal configured");
+  if (!right) w.push("no right turn signal configured");
+  return w.join(", ");
 }
 
 class DemoLink {
@@ -1138,6 +1244,64 @@ class DemoLink {
     this.sim = { save_err: false, board_mismatch: false };    // status faults to exercise the banners (tests set these)
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
+    // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 1]; this.old = demoOld();
+    this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
+    if (this.old) { delete this.s.drl; delete this.s.preset; }
+    else {   // two saved looks out of the box: "Street" is the bike as it stands, "Show" adds a rainbow and lit turn bars
+      this.slots[0] = this.snap("Street");
+      const sh = this.snap("Show"); sh.accent = { on: true, mode: "rainbow", rgb: [255, 255, 255], pct: 60, speed: 5 };
+      sh.strips[0].look = { ...sh.strips[0].look, mode: "wave" };
+      sh.strips[0].seg = sh.strips[0].seg.map(g => [g[0], g[1], g[2], g[3], { idle: "look" }]);
+      this.slots[1] = sh; this.pre = 0;
+    }
+  }
+  // A saved look: what a firmware preset holds (no positions, no pixel counts).
+  snap(name) {
+    const s = this.s;
+    return { name: String(name).slice(0, 24), accent: { on: s.accent.on, mode: s.accent.mode, rgb: s.accent.rgb.slice(), pct: s.accent.pct, speed: s.accent.speed },
+             turn_style: s.turn.style, drl: { ...s.drl },
+             strips: s.strips.map(st => ({ pct: st.pct, turn_style: st.turn_style, look: { ...st.look },
+                                           seg: st.seg.map(g => { const o = segObjOf(g); return o ? [g[0], g[1], g[2], g[3], structuredClone(o)] : [g[0], g[1], g[2], g[3]]; }) })) };
+  }
+  presetNext() {
+    for (let k = 1; k <= 8; k++) { const n = ((this.pre < 0 ? -1 : this.pre) + k + 8) % 8; if (this.slots[n]) return n; }
+    return -1;
+  }
+  applySlot(n) {
+    const p = this.slots[n], s = this.s;
+    Object.assign(s.accent, structuredClone(p.accent)); s.turn.style = p.turn_style; Object.assign(s.drl, p.drl);
+    p.strips.forEach((q, i) => {
+      const st = s.strips[i];
+      if (isLampOut(st) || !st.px) return;
+      st.pct = q.pct; st.turn_style = q.turn_style; st.look = { ...q.look };
+      st.seg = parseSegs(structuredClone(q.seg));
+    });
+    applyPatch(s, {}); this.pre = n; this.dirty = false;
+  }
+  presetCmd(args) {
+    const m = /^(\S+)\s*(.*)$/.exec(args) || [null, "", ""], sub = m[1] || "list", rest = m[2];
+    const slotOf = t => /^[0-7]$/.test(t) ? +t : -1;
+    const w = () => { const t = demoWarn(this.s); return t ? "\nwarning: " + t : ""; };
+    if (sub === "list") return JSON.stringify({ pre: this.pre, prem: this.pre >= 0 && this.dirty ? 1 : 0, slots: this.slots.map(x => x ? x.name : null) });
+    if (sub === "save") {
+      const m2 = /^(\S+)\s*(.*)$/.exec(rest) || [null, "", ""], n = slotOf(m2[1]);
+      if (n < 0) return "usage: preset save N [name]   (N = 0..7)";
+      const name = m2[2].replace(/[^\x20-\x7e]/g, "?").slice(0, 24) || (this.slots[n] ? this.slots[n].name : "Preset " + (n + 1));
+      this.slots[n] = this.snap(name); this.pre = n; this.dirty = false;
+      return `preset ${n} saved as "${name}"` + w();
+    }
+    if (sub === "next" || sub === "load" || slotOf(sub) >= 0) {
+      const n = sub === "next" ? this.presetNext() : sub === "load" ? slotOf(rest) : slotOf(sub);
+      if (sub === "next" && n < 0) return "no presets saved";
+      if (n < 0) return "usage: preset load N   (N = 0..7)";
+      if (!this.slots[n]) return `preset ${n} is empty`;
+      this.applySlot(n);
+      return `preset ${n} "${this.slots[n].name}" applied` + w();
+    }
+    if (sub === "del") { const n = slotOf(rest); if (n < 0) return "usage: preset del N   (N = 0..7)"; this.slots[n] = null; if (this.pre === n) this.pre = -1; return `preset ${n} erased`; }
+    if (sub === "get") { const n = slotOf(rest); if (n < 0) return "usage: preset get N   (N = 0..7)"; return this.slots[n] ? JSON.stringify(this.slots[n]) : `preset ${n} is empty`; }
+    return "usage: preset two_feed | two_feed_both | lp6 | list | save N [name] | N | load N | next | del N | get N";
   }
   // The handlebar button in the demo: tapping its wire on, then off, is a short press.
   press(kind) {
@@ -1147,6 +1311,7 @@ class DemoLink {
     else if (a === "accent_next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
     else if (a === "hazard") this.hazLatch = !this.hazLatch;
     else if (a === "aux_toggle") this.aux = !this.aux;
+    else if (a === "preset_next" && !this.old) this.out(this.presetCmd("next"));
   }
   async open() { this.timer = setInterval(() => this.h.onLive(JSON.stringify(this.status())), 250); }
   name() { return "Demo controller"; }
@@ -1166,12 +1331,13 @@ class DemoLink {
       case "get": { const c = structuredClone(this.s); c.ota_pass = "********"; this.out(JSON.stringify(c)); break; }
       case "status": this.out(JSON.stringify(this.status())); break;
       case "set":
-        try { const notes = applyPatch(this.s, JSON.parse(args), this.pend); this.out(JSON.stringify({ ok: true, notes: notes.join("; ") })); }
+        try { const notes = applyPatch(this.s, JSON.parse(args), this.pend); if (this.pre >= 0) this.dirty = true; this.out(JSON.stringify({ ok: true, notes: notes.join("; ") })); }
         catch (e) { this.out(JSON.stringify({ ok: false, notes: "json: " + e.message })); }
         break;
       case "preset":
         if (PRESETS[args]) { applyPatch(this.s, { head: { preset: args } }); this.out("headlight preset " + args); }
-        else this.out("usage: preset two_feed | two_feed_both | lp6");
+        else if (this.old) this.out("usage: preset two_feed | two_feed_both | lp6");
+        else this.out(this.presetCmd(args));
         break;
       case "find": {
         const m = /^([1-4])\s+(\d+)$/.exec(args);
@@ -1197,13 +1363,15 @@ class DemoLink {
         this.fillc[m[1] - 1] = m[2] === "off" ? null : m[2].split(/\s+/).map(Number);
         this.out(`fill ${m[1]} ${m[2]}`); break;
       }
-      case "hazard": if (onoff >= 0) this.hazLatch = !!onoff; this.out("hazard " + (this.hazLatch ? "on" : "off")); break;
+      case "hazard":
+        if (args === "toggle" && !this.old) this.hazLatch = !this.hazLatch; else if (onoff >= 0) this.hazLatch = !!onoff;
+        this.out("hazard " + (this.hazLatch ? "on" : "off")); break;
       case "aux": if (onoff >= 0) this.aux = !!onoff; this.out("aux " + (this.aux ? "on" : "off")); break;
       case "accent":
         if (args === "next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
         else if (onoff >= 0) this.s.accent.on = !!onoff;
         this.out(`accent ${this.s.accent.on ? "on" : "off"}, ${this.s.accent.mode}`); break;
-      case "info": this.out("RCR Lighting demo (simulated in this page)\nOTA access point \"RCR-Lighting-DEMO\", password rcr-1a2b3c4d\nno board connected: settings reset when the page reloads"); break;
+      case "info": this.out(`RCR Lighting demo (simulated in this page), firmware ${this.fw}\nOTA access point \"RCR-Lighting-DEMO\", password rcr-1a2b3c4d\nno board connected: settings reset when the page reloads`); break;
       case "pair": this.pairUntil = performance.now() + 120000; this.out("BLE pairing open for 2 minutes"); break;
       case "sense": this.out(SENSE.map((c, i) => `${SENSE_KEYS[i].padEnd(6)} ${this.status().a[i].toFixed(2)} A`).join("\n")); break;
       case "cal": this.out("cal: simulated, nothing to calibrate"); break;
@@ -1219,7 +1387,7 @@ class DemoLink {
       case "ota": this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break;
       case "reboot": this.out("rebooting"); break;
       case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.pend = [null, null, null, null]; this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
-      case "help": this.out("status, sense, info, get, set {json}, preset NAME, hazard on|off, aux on|off, accent on|off|next, find STRIP PIXEL|off, out CH on|off|auto, fill N R G B|off, bench off, cal CH AMPS, counters [reset], bonds, save, defaults yes, ota, reboot, pair"); break;
+      case "help": this.out("status, sense, info, get, set {json}, preset NAME" + (this.old ? "" : "|list|save N [name]|N|next|del N|get N") + ", hazard on|off" + (this.old ? "" : "|toggle") + ", aux on|off, accent on|off|next, find STRIP PIXEL|off, out CH on|off|auto, fill N R G B|off, bench off, cal CH AMPS, counters [reset], bonds, save, defaults yes, ota, reboot, pair"); break;
       default: this.out(`unknown command '${cmd}' (try help)`);
     }
     return Promise.resolve();
@@ -1247,7 +1415,7 @@ class DemoLink {
       let base = sp.px, acc = 0;
       for (const g of sp.seg) {
         const n = g[1]; if (n <= 0) continue;
-        if (g[2] !== "accent" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st), sp); continue; }   // brake/tail/turn: never dimmed
+        if (g[2] !== "accent" && g[2] !== "look" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st, g), sp); continue; }   // brake/tail/turn: never dimmed
         for (let k = 0; k < n; k++) {
           const r = segPixel(s, g, k, n, st, bnd, now, 1, sp.pct, sp), f = sp.px_ma * frac(r.c, sp);
           if (r.acc) acc += f; else base += f;
@@ -1283,6 +1451,7 @@ class DemoLink {
       return !on ? "." : (min && v * 1000 < min ? "O" : "o");
     });
     const warn = [];
+    const setupWarn = demoWarn(s); if (setupWarn) warn.push(setupWarn);
     if (this.sim.board_mismatch) warn.push("this firmware is built for rev D but the module has PSRAM (rev C board): strips are held off, flash the rcr_revc image");
     if (this.sim.save_err) warn.push("settings could not be saved (storage full?): changes are lost at key-off");
     return { t: Math.round(now), v: 1, in: this.inputs, raw: this.inputs, head, brk: st.brk ? 1 : 0,
@@ -1291,11 +1460,15 @@ class DemoLink {
              sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find || Object.keys(this.force || {}).length || (this.fillc || []).some(Boolean) ? 1 : 0, ovr: 0, ble: 1,
              pair: this.pairUntil > now ? 1 : 0, ota: 0,
              edges: this.edges.slice(), dip: this.dip.slice(), dipms: this.dipms.slice(), rl: [0, 0, 0, 0],
+             ...(this.old ? {} : { pre: this.pre, prem: this.pre >= 0 && this.dirty ? 1 : 0 }),
              btn: b(5), bn: this.bn, ...(this.bev ? { bev: this.bev, bage: Math.round(now - this.bevAt) } : {}),
              ...(this.sim.board_mismatch ? { board_mismatch: 1 } : {}), ...(this.sim.save_err ? { save_err: 1 } : {}),
              ...(warn.length ? { warn: warn.join(", ") } : {}) };
   }
 }
+
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.1";
+DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
 // App
@@ -1316,6 +1489,26 @@ const el = (tag, attrs = {}, ...kids) => {
 const app = { link: null, demo: false, settings: null, status: null, lastLive: 0, drafts: {},
               tab: "connect", open: new Set(), testPrev: null };
 const finder = { active: false, timer: 0 };
+// Control tab state (the screen itself is further down). Declared early: start() resets it at page load.
+const CT = { screen: "home", pre: { pre: -1, prem: 0, slots: Array(8).fill(null) }, listAt: 0, askName: false, name: null,
+             quiet: 0, t: {}, q: {}, go: {}, mem: {}, prev: {}, infoAt: 0, infoTries: 0, fwWarn: "" };
+function ctlReset() {
+  Object.assign(CT, { screen: "home", pre: { pre: -1, prem: 0, slots: Array(8).fill(null) }, listAt: 0, askName: false, name: null,
+                      quiet: 0, mem: {}, prev: {}, infoAt: Date.now(), infoTries: 0, fwWarn: "" });
+  Object.values(CT.t).forEach(clearTimeout); CT.t = {}; CT.q = {}; CT.go = {};
+}
+// Firmware version, read from the `info` reply ("RCR Lighting rev D firmware 0.4.1 (...)", commands.cpp info()). Presets, DRL sections,
+// the look role and the no-brake flag need 0.4.1; until the version is known (or when it can't be read) the page acts as 0.3.18.
+const fw4 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 1]) >= 0);
+function setFw(line) {
+  const m = /firmware (\d+\.\d+\.\d+)/.exec(line);
+  if (!m) return;
+  const was = fw4();
+  app.fw = { raw: m[1], n: parseVer(m[1]) };
+  if (app.settings && was !== fw4()) { buildStrips(); buildSetup(); }
+  if (fw4()) ctlList();
+  buildControl();
+}
 
 const handlers = {
   onOut(line) {
@@ -1323,11 +1516,13 @@ const handlers = {
       try {
         const j = JSON.parse(line);
         if (j.head && j.strips) { setSettings(j); return; }
+        if (Array.isArray(j.slots) && "pre" in j) { setPresetList(j); return; }
         if ("ok" in j) { setReply(j); return; }
         if ("ch" in j && "en" in j) { setStatus(j); return; }
       } catch (e) { /* fall through to the log */ }
     }
-    if (/^RCR Lighting/.test(line)) $("infoText").textContent = line;
+    if (/^RCR Lighting/.test(line)) { $("infoText").textContent = line; setFw(line); }
+    ctlReply(line);
     const ota = /^OTA access point "([^"]+)", password (\S+)/.exec(line);
     if (ota) $("otaInfo").textContent = `${ota[1]} / ${ota[2]}`;
     log(line);
@@ -1384,6 +1579,7 @@ let settingsWatch = { timer: null, tries: 0 };
 function wantSettings() {
   clearTimeout(settingsWatch.timer);
   settingsWatch.tries = 0;
+  send("info");   // the firmware version (gates the 0.4.1 features)
   send("get");
   const check = () => {
     if (!app.link || app.demo || app.settings) return;
@@ -1446,6 +1642,7 @@ function setReply(j) {
     if (--P.left <= 0) { app.pending = null; clearTimeout(P.timer); P.done(P); }
     return;
   }
+  if (CT.quiet > 0) { CT.quiet--; if (j.ok && !j.notes) return; }   // Control's live sends: only a refusal or a note is worth a toast
   if (BK.quiet > 0 && j.ok && !j.notes) { BK.quiet--; return; }   // the add-a-light wizard's test pixels: nothing the user applied
   if (!j.ok) toast("Not applied: " + (j.notes || "error"), true);
   else if (j.notes) toast("Applied, with notes: " + j.notes, true);
@@ -1459,10 +1656,15 @@ function setLink(text, ok) {
 
 function showTab(name) {
   if ((app.tab === "map" || app.tab === "bike") && name !== app.tab) finderStop();
+  if (name !== "strips") app.stripsFrom = null;
+  if (name === "control" && app.tab === "control") CT.screen = "home";
   app.tab = name;
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + name));
-  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name || (b.dataset.tab === "bike" && (name === "strips" || name === "map"))));
+  const navOf = name === "lights" || (name === "strips" && app.stripsFrom === "control") ? "control" : name === "strips" || name === "map" ? "bike" : name;
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navOf));
+  $("stripsBackCtl").hidden = app.stripsFrom !== "control"; $("stripsBackBike").hidden = app.stripsFrom === "control";
   window.scrollTo(0, 0);
+  if (name === "control") buildControl();
   if (name === "map") buildMap();
   if (name === "strips" && app.settings) buildStrips();
   if (name === "bike") buildBike();
@@ -1485,6 +1687,7 @@ async function start(demo, auto) {
   if (app.link) return;
   $("connectErr").hidden = true;
   app.demo = demo; app.userClosed = false; cancelReconnect(); app.lastBn = null;
+  app.fw = null; ctlReset(); if (!demo) DemoLink.cur = null;
   const mine = app.link = demo ? new DemoLink(handlers) : new BleLink(handlers);
   try {
     setLink(demo ? "Starting demo…" : auto ? "Looking for the controller…" : "Connecting…", false);
@@ -1519,8 +1722,8 @@ async function start(demo, auto) {
   document.querySelectorAll("nav button").forEach(b => b.disabled = false);
   layUse(demo); layRenderAll();
   buildWires();
-  showTab("live");
-  send("info"); wantSettings();
+  showTab("control");
+  wantSettings();
 }
 
 function connectHelp(e) {
@@ -1545,7 +1748,7 @@ $("linkBtn").onclick = async () => {
   }
   app.userClosed = true; cancelReconnect();
   finderStop();
-  app.link.close(); app.link = null; app.settings = null; app.status = null; app.testPrev = null; app.drafts = {}; bkReset();
+  app.link.close(); app.link = null; app.settings = null; app.status = null; app.testPrev = null; app.drafts = {}; bkReset(); app.fw = null; ctlReset();
   setLink("Not connected", false); $("linkBtn").hidden = true;
   document.querySelectorAll("nav button").forEach(b => { b.disabled = true; b.setAttribute("aria-selected", false); });
   paintDash({});
@@ -1644,7 +1847,7 @@ function setStatus(s) {
     });
   }
   paintTotals(s);
-  const alerts = [];
+  const alerts = []; let setup = "";
   SENSE.forEach((c, i) => {
     const li = $("o" + i), code = (s.ch || "")[i] || ".";
     const [label, cls] = STATE[code] || ["?", ""];
@@ -1678,21 +1881,25 @@ function setStatus(s) {
     const w = s.warn.replace(/this firmware is built for rev [CD][\s\S]*?flash the rcr_rev[cd] image/, "")
                     .replace("settings could not be saved (storage full?): changes are lost at key-off", "")
                     .split(",").map(x => x.trim()).filter(Boolean).join(", ");
-    if (w) alerts.unshift(["bad", "Setup: " + w]);
+    if (w) { alerts.unshift(["bad", "Setup: " + w]); setup = w; }
   }
   if (s.save_err) alerts.unshift(["bad", "Settings aren't being saved — storage full? Changes are lost at key-off.", "save_err"]);
   if (s.board_mismatch) alerts.unshift(["bad", "Wrong firmware for this board — strips are off. Flash the other image.", "board_mismatch"]);
   if (s.strips_err) alerts.unshift(["bad", "LED strip outputs failed to start"]);
   if (s.v === 0) alerts.unshift(["warn", "Inputs not settled yet: low beam and rear red held on"]);
   if (s.bench) alerts.unshift(["warn", "Bench override active (Output test, pixel finder or USB console)"]);
-  const al = $("alerts"); al.textContent = "";
-  for (const [cls, msg, key] of alerts) al.append(el("div", { class: "banner " + cls, "data-alert": key || null }, msg));
+  for (const id of ["alerts", "ctlAlerts"]) {   // the Live tab and the Control screen show the same banners
+    const al = $(id); al.textContent = "";
+    for (const [cls, msg, key] of alerts) al.append(el("div", { class: "banner " + cls, "data-alert": key || null }, msg));
+  }
+  app.setupWarn = setup;
   $("liveFoot").textContent = s.ota ? "Firmware update access point is on." : "";
   $("pairHint").textContent = s.pair ? "Pairing is open: pair the new phone now." : "Lets a new phone pair during the next 2 minutes.";
   // quick toggles
   $("qHaz").setAttribute("aria-pressed", !!s.hz);
   $("qPods").setAttribute("aria-pressed", !!s.aux);
   paintMaps();
+  ctlStatus(s);
 }
 // Total strip current on Live and Map. The big number is the sum of the four measured strip
 // channels (status `a[4..7]`); the budget works on the board's pixel-model estimate (`tot` mA,
@@ -1789,6 +1996,7 @@ function setSettings(s) {
   buildSetup();
   buildMap();
   buildBike();
+  buildControl();
 }
 
 // ---- strips ----------------------------------------------------------------
@@ -1796,7 +2004,8 @@ function roleCss(role) {
   const s = app.settings;
   return { tail: "#8c1d18", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
            tail_turn_l: "linear-gradient(#ffa41b 50%, #8c1d18 50%)", tail_turn_r: "linear-gradient(#ffa41b 50%, #8c1d18 50%)",
-           accent: hex(s.accent.rgb), none: "transparent" }[role] || "transparent";
+           accent: hex(s.accent.rgb), none: "transparent",
+           drl: s.drl ? hex(s.drl.rgb) : "#d9dde1", look: "#3d8bff" }[role] || "transparent";
 }
 function mapNodes(draft) {
   const total = Math.max(1, draft.px);
@@ -2023,15 +2232,15 @@ function buildStrips() {
       // idle look: what a safety segment shows while its own function is off
       const cur = idleOk(g[2]) && segIdleOf(g);
       const idleSel = el("select", { "aria-label": "Idle look", "data-idle": key, disabled: !idleOk(g[2]) },
-        ...IDLE_MODES.map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
+        ...[...IDLE_MODES, ...(fw4() || (cur && cur.idle === "drl") ? [["drl", "DRL color"]] : [])].map(([v, t]) => el("option", { value: v, selected: v === (cur ? cur.idle : "off") }, t)));
       const idleCol = el("input", { type: "color", "aria-label": "Idle color", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
       const setIdle = () => {   // a red pick on a brake / front-pod segment stays in the draft with its note, but goes out as idle off
-        const c = unhex(idleCol.value), pct = segPctOf(g);
-        ensure(); g.length = 6; const o = segObj(idleSel.value, c, pct); if (o) g.push(o);
+        const c = unhex(idleCol.value), pct = segPctOf(g), nb = segNbOf(g);
+        ensure(); g.length = 6; const o = segObj(idleSel.value, c, pct, nb); if (o) g.push(o);
         idleCol.hidden = idleSel.value !== "color"; upd(); refreshNotes(); refreshLook(); redraw();
       };
       idleSel.onchange = setIdle; idleCol.onchange = setIdle;
-      const setPct = v => { ensure(); const k0 = segIdleOf(g); g.length = 6; const o = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, v); if (o) g.push(o); upd(); refreshNotes(); };
+      const setPct = v => { ensure(); const k0 = segIdleOf(g), nb = segNbOf(g); g.length = 6; const o = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, v, nb); if (o) g.push(o); upd(); refreshNotes(); };
       const pf = rangeField("Brightness", segPctOf(g), 0, 100, 1, "%", v => { setPct(v); redraw(); });
       const pin = pf.querySelector("input"); pin.setAttribute("data-seg-pct", key); pin.addEventListener("input", () => setPct(+pin.value));
       pf.append(effHint);
@@ -2072,11 +2281,11 @@ function buildStrips() {
       draft.seg.forEach((g, k) => {
         const s0 = el("input", { type: "number", min: 0, max: 799, value: g[0], inputmode: "numeric", "aria-label": "Start" });
         const s1 = el("input", { type: "number", min: 0, max: 800, value: g[1], inputmode: "numeric", "aria-label": "Pixels" });
-        const r = el("select", { "aria-label": "Job" }, ...ROLES.map(([v, t]) => el("option", { value: v, selected: v === g[2] }, t)));
+        const r = el("select", { "aria-label": "Job" }, ...[...ROLES, ...(fw4() || ROLES_V4.some(x => x[0] === g[2]) ? ROLES_V4 : [])].map(([v, t]) => el("option", { value: v, selected: v === g[2] }, t)));
         const rv = el("input", { type: "checkbox", checked: !!g[3], "aria-label": "Reverse sweep direction" });
         s0.oninput = () => { g[0] = s0.value | 0; redraw(); };
         s1.oninput = () => { g[1] = s1.value | 0; redraw(); };
-        r.onchange = () => { g[2] = r.value; if (!idleOk(g[2])) { const pct = segPctOf(g); g.length = 6; const ob = segObj("off", null, pct); if (ob) g.push(ob); } drawRows(); redraw(); };
+        r.onchange = () => { g[2] = r.value; if (!idleOk(g[2])) { const pct = segPctOf(g); g.length = 6; const ob = segObj("off", null, pct); if (ob) g.push(ob); } else if (!/^tail/.test(g[2]) && segNbOf(g)) { const k0 = segIdleOf(g), pct = segPctOf(g); g.length = 6; const ob = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, pct); if (ob) g.push(ob); } drawRows(); redraw(); };
         rv.onchange = () => { g[3] = rv.checked; redraw(); };
         tb.append(el("tr", {}, el("td", {}, s0), el("td", {}, s1), el("td", {}, r), el("td", {}, rv),
           el("td", {}, el("button", { class: "x", "aria-label": "Remove segment", onclick: () => {
@@ -2117,7 +2326,7 @@ function buildStrips() {
     const lookCol = el("input", { type: "color", value: hex(lk.rgb), "aria-label": "Look color", "data-look-color": i });
     lookCol.onchange = () => { lk.rgb = unhex(lookCol.value); lookChanged(); };
     const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
-    const tsField = selectField("Turn animation", [["global", `Same as the Lights tab (${gName})`], ...TURN_STYLES], draft.turn_style, v => { draft.turn_style = v; redraw(); });
+    const tsField = selectField("Turn animation", [["global", `Same as All light settings (${gName})`], ...TURN_STYLES], draft.turn_style, v => { draft.turn_style = v; redraw(); });
     tsField.querySelector("select").setAttribute("data-strip-turnstyle", i);
     const lmField = selectField("Idle look effect", MODES, lk.mode, v => { lk.mode = v; lookChanged(); });
     lmField.querySelector("select").setAttribute("data-look-mode", i);
@@ -2212,9 +2421,9 @@ function buildSetup() {
   const bp = $("btnPanel"); bp.textContent = "";
   const longMs = s.button.long_ms || 1000;
   bp.append(
-    selectField("Short press", ACTIONS, s.button.short, v => patch({ button: { short: v } })),
-    selectField("Double press", ACTIONS, s.button.double, v => patch({ button: { double: v } })),
-    selectField(`Hold ${(longMs / 1000).toFixed(longMs % 1000 ? 1 : 0)} s`, ACTIONS, s.button.long, v => patch({ button: { long: v } })),
+    selectField("Short press", actionsFor(), s.button.short, v => patch({ button: { short: v } })),
+    selectField("Double press", actionsFor(), s.button.double, v => patch({ button: { double: v } })),
+    selectField(`Hold ${(longMs / 1000).toFixed(longMs % 1000 ? 1 : 0)} s`, actionsFor(), s.button.long, v => patch({ button: { long: v } })),
     numField("Long press after (ms)", longMs, 300, 3000, 100, v => patch({ button: { long_ms: v } }), null, "btn_long_ms"),
     numField("Double-press gap (ms)", s.button.gap_ms || 350, 150, 800, 50, v => patch({ button: { gap_ms: v } }), "A single press waits this long for a second one when a double-press action is set.", "btn_gap_ms"),
     el("div", { class: "field" }, el("div", { class: "hint" }, "Holding the button 5 s opens Bluetooth pairing; holding it while switching the key on starts the firmware update access point. The Live tab shows every press as it is decoded.")));
@@ -2271,7 +2480,7 @@ armed($("rebootBtn"), "Tap again to restart", () => send("reboot"));
 armed($("defaultsBtn"), "Tap again to reset everything", () => { send("defaults yes"); send("get"); });
 
 // ---- map tab -----------------------------------------------------------------
-const ROLE_NAME = Object.fromEntries(ROLES);
+const ROLE_NAME = Object.fromEntries([...ROLES, ...ROLES_V4]);
 const segLabel = (g, k) => `#${k + 1}: pixels ${g[0]}–${g[0] + Math.max(0, g[1]) - 1}, ${ROLE_NAME[g[2]] || g[2]}`;
 function fillSelect(sel, opts, keep) {
   const cur = keep ? sel.value : null;
@@ -3531,11 +3740,15 @@ const bkHint = (i, kind) => { const h = bkHints(); if (kind) h[i] = kind; else d
 // What a strip is, read from its segments (plus the wizard's note for the kinds that look alike).
 function bkKind(i, st) {
   if (isLampOut(st)) return "lamp";
-  const roles = new Set(st.seg.filter(g => g[1] > 0 && g[2] !== "none").map(g => g[2]));
+  const all = new Set(st.seg.filter(g => g[1] > 0 && g[2] !== "none").map(g => g[2]));
+  const roles = new Set([...all].filter(r => r !== "drl" && r !== "look"));   // DRL and look sections ride along with any light
   const only = (...ok) => roles.size > 0 && [...roles].every(r => ok.includes(r));
+  const hint = bkHints()[i];   // the zone editor leaves "front" / "rear" here so a bar with no turn sections is still a bar
   if (roles.has("turn_l") && roles.has("turn_r") && only("turn_l", "turn_r")) return "front";
+  if (hint === "front" && st.px > 0 && (roles.size === 0 || only("turn_l", "turn_r"))) return "front";
   if ((roles.has("tail_turn_l") || roles.has("tail_turn_r")) && only("tail_turn_l", "tail_turn_r", "tail", "brake")) return "rear";
-  if (only("accent")) return bkHints()[i] === "ring" ? "ring" : bkHints()[i] === "custom" ? "custom" : "glow";
+  if (hint === "rear" && st.px > 0 && (roles.size === 0 || only("tail_turn_l", "tail_turn_r", "tail", "brake"))) return "rear";
+  if (only("accent") || (roles.size === 0 && all.has("look"))) return hint === "ring" ? "ring" : hint === "custom" ? "custom" : "glow";
   return "custom";
 }
 const bkTempOnly = i => !!BK.temp[i] && !app.drafts[i];           // test pixels of an unfinished wizard: not a light
@@ -3656,15 +3869,27 @@ function bkApply() {
   finderStop();
   if (!patchMany(objs)) return;
   ids.forEach(i => { delete app.drafts[i]; delete BK.temp[i]; });
-  buildStrips(); buildBike();
+  buildStrips(); buildBike(); buildControl();
 }
 function bkDiscard() {
   Object.keys(app.drafts).forEach(i => { delete app.drafts[i]; });
   bkRestoreTemps(-1);
-  buildStrips(); buildBike();
+  buildStrips(); buildBike(); buildControl();
   toast("Changes discarded");
 }
 
+// The bar's look when it is not signaling (shared with the Control screen): every idle-capable segment shows the strip look, or
+// nothing. DRL idle sections keep their DRL color; a segment's no-brake flag and brightness stay.
+function applyBarLook(d, val) {
+  d.seg.forEach(g => {
+    if (!idleOk(g[2])) return;
+    const cur = segIdleOf(g);
+    if (cur && cur.idle === "drl") return;
+    const pct = segPctOf(g), nb = segNbOf(g); g.length = 6;
+    const ob = segObj(val === "off" ? "off" : "look", null, pct, nb); if (ob) g.push(ob);
+  });
+  if (val !== "off") d.look.mode = val;
+}
 function bkDetail(box) {
   const i = BK.open, L = bkLights().find(x => x.i === i), v = L.st, K = BK_KINDS[L.kind];
   const edit = fn => { fn(draftFor(i)); buildStrips(); buildBike(); };
@@ -3676,14 +3901,7 @@ function bkDetail(box) {
     if (K.bar) {
       const idle = v.seg.filter(g => idleOk(g[2]));
       const usesLook = idle.some(g => (segIdleOf(g) || {}).idle === "look");
-      const f = selectField("Look when not signaling", [["off", "Off"], ...MODES], usesLook ? v.look.mode : "off", val => edit(d => {
-        d.seg.forEach(g => {
-          if (!idleOk(g[2])) return;
-          const pct = segPctOf(g); g.length = 6;
-          const ob = segObj(val === "off" ? "off" : "look", null, pct); if (ob) g.push(ob);
-        });
-        if (val !== "off") d.look.mode = val;
-      }));
+      const f = selectField("Look when not signaling", [["off", "Off"], ...MODES], usesLook ? v.look.mode : "off", val => edit(d => applyBarLook(d, val)));
       f.querySelector("select").setAttribute("data-bike-look", i);
       main.append(f);
       if (usesLook) {
@@ -3694,16 +3912,16 @@ function bkDetail(box) {
         main.append(cf, rangeField("Speed", v.look.speed, 1, 10, 1, "", val => edit(d => { d.look.speed = val; })));
       }
       const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
-      const ts = selectField("Turn signal style", [["global", `Same as the Lights tab (${gName})`], ...TURN_STYLES], v.turn_style, val => edit(d => { d.turn_style = val; }));
+      const ts = selectField("Turn signal style", [["global", `Same as All light settings (${gName})`], ...TURN_STYLES], v.turn_style, val => edit(d => { d.turn_style = val; }));
       ts.querySelector("select").setAttribute("data-bike-turn", i);
       main.append(ts);
     }
     main.append(rangeField("Brightness", v.pct, 0, 100, 1, "%", val => edit(d => { d.pct = val; }),
       K.bar ? "For the look above. Turn, brake and tail colors are never dimmed by it."
-            : "Multiplied by the underglow brightness on the Lights tab."));
+            : "Multiplied by the underglow brightness in All light settings."));
     if (!K.bar) main.append(el("p", { class: "note", style: "margin:0;padding:0 14px 12px" },
       L.kind === "custom" ? "This output has its own segment setup. Change what each part does in the segment editor."
-                          : "Shows the underglow effect and color set on the Lights tab."));
+                          : "Shows the underglow effect and color set in All light settings."));
   }
   const chip = L.kind === "lamp" ? "" : " · " + ((CHIP_BY[v.chip] || {}).label || "custom LED type");
   const facts = el("p", { class: "note", style: "margin:8px 2px" }, `Output ${i + 1} (${STRIP_JACK[i]})${L.kind === "lamp" ? "" : ` · ${v.px} LEDs`}${chip}`);
@@ -3888,6 +4106,508 @@ function bkWizFinish() {
   buildStrips(); bkGo("home");
   toast(`${K.name} added on output ${i + 1}. Tap Apply to send it.`);
 }
+// ---- control tab: presets, strip map, quick toggles, each light, preset editor ------------------------
+// Control sends its changes at once (`set` lines, no draft) and keeps app.settings in step with the same applyPatch the demo uses.
+// While the Bike tab holds unsent drafts (app.drafts) the per-light, preset and zone controls here wait for its Apply / Discard.
+const pendingDrafts = () => Object.keys(app.drafts).length > 0;
+const ctlName = t => String(t || "").replace(/[^\x20-\x7e]/g, "?").trim().slice(0, 24);   // preset names: printable ASCII, 24 characters (kPresetNameMax)
+const modeName = m => ((MODES.find(x => x[0] === m) || [0, m])[1]).split(" (")[0];
+const SW_BAR = [["Amber", [255, 96, 0]], ["White", [255, 255, 255]], ["Blue", [29, 95, 214]], ["Green", [47, 191, 104]], ["Purple", [138, 63, 252]], ["Red", [255, 0, 0]]];
+const SW_DRL = [["White", [255, 255, 255]], ["Warm white", [255, 217, 160]], ["Amber", [255, 164, 27]], ["Ice blue", [159, 212, 255]]];
+const CT_OFF = "#39414a", CT_TAIL = "#8f2019", CT_BRAKE = "#ff4a3d", CT_TURN = "#ffa41b";
+const CT_ICON = { haz: "M12 4L3 20h18zM12 10v5M12 17.5v.5", glow: "M3 8h18M6 13v3M12 13v5M18 13v3",
+  drl: "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2",
+  pods: "M4 12a8 8 0 0 1 8-8v16a8 8 0 0 1-8-8M15 8h5M15 12h6M15 16h5" };
+
+// -- sending --
+// lines go out together, after `ms` of quiet for slider drags (the newest value of the same control wins), at once otherwise.
+function ctlQueue(key, lines, ms) {
+  clearTimeout(CT.t[key]); CT.q[key] = lines;
+  CT.go[key] = () => {
+    delete CT.t[key]; const L = CT.q[key]; delete CT.q[key];
+    if (!L || !app.link) return;
+    CT.quiet += L.filter(l => l.startsWith("set ")).length;
+    L.forEach(l => send(l));
+  };
+  if (ms) CT.t[key] = setTimeout(CT.go[key], ms); else CT.go[key]();
+}
+function ctlFlush(key) { if (CT.t[key]) { clearTimeout(CT.t[key]); CT.go[key](); } }
+function ctlPatch(obj, key, ms = 0) {
+  applyPatch(app.settings, structuredClone(obj), [null, null, null, null]);
+  ctlQueue(key, ["set " + JSON.stringify(obj)], ms);
+}
+// Change one strip through a copy (like a Bike-tab draft), then send only what differs and update the cache.
+function ctlStripEdit(i, fn, key, ms = 0) {
+  const cur = app.settings.strips[i], before = normStrip(structuredClone(cur)), d = normStrip(structuredClone(cur));
+  fn(d);
+  const lk = x => ({ mode: x.mode, rgb: x.rgb, speed: x.speed | 0, rev: !!x.rev, master: !!x.master });
+  const sub = {}, objs = [];
+  if (JSON.stringify(lk(d.look)) !== JSON.stringify(lk(before.look))) sub.look = lk(d.look);
+  if (d.pct !== before.pct) sub.pct = clamp(d.pct | 0, 0, 100);
+  if (d.turn_style !== before.turn_style) sub.turn_style = d.turn_style;
+  if (Object.keys(sub).length) objs.push(stripWrap(i, sub));
+  const sa = d.seg.map(segOut), segChanged = JSON.stringify(sa) !== JSON.stringify(before.seg.map(segOut));
+  if (segChanged) objs.push(...segPatches(i, sa));
+  if (!objs.length) return;
+  const pend = [null, null, null, null];
+  objs.forEach(o => applyPatch(app.settings, structuredClone(o), pend));
+  ctlQueue(key, [...objs.map(o => "set " + JSON.stringify(o)), ...(segChanged ? ["get"] : [])], ms);
+}
+
+// -- presets --
+function ctlList() { if (!fw4() || !app.link) return; CT.listAt = Date.now(); send("preset list"); }
+function setPresetList(j) {
+  CT.pre = { pre: j.pre | 0, prem: j.prem | 0, slots: Array.from({ length: 8 }, (_, n) => (typeof j.slots[n] === "string" ? j.slots[n] : null)) };
+  ctlPresetsUi(); ctlEditPillsUi();
+}
+function ctlApplyPreset(n) { CT.fwWarn = ""; send("preset " + n); send("get"); ctlList(); }
+function ctlSavePreset(n, name) {
+  CT.fwWarn = ""; const c = ctlName(name);
+  send(`preset save ${n}${c ? " " + c : ""}`); ctlList();
+}
+const ctlFreeSlot = () => CT.pre.slots.findIndex(x => x == null);
+function ctlReply(line) {   // the text replies of the preset commands
+  let m;
+  if ((m = /^preset (\d) saved as "(.*)"/.exec(line))) toast(`Saved “${m[2]}” in slot ${+m[1] + 1}`);
+  else if ((m = /^preset (\d) "(.*)" applied/.exec(line))) toast(`“${m[2]}” is on the bike`);
+  else if ((m = /^preset (\d) erased/.exec(line))) toast(`Preset ${+m[1] + 1} deleted`);
+  else if (/^preset \d(:| is empty)|^no presets saved/.test(line)) toast(line, true);
+  else if ((m = /^warning: (.*)/.exec(line))) { CT.fwWarn = m[1]; toast("Done, with a warning: " + m[1], true); ctlWarnPaint(); }
+}
+function ctlStatus(s) {
+  if (fw4() && typeof s.pre === "number" && (s.pre !== CT.pre.pre || (s.prem | 0) !== (CT.pre.prem | 0))) {
+    const moved = s.pre !== CT.pre.pre;
+    CT.pre.pre = s.pre; CT.pre.prem = s.prem | 0;
+    ctlPresetsUi(); ctlEditPillsUi();
+    if (Date.now() - CT.listAt > 500) ctlList();
+    if (moved) send("get");   // another preset is active (handlebar button, another phone): the configuration changed under us
+  }
+  if (!app.fw && app.link && Date.now() - CT.infoAt > 4000 && CT.infoTries < 3) { CT.infoAt = Date.now(); CT.infoTries++; send("info"); }
+  if (app.tab === "control") { ctlPaint(); if (CT.screen === "edit") ctlWarnPaint(); }
+}
+function ctlPresetsUi() {
+  const box = $("ctlPresets"); if (!box) return;
+  box.textContent = "";
+  const dis = pendingDrafts(), sl = CT.pre.slots, any = sl.some(x => x != null);
+  box.append(el("div", { class: "ct-row" }, el("span", { class: "ct-h" }, "Preset: whole bike"),
+    el("button", { class: "btn", id: "ctlEditBtn", onclick: () => { CT.screen = "edit"; CT.name = null; buildControl(); window.scrollTo(0, 0); } }, "Edit presets")));
+  if (any) {
+    const grid = el("div", { class: "ct-tiles" });
+    sl.forEach((nm, n) => {
+      if (nm == null) return;
+      const on = n === CT.pre.pre;
+      grid.append(el("button", { class: "ct-tile", "data-ct-pre": n, "aria-pressed": String(on), disabled: dis, onclick: () => ctlApplyPreset(n) },
+        el("b", {}, nm), el("small", {}, on ? (CT.pre.prem ? "Active · edited" : "Active") : "Slot " + (n + 1))));
+    });
+    box.append(grid);
+    if (dis) box.append(el("p", { class: "note", style: "margin:0" }, "Apply or discard the unsent Bike changes first."));
+  } else if (CT.askName) {
+    const inp = el("input", { type: "text", id: "ctlNewName", maxlength: 24, value: "Preset 1", "aria-label": "Preset name", autocomplete: "off" });
+    box.append(el("div", { class: "ct-ask ct-body" }, inp,
+      el("button", { class: "btn primary", id: "ctlNewSave", onclick: () => { const n = ctlFreeSlot(); if (n < 0) return; CT.askName = false; ctlSavePreset(n, inp.value || "Preset 1"); } }, "Save"),
+      el("button", { class: "btn", id: "ctlNewCancel", onclick: () => { CT.askName = false; ctlPresetsUi(); } }, "Cancel")));
+  } else {
+    box.append(el("p", { class: "note", style: "margin:0" }, "No presets saved yet. A preset keeps the whole look: underglow, each light's look, the DRL and the turn sections."),
+      el("button", { class: "btn", id: "ctlSaveFirst", disabled: dis, onclick: () => { CT.askName = true; ctlPresetsUi(); const i = $("ctlNewName"); if (i) i.select(); } }, "Save this look as a preset"));
+  }
+}
+
+// -- per-LED pictures --
+function ctlCells(px, look, segs) {
+  const S = app.settings, drlC = hex(S.drl ? S.drl.rgb : [255, 255, 255]), lookC = hex(look.rgb), accC = hex(S.accent.rgb);
+  const cells = Array.from({ length: px }, () => ({ bg: CT_OFF, sh: "none", turn: false }));
+  const idleC = g => { const o = segIdleOf(g); return !o ? null : o.idle === "look" ? lookC : o.idle === "drl" ? drlC : o.idle === "accent" ? accC : hex(o.rgb || [0, 0, 255]); };
+  for (const g of segs) {
+    if (!(g[1] > 0)) continue;
+    const nb = segNbOf(g);
+    let c;
+    switch (g[2]) {
+      case "turn_l": case "turn_r": { const ic = idleC(g); c = { bg: CT_TURN, sh: ic ? `inset 0 8px 0 ${ic}` : "none", turn: true }; break; }
+      case "tail_turn_l": case "tail_turn_r": c = { bg: CT_TURN, sh: `inset 0 -7px 0 ${nb ? CT_TAIL : CT_BRAKE}`, turn: true }; break;
+      case "tail": c = { bg: nb ? CT_TAIL : CT_BRAKE, sh: "none", turn: false }; break;   // a tail without nb brightens on brake
+      case "brake": c = { bg: CT_BRAKE, sh: "none", turn: false }; break;
+      case "drl": c = { bg: drlC, sh: "none", turn: false }; break;
+      case "look": c = { bg: lookC, sh: "none", turn: false }; break;
+      case "accent": c = { bg: accC, sh: "none", turn: false }; break;
+      default: continue;
+    }
+    for (let k = g[0]; k < g[0] + g[1] && k < px; k++) cells[k] = c;
+  }
+  return cells;
+}
+function ctlCellRow(px, cells) {
+  const row = el("div", { class: "ct-cells" + (px > 100 ? " many" : ""), "aria-hidden": "true" });
+  fillCells(row, cells);
+  return row;
+}
+function fillCells(row, cells) {
+  row.replaceChildren(...cells.map(c => el("span", { style: `background:${c.bg};box-shadow:${c.sh}`, "data-turn": c.turn ? "1" : null })));
+}
+function ctlMapPanel() {
+  const S = app.settings, box = el("div", { class: "ct-map", id: "ctlMap" });
+  bkLights().filter(L => L.kind !== "lamp").forEach(L => {
+    box.append(el("div", { style: "display:flex;flex-direction:column;gap:3px" },
+      el("span", { class: "cap" }, `${BK_KINDS[L.kind].name} · ${L.st.px} LEDs`), ctlCellRow(L.st.px, ctlCells(L.st.px, L.st.look, L.st.seg))));
+  });
+  const leg = [[CT_TURN, "Turn"], [CT_BRAKE, "Brake / tail"], [CT_TAIL, "Tail only"], [hex(S.drl ? S.drl.rgb : [255, 255, 255]), "DRL"], ["#3d8bff", "Look"], [hex(S.accent.rgb), "Underglow"]];
+  box.append(el("div", { class: "ct-legend" }, ...leg.map(([c, t]) => el("span", {}, el("i", { style: `background:${c}` }), t))));
+  const drlOnTurn = S.strips.some(st => st.seg.some(g => (g[2] === "turn_l" || g[2] === "turn_r") && (segIdleOf(g) || {}).idle === "drl"));
+  box.append(el("span", {}, drlOnTurn ? "Front turn sections show the DRL color until that side signals." : "Turn sections stay dark until that side signals."));
+  return box;
+}
+
+// -- quick toggles --
+const ctlTogOn = id => { const s = app.status || {}, S = app.settings; return id === "haz" ? !!s.hz : id === "glow" ? !!s.acc : id === "pods" ? !!s.aux : !!(S.drl && S.drl.on); };
+const CT_TOGS = [["haz", "Hazards", "Flashing"], ["glow", "Underglow", "On"], ["drl", "DRL", "On"], ["pods", "Pod lights", "On"]];
+function ctlToggle(id) {
+  const st = app.status || {};
+  if (id === "haz") send(fw4() ? "hazard toggle" : "hazard " + (st.hz ? "off" : "on"));
+  else if (id === "glow") send("accent " + (st.acc ? "off" : "on"));       // runtime, like the handlebar button
+  else if (id === "pods") send("aux " + (st.aux ? "off" : "on"));
+  else if (id === "drl" && fw4()) { ctlPatch({ drl: { on: !ctlTogOn("drl") } }, "drlon"); ctlPaint(); }
+}
+function ctlToggles() {
+  const g = el("div", { class: "big-toggles", id: "ctlToggles" });
+  CT_TOGS.filter(t => t[0] !== "drl" || fw4()).forEach(([id, label]) => {
+    const b = el("button", { class: "big ct-tog " + (id === "pods" ? "pods" : id), id: "ctlTog-" + id, "aria-pressed": "false", onclick: () => ctlToggle(id) });
+    b.innerHTML = bkIcon(CT_ICON[id], 26);
+    b.append(el("span", {}, el("span", {}, label), el("small", { id: "ctlTogTxt-" + id }, "Off")));
+    g.append(b);
+  });
+  return g;
+}
+function ctlPaint() {
+  const s = app.status; if (!s || !app.settings) return;
+  CT_TOGS.forEach(([id, , onTxt]) => {
+    const b = $("ctlTog-" + id); if (!b) return;
+    const on = ctlTogOn(id);
+    b.setAttribute("aria-pressed", String(on)); $("ctlTogTxt-" + id).textContent = on ? onTxt : "Off";
+  });
+  document.querySelectorAll("#ctlMap .ct-cells span[data-turn]").forEach(c => c.classList.toggle("off", !!s.hz && !s.blk));   // hazards blink the turn sections
+}
+
+// -- each light --
+function ctlPendingLine() {
+  const ids = Object.keys(app.drafts).map(Number).sort();
+  return el("div", { class: "ct-pend", id: "ctlPend" }, el("span", { class: "bike-pend-txt" }, `Not sent yet: output ${ids.map(i => i + 1).join(", ")}. These controls wait for Apply or Discard.`),
+    el("button", { class: "btn", id: "ctlDiscard", onclick: bkDiscard }, "Discard"), el("button", { class: "btn primary", id: "ctlApply", onclick: bkApply }, "Apply"));
+}
+// o: {label, value, min, max, step, unit, dis, key, attr, set(v, ms)}; the value is sent 250 ms after the last move, at once on release.
+function ctlRange(o) {
+  const val = el("b", {}, o.value + (o.unit || ""));
+  const r = el("input", { type: "range", min: o.min, max: o.max, step: o.step || 1, value: o.value, disabled: !!o.dis, "aria-label": o.label, [o.attr || "data-ct-range"]: o.key });
+  r.addEventListener("input", () => { val.textContent = r.value + (o.unit || ""); o.set(Number(r.value), 250); });
+  r.addEventListener("change", () => ctlFlush(o.key));
+  return el("label", { class: "ct-lbl" }, el("span", {}, o.label + ": ", val), r);
+}
+function ctlColor(rgb, swatches, dis, key, onPick) {
+  const wrap = el("div", { class: "ct-light-body", style: "padding:0" }, el("h4", {}, "Color"));
+  const row = el("div", { class: "ct-pills" });
+  const same = (a, b) => a.every((v, j) => v === b[j]);
+  swatches.forEach(([name, c]) => row.append(el("button", { class: "ct-sw", "aria-label": name, "aria-pressed": String(same(rgb, c)), disabled: dis, style: `background:${hex(c)}`, "data-ct-sw": key + ":" + name, onclick: () => onPick(c) })));
+  const inp = el("input", { type: "color", value: hex(rgb), "aria-label": "Custom color", disabled: dis, "data-ct-color": key });
+  inp.addEventListener("change", () => onPick(unhex(inp.value)));
+  row.append(inp);
+  wrap.append(row);
+  return wrap;
+}
+function ctlPills(options, value, dis, attr, onPick) {
+  const row = el("div", { class: "ct-pills" });
+  options.forEach(([v, label]) => row.append(el("button", { class: "btn", "aria-pressed": String(v === value), disabled: dis, [attr]: v, onclick: () => {
+    row.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", String(b.getAttribute(attr) === String(v))));   // show the pick now; the re-read redraws the card
+    onPick(v);
+  } }, label)));
+  return row;
+}
+function ctlBrightness(L, dis, hint) {
+  const i = L.i;
+  return [ctlRange({ label: "Brightness", value: L.st.pct, min: 0, max: 100, unit: " %", dis, key: "pct" + i, attr: "data-ct-pct",
+                     set: (v, ms) => ctlStripEdit(i, d => { d.pct = v; }, "pct" + i, ms) }), hint ? el("p", { class: "note", style: "margin:0" }, hint) : null];
+}
+const barUsesLook = st => st.seg.some(g => (idleOk(g[2]) && (segIdleOf(g) || {}).idle === "look") || g[2] === "look");
+const glowOwn = st => st.seg.some(g => g[2] === "look");
+function ctlLightSub(L) {
+  const st = L.st;
+  if (L.kind === "lamp") return "12 V " + (OUT_SHORT[st.out] || "lamp");
+  if (BK_KINDS[L.kind].bar) return `${st.px} LEDs · look ${barUsesLook(st) ? modeName(st.look.mode) : "off"} · ${st.pct} %`;
+  if (L.kind === "custom") return `${st.px} LEDs · ${st.seg.length} segment${st.seg.length === 1 ? "" : "s"} · ${st.pct} %`;
+  return `${st.px} LEDs · ${glowOwn(st) ? "own look: " + modeName(st.look.mode) : "with underglow"} · ${st.pct} %`;
+}
+function ctlLightBody(L, body, dis) {
+  const i = L.i, st = L.st, K = BK_KINDS[L.kind];
+  if (L.kind === "lamp") { body.append(el("p", { class: "note", style: "margin:0" }, `This output switches a plain 12 V lamp: ${OUT_LABEL[st.out] || st.out}. Change what it does on the Bike tab.`)); return; }
+  if (K.bar) {
+    const uses = barUsesLook(st);
+    body.append(el("h4", {}, "This light's own look when it's not signaling"),
+      ctlPills([["off", "Off"], ...MODES.map(([v, t]) => [v, t.split(" (")[0]])], uses ? st.look.mode : "off", dis, "data-ct-look", v => ctlStripEdit(i, d => applyBarLook(d, v), "look" + i)));
+    if (uses) {
+      body.append(ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }));
+      if (lookRed(st.look) && st.seg.some(g => idleOk(g[2]) && redBanned(g[2], app.settings))) body.append(el("p", { class: "lay-warn bad", "data-note": "ct-red" }, LOOK_RED_NOTE));
+      body.append(ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }));
+    }
+    const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
+    const sel = el("select", { "aria-label": "Turn signal style", "data-ct-turn": i, disabled: dis, onchange: () => ctlStripEdit(i, d => { d.turn_style = sel.value; }, "ts" + i) },
+      ...[["global", `Same as All light settings (${gName})`], ...TURN_STYLES].map(([v, t]) => el("option", { value: v, selected: v === st.turn_style }, t)));
+    body.append(el("label", { class: "ct-lbl" }, "Turn signal style", sel), ...ctlBrightness(L, dis, "For the look above. Turn, brake and tail colors are never dimmed by it."));
+    return;
+  }
+  if (L.kind === "custom") { body.append(...ctlBrightness(L, dis), el("p", { class: "note", style: "margin:0" }, "This output has its own segment setup. Change what each part does in the segment editor.")); return; }
+  // underglow run or fork ring
+  const own = glowOwn(st);
+  if (fw4()) {
+    body.append(el("h4", {}, "Look"), ctlPills([["accent", "With underglow"], ["own", "Its own look"]], own ? "own" : "accent", dis, "data-ct-glow", v => {
+      ctlStripEdit(i, d => {
+        d.seg.forEach(g => { if (v === "own" && g[2] === "accent") g[2] = "look"; else if (v === "accent" && g[2] === "look") g[2] = "accent"; });
+        if (v === "own" && !own) { const A = app.settings.accent; Object.assign(d.look, { mode: A.mode, rgb: A.rgb.slice(), speed: A.speed, rev: false, master: true }); }
+      }, "glow" + i);
+    }));
+  }
+  if (own) {
+    body.append(ctlPills(MODES.map(([v, t]) => [v, t.split(" (")[0]]), st.look.mode, dis, "data-ct-look", v => ctlStripEdit(i, d => { d.look.mode = v; }, "look" + i)),
+      ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }),
+      ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }),
+      ...ctlBrightness(L, dis, "This look follows the Underglow switch. The global underglow brightness does not apply."));
+  } else {
+    body.append(...ctlBrightness(L, dis, "Shows the underglow effect and color from All light settings, scaled by the global underglow brightness."));
+  }
+}
+function ctlLightCard(L, dis) {
+  const key = "ct." + L.i, K = BK_KINDS[L.kind], open = app.open.has(key);
+  const head = el("button", { class: "ct-light-head", "aria-expanded": String(open), "data-ct-open": L.i },
+    el("span", { class: "sw", "aria-hidden": "true", style: `background:${K.chip}` }),
+    el("span", { class: "bike-txt" }, el("b", {}, K.name), el("small", {}, ctlLightSub(L))));
+  const body = el("div", { class: "ct-light-body ct-body", hidden: !open, "data-ct-card": L.i });
+  ctlLightBody(L, body, dis);
+  head.onclick = () => { const o = body.hidden; body.hidden = !o; head.setAttribute("aria-expanded", String(o)); o ? app.open.add(key) : app.open.delete(key); };
+  return el("div", { class: "ct-light" }, head, body);
+}
+function ctlDrlCard() {
+  const D = app.settings.drl, key = "ct.drl", open = app.open.has(key);
+  const head = el("button", { class: "ct-light-head", "aria-expanded": String(open), "data-ct-open": "drl" },
+    el("span", { class: "sw", "aria-hidden": "true", style: `background:${hex(D.rgb)}` }),
+    el("span", { class: "bike-txt" }, el("b", {}, "DRL sections"), el("small", {}, `${D.on ? "On" : "Off"} · ${D.pct} % · own color, apart from underglow and looks`)));
+  const body = el("div", { class: "ct-light-body ct-body", hidden: !open });
+  body.append(ctlPills([[true, "On"], [false, "Off"]].map(([v, t]) => [String(v), t]), String(!!D.on), false, "data-ct-drl-on", v => { ctlPatch({ drl: { on: v === "true" } }, "drlon"); buildControl(); }),
+    ctlColor(D.rgb, SW_DRL, false, "drl", c => { ctlPatch({ drl: { rgb: c.slice() } }, "drlcol"); buildControl(); }),
+    ctlRange({ label: "Brightness", value: D.pct, min: 5, max: 100, unit: " %", key: "drlpct", attr: "data-ct-drl-pct", set: (v, ms) => ctlPatch({ drl: { pct: v } }, "drlpct", ms) }),
+    el("p", { class: "note", style: "margin:0" }, "The DRL ignores the underglow switch and every brightness but this one."));
+  head.onclick = () => { const o = body.hidden; body.hidden = !o; head.setAttribute("aria-expanded", String(o)); o ? app.open.add(key) : app.open.delete(key); };
+  return el("div", { class: "ct-light" }, head, body);
+}
+
+function ctlHome(box) {
+  if (app.fw) {
+    if (fw4()) { box.append(el("div", { id: "ctlPresets", style: "display:flex;flex-direction:column;gap:8px" })); ctlPresetsUi(); }
+    else box.append(el("p", { class: "note", id: "ctlOld", style: "margin:0 2px" }, "Presets and DRL sections need firmware 0.4.1."));
+  }
+  box.append(ctlMapPanel(), ctlToggles());
+  const dis = pendingDrafts(), lights = el("div", { class: "panel", id: "ctlLights" }, el("div", { class: "ct-h", style: "padding:12px 14px 8px" }, "Each light"));
+  if (dis) lights.append(ctlPendingLine());
+  bkLights().forEach(L => lights.append(ctlLightCard(L, dis)));
+  if (fw4() && app.settings.drl) lights.append(ctlDrlCard());
+  box.append(lights,
+    el("div", { class: "panel ct-rows" }, el("button", { id: "ctlAll", onclick: () => showTab("lights") }, el("span", {}, "All light settings"), el("span", { "aria-hidden": "true" }, "›"))),
+    el("p", { class: "note", style: "margin:0 2px" }, fw4() ? "Changes here are live on the bike. To keep them, save them into a preset from Edit presets. The handlebar button can step to the next preset (Setup)."
+                                                       : "Changes here are live on the bike."));
+}
+
+// ---- zones: front and rear bars as sliders (firmware 0.4.1: look and drl roles, nb flag) ----
+const ZFEED = "rcr.bike.feed";   // which end of a bar pixel 0 is at, per output, for a bar that has no turn section to tell by
+const zFeeds = () => { try { return JSON.parse(store.get(ZFEED) || "{}") || {}; } catch (e) { return {}; } };
+function zonePosFn(st) {   // positions, when the bar was mapped: a straight line from the first mapped pixel to the last
+  const m = st.seg.filter(g => g[1] > 0 && isMapped(g)).sort((a, b) => a[0] - b[0]);
+  if (!m.length) return null;
+  const a = m[0], b = m[m.length - 1], s0 = a[0], s1 = b[0] + b[1] - 1, P0 = segPos(a, 0), P1 = segPos(b, 1);
+  return s1 > s0 ? k => P0.map((v, j) => Math.round(v + (P1[j] - v) * (k - s0) / (s1 - s0))) : null;
+}
+const zseg = (s, c, role, rev, obj, pos) => [s, c, role, rev, pos ? pos(s) : [0, 0, 0], pos ? pos(s + c - 1) : [0, 0, 0], ...(obj ? [structuredClone(obj)] : [])];
+// Front bar: t LEDs turn at each end, the middle is the bar's look / the DRL / nothing, turn sections idle as look / drl / dark.
+// Same end rule and rev flags as the Bike tab's bar setup: pixel 0 is the end the data wire enters, its half runs reversed so
+// sequential turns grow outward from the middle. At t = half the two halves split the way that setup splits them.
+function zoneGenFront(N, feed, t, mid, sw, pct, pos) {
+  const half = Math.floor(N / 2); t = clamp(t | 0, 0, half);
+  const [first, second] = feed === "right" ? ["turn_r", "turn_l"] : ["turn_l", "turn_r"];
+  const so = segObj(sw === "look" ? "look" : sw === "drl" ? "drl" : "off", null, pct);
+  if (t > 0 && t === half) { const a = feed === "right" ? Math.ceil(N / 2) : Math.floor(N / 2); return [zseg(0, a, first, true, so, pos), zseg(a, N - a, second, false, so, pos)]; }
+  const out = [];
+  if (t > 0) out.push(zseg(0, t, first, true, so, pos));
+  if (N - 2 * t > 0 && mid !== "off") out.push(zseg(t, N - 2 * t, mid === "drl" ? "drl" : "look", false, mid === "look" ? segObj("off", null, pct) : null, pos));
+  if (t > 0) out.push(zseg(N - t, t, second, false, so, pos));
+  return out;
+}
+// Rear bar: every LED is a tail light; the b LEDs in the center brighten on brake, the rest carry nb. An end section that
+// straddles the edge of the brake zone is split in two (inside without nb, outside with nb).
+function zoneGenRear(N, feed, t, b, idle, pct, pos) {
+  const half = Math.floor(N / 2); t = clamp(t | 0, 0, half); b = clamp(b | 0, 0, N);
+  const [first, second] = feed === "right" ? ["tail_turn_r", "tail_turn_l"] : ["tail_turn_l", "tail_turn_r"];
+  let regs;
+  if (t > 0 && t === half) { const a = Math.floor(N / 2); regs = [[0, a, first, true], [a, N - a, second, false]]; }
+  else { regs = []; if (t > 0) regs.push([0, t, first, true]); if (N - 2 * t > 0) regs.push([t, N - 2 * t, "tail", false]); if (t > 0) regs.push([N - t, t, second, false]); }
+  const cs = Math.floor((N - b) / 2), ce = cs + b, out = [];
+  for (const [s, c, role, rev] of regs) {
+    const cuts = [s, ...(b > 0 && b < N ? [cs, ce].filter(x => x > s && x < s + c) : []), s + c];
+    for (let k = 0; k + 1 < cuts.length; k++) {
+      const x = cuts[k], y = cuts[k + 1], inside = b === N || (b > 0 && x >= cs && y <= ce);
+      out.push(zseg(x, y - x, role, rev, segObj(idle ? idle.idle : "off", idle && idle.rgb, pct, !inside), pos));
+    }
+  }
+  return out;
+}
+const zKey = g => `${g[0]}+${g[1]}:${g[2]}:${(segIdleOf(g) || {}).idle || "off"}:${segNbOf(g) ? 1 : 0}:${segPctOf(g)}`;
+// Read the sliders back from the bike's segments; match = false when the segments are not what the generator would write.
+function zoneParse(i, kind) {
+  const st = app.settings.strips[i], N = st.px, front = kind === "front", half = Math.floor(N / 2);
+  const segs = st.seg.filter(g => g[1] > 0).sort((a, b) => a[0] - b[0]);
+  const T = front ? ["turn_l", "turn_r"] : ["tail_turn_l", "tail_turn_r"], mem = CT.mem[i] || {};
+  const f0 = segs[0] && segs[0][0] === 0 && T.includes(segs[0][2]) ? segs[0] : null;
+  const feed = f0 ? (f0[2].endsWith("_r") ? "right" : "left") : zFeeds()[i] || "right";
+  let t = 0, b = N, mid = mem.mid || "look", sw = mem.sw || "look";
+  const pct = segs.length ? segPctOf(segs[0]) : 100;
+  const idleSeg = segs.find(g => idleOk(g[2]) && segIdleOf(g)), idle = idleSeg ? { idle: segIdleOf(idleSeg).idle, rgb: segIdleOf(idleSeg).rgb } : null;
+  if (front) {
+    t = f0 ? Math.min(f0[1], half) : 0;
+    const ts = segs.find(g => T.includes(g[2]));
+    if (ts) { const k = (segIdleOf(ts) || {}).idle; sw = k === "look" ? "look" : k === "drl" ? "drl" : "dark"; }
+    const ms = segs.find(g => g[2] === "look" || g[2] === "drl");
+    if (ms) mid = ms[2]; else if (N - 2 * t > 0) mid = "off";
+  } else {
+    let run = 0; for (const g of segs) { if (g[0] !== run || !T.includes(g[2])) break; run += g[1]; }
+    t = Math.min(run, half);
+    b = segs.filter(g => !segNbOf(g)).reduce((a, g) => a + g[1], 0);
+  }
+  const pos = zonePosFn(st), base = { idle, pct };
+  const gen = () => front ? zoneGenFront(N, feed, t, mid, sw, pct, pos) : zoneGenRear(N, feed, t, b, idle, pct, pos);
+  const match = N > 0 && JSON.stringify(gen().map(zKey)) === JSON.stringify(segs.map(zKey));
+  if (!match) { t = mem.t != null ? mem.t : Math.round(N / 4); b = mem.b != null ? mem.b : N; mid = mem.mid || "look"; sw = mem.sw || "look"; }
+  return { match, N, feed, t, b, mid, sw, base, pos, front };
+}
+function ctlWarnLocal() {
+  let brake = false, left = false, right = false;
+  app.settings.strips.forEach((st, i) => {
+    if (isLampOut(st)) { if (st.out === "turn_l") left = true; if (st.out === "turn_r") right = true; if (st.out === "brake") brake = true; return; }
+    (CT.prev[i] || st.seg).forEach(g => {
+      if (!(g[1] > 0) || !st.px) return;
+      const nb = segNbOf(g);
+      if ((g[2] === "tail" && !nb) || g[2] === "brake") brake = true;
+      else if (g[2] === "tail_turn_l") { left = true; if (!nb) brake = true; } else if (g[2] === "tail_turn_r") { right = true; if (!nb) brake = true; }
+      else if (g[2] === "turn_l") left = true; else if (g[2] === "turn_r") right = true;
+    });
+  });
+  const w = [];
+  if (!brake) w.push("no brake light");
+  if (!left && !right) w.push("no turn signals"); else if (!left) w.push("no left turn signal"); else if (!right) w.push("no right turn signal");
+  return w;
+}
+function ctlWarnPaint() {
+  const a = $("ctlLocalWarn"), b = $("ctlFwWarn"); if (!a || !b) return;
+  const w = ctlWarnLocal();
+  a.hidden = !w.length; a.textContent = w.length ? `Note: this look has ${w.join(" and ")}. It still saves and runs.` : "";
+  const fw = CT.fwWarn || app.setupWarn || "";
+  b.hidden = !fw; b.textContent = fw ? "Controller warning: " + fw : "";
+}
+function ctlZoneSend(i, kind, segs, feed) {
+  bkHint(i, kind);
+  const f = zFeeds(); f[i] = feed; store.set(ZFEED, JSON.stringify(f));
+  ctlQueue("zone" + i, [...segPatches(i, segs.map(segOut)).map(o => "set " + JSON.stringify(o)), "get"], 0);
+}
+function zSlider(label, text, value, max, dis, attr, onInput, onChange) {
+  const val = el("b", {}, text(value));
+  const r = el("input", { type: "range", min: 0, max, step: 1, value, disabled: dis, "aria-label": label, [attr]: "1" });
+  r.addEventListener("input", () => { val.textContent = text(+r.value); onInput(+r.value); });
+  r.addEventListener("change", () => onChange(+r.value));
+  return el("label", { class: "ct-lbl" }, el("span", {}, label + ": ", val), r);
+}
+function ctlZonePanel(L, dis) {
+  const i = L.i, Z = zoneParse(i, L.kind), N = Z.N, front = Z.front, half = Math.floor(N / 2);
+  const cur = { t: Z.t, b: Z.b, mid: Z.mid, sw: Z.sw };
+  let custom = !Z.match, touched = !!(CT.mem[i] && CT.mem[i].touched);
+  const gen = () => front ? zoneGenFront(N, Z.feed, cur.t, cur.mid, cur.sw, Z.base.pct, Z.pos) : zoneGenRear(N, Z.feed, cur.t, cur.b, Z.base.idle, Z.base.pct, Z.pos);
+  const row = ctlCellRow(N, []);
+  const draw = () => {
+    const segs = custom && !touched ? L.st.seg : gen();
+    CT.prev[i] = custom ? null : segs; if (!CT.prev[i]) delete CT.prev[i];
+    fillCells(row, ctlCells(N, L.st.look, segs));
+    midNote.textContent = front && N - 2 * cur.t <= 0 ? "At this width the two halves meet: there is no middle section." : "";
+    ctlWarnPaint();
+  };
+  const midNote = el("p", { class: "note", style: "margin:0", "data-ct-midnote": i });
+  const rebuild = el("button", { class: "btn", id: "ctlRebuild" + i, "data-ct-rebuild": i, disabled: dis, onclick: () => { custom = false; touched = true; commit(); } }, "Rebuild from the sliders");
+  const commit = () => { if (!custom) { CT.mem[i] = { ...cur }; ctlZoneSend(i, L.kind, gen(), Z.feed); } };
+  const move = () => { CT.mem[i] = { ...cur, touched: true }; touched = true; draw(); };
+  const tsl = zSlider("Turn signals", v => v === 0 ? "none" : `${v} LEDs from each end`, cur.t, half, dis, "data-ct-t", v => { cur.t = v; move(); }, () => commit());
+  const panel = el("div", { class: "panel ct-zone ct-edit ct-body", "data-ct-zone": i }, el("h3", {}, BK_KINDS[L.kind].name), row);
+  if (custom) panel.append(el("p", { class: "lay-warn", "data-ct-custom": i, style: "margin:0;font-size:15px" }, "Custom zones (set in the segment editor)"), rebuild);
+  if (front) {
+    panel.append(tsl,
+      el("h4", { style: "margin:0;font:600 15px/1.2 var(--sans)" }, "The middle section is"),
+      ctlPills([["look", "Bar's look"], ["drl", "DRL"], ["off", "Off"]], cur.mid, dis, "data-ct-mid", v => { cur.mid = v; move(); commit(); }), midNote,
+      el("h4", { style: "margin:0;font:600 15px/1.2 var(--sans)" }, "Turn sections when not signaling"),
+      ctlPills([["look", "Bar's look"], ["drl", "DRL"], ["dark", "Dark"]], cur.sw, dis, "data-ct-sw", v => { cur.sw = v; move(); commit(); }));
+  } else {
+    panel.append(zSlider("Brake light", v => v === 0 ? "none" : v >= N ? "the whole bar" : `${v} LEDs in the center`, cur.b, N, dis, "data-ct-b", v => { cur.b = v; move(); }, () => commit()), tsl,
+      el("p", { class: "note", style: "margin:0" }, "LEDs outside the brake section stay as the tail light. Where brake and turn overlap, the turn signal wins while it flashes."));
+  }
+  draw();
+  return panel;
+}
+
+// ---- Edit presets ----
+function ctlEditPillsUi() {
+  const box = $("ctlEditPills"); if (!box) return;
+  box.textContent = "";
+  const dis = pendingDrafts();
+  CT.pre.slots.forEach((nm, n) => {
+    if (nm == null) return;
+    box.append(el("button", { class: "btn", "data-ct-edit": n, "aria-pressed": String(n === CT.pre.pre), disabled: dis, onclick: () => { CT.name = null; ctlApplyPreset(n); } }, nm + (n === CT.pre.pre && CT.pre.prem ? " (edited)" : "")));
+  });
+  if (!box.childNodes.length) box.append(el("p", { class: "note", style: "margin:0" }, "No presets saved yet. Set the bike up below, then tap Save as new."));
+}
+function ctlEditScreen(box) {
+  const dis = pendingDrafts(), act = CT.pre.pre;
+  const back = el("button", { class: "btn bike-back", id: "ctlBack", "aria-label": "Back", onclick: () => { CT.screen = "home"; buildControl(); window.scrollTo(0, 0); } });
+  back.innerHTML = bkIcon("M15 5l-7 7 7 7", 20);
+  box.append(el("div", { class: "bike-head", style: "margin:0" }, back, el("div", {}, el("h2", { style: "margin:0" }, "Edit presets"), el("div", { class: "note" }, "What every LED does in each preset"))),
+    el("p", { class: "note", style: "margin:0" }, "Choosing a preset puts it on the bike. The controls change the bike, and Save preset writes the result into the slot."));
+  box.append(el("div", { class: "ct-pills", id: "ctlEditPills" }));
+  ctlEditPillsUi();
+  if (dis) box.append(el("div", { class: "panel" }, ctlPendingLine()));
+  const nameIn = el("input", { type: "text", id: "ctlName", maxlength: 24, value: CT.name != null ? CT.name : (CT.pre.slots[act] || ""), autocomplete: "off", "aria-label": "Preset name" });
+  nameIn.addEventListener("input", () => { CT.name = nameIn.value; });
+  box.append(el("div", { class: "panel pad ct-body" }, el("label", { class: "ct-lbl" }, "Preset name", nameIn)));
+  const bars = bkLights().filter(L => L.kind === "front" || L.kind === "rear");
+  bars.forEach(L => box.append(ctlZonePanel(L, dis)));
+  if (!bars.length) box.append(el("p", { class: "note" }, "No front or rear bar is set up. Add one on the Bike tab."));
+  box.append(el("p", { class: "note", style: "margin:0 2px" }, "Also kept per preset: underglow, each light's own look, color, speed and brightness, the DRL color, and the turn signal style."),
+    el("div", { class: "ct-note", id: "ctlLocalWarn", role: "status", hidden: true }), el("div", { class: "ct-note", id: "ctlFwWarn", role: "status", hidden: true }));
+  const full = el("p", { class: "note", id: "ctlFull", hidden: true, style: "margin:0" }, "All 8 preset slots are in use. Delete one first.");
+  const saveNew = el("button", { class: "btn", id: "ctlSaveNew", onclick: () => {
+    const n = ctlFreeSlot(); if (n < 0) { full.hidden = false; toast("All 8 preset slots are in use. Delete one first.", true); return; }
+    full.hidden = true; ctlSavePreset(n, CT.name != null && nameIn.value.trim() ? nameIn.value : "Preset " + (n + 1));   // an unchanged name would just copy the active one
+  } }, "Save as new");
+  const save = el("button", { class: "btn save", id: "ctlSave", onclick: () => {
+    if (act < 0) { saveNew.click(); return; }
+    ctlSavePreset(act, nameIn.value);
+  } }, "Save preset");
+  const del = el("button", { class: "btn danger", id: "ctlDelete", disabled: act < 0 }, "Delete");
+  armed(del, "Tap again to delete", () => { send(`preset del ${act}`); CT.name = null; ctlList(); });
+  box.append(el("div", { class: "ct-actions" }, saveNew, save), full, del);
+  const rows = el("div", { class: "panel ct-rows" },
+    el("button", { id: "ctlRowBtn", onclick: () => { showTab("setup"); const h = $("btnPanel").previousElementSibling; if (h && h.scrollIntoView) h.scrollIntoView(); } }, el("span", {}, "Handlebar button: a press can step to the next preset"), el("span", { "aria-hidden": "true" }, "›")),
+    el("button", { id: "ctlRowAdv", onclick: () => { app.stripsFrom = "control"; showTab("strips"); } }, el("span", {}, "Advanced: edit zones by LED number"), el("span", { "aria-hidden": "true" }, "›")));
+  box.append(rows);
+  ctlWarnPaint();
+}
+
+function buildControl() {
+  const box = $("ctlBody"); if (!box) return;
+  box.textContent = ""; CT.prev = {};
+  if (!app.settings) return;
+  const edit = CT.screen === "edit" && fw4();
+  $("ctlAlerts").hidden = edit;
+  if (edit) ctlEditScreen(box); else { CT.screen = "home"; ctlHome(box); }
+  ctlPaint();
+}
+
 document.querySelectorAll("[data-goto]").forEach(b => { b.onclick = () => showTab(b.dataset.goto); });
 
 // Live link watchdog: no status for 2 s while connected.
