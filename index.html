@@ -243,7 +243,7 @@ nav {
   background: var(--panel); border-top: 1px solid var(--line);
   padding-bottom: env(safe-area-inset-bottom);
 }
-nav .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, 1fr); }
+nav .in { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
 nav button { background: none; border: 0; min-height: 60px; font: 600 15px/1 var(--cond); color: var(--muted); cursor: pointer; border-top: 3px solid transparent; padding: 0 2px; min-width: 0; }
 nav button[aria-selected=true] { color: var(--ink); border-top-color: var(--ink); }
 nav button:disabled { opacity: .4; }
@@ -320,6 +320,36 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 .toast.show { display: block; }
 .toast.warn { background: var(--warn); color: #1b1300; }
 @media (prefers-reduced-motion: reduce) { .switch::after { transition: none; } }
+/* bike tab */
+.bike-pic { position: relative; aspect-ratio: 1150 / 644; background: #bababa; border-radius: var(--radius-panel); overflow: hidden; border: 1px solid var(--line); }
+.bike-pic img, .bike-pic svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.bike-chip { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; box-sizing: border-box; border-radius: 50%; border: 2px solid #fff; font: 700 14px/1 var(--cond); display: flex; align-items: center; justify-content: center; }
+.bike-list { margin-top: 10px; overflow: hidden; }
+.bike-list h3 { padding: 12px 14px 8px; }
+.bike-row { width: 100%; min-height: 62px; display: flex; align-items: center; gap: 12px; padding: 8px 14px; background: none; border: 0; border-top: 1px solid var(--line); text-align: left; cursor: pointer; color: var(--ink); }
+.bike-row svg { color: var(--muted); flex: none; }
+.bike-num { flex: none; width: 30px; height: 30px; border-radius: 50%; font: 700 15px/1 var(--cond); display: flex; align-items: center; justify-content: center; }
+.bike-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.bike-txt b, .bike-type b { font-weight: 600; font-size: 17px; }
+.bike-txt small, .bike-type small { color: var(--muted); font-size: 14px; }
+.bike-wide { width: 100%; margin-top: 10px; min-height: 48px; }
+.bike-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.bike-back { flex: none; width: 44px; min-height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; }
+.bike-types { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.bike-type { min-height: 112px; padding: 12px; border-radius: var(--radius-panel); border: 1px solid var(--line); background: var(--panel); color: var(--ink); text-align: left; display: flex; flex-direction: column; gap: 6px; cursor: pointer; }
+.bike-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.bike-card .note { margin: 0; }
+.bike-card select { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); min-height: 44px; padding: 0 10px; width: 100%; }
+.bike-card input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--ink); }
+.bike-pills { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
+.bike-pills.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bike-pills .btn { min-height: 46px; padding: 0 8px; }
+.bike-read { font: 600 17px/1.3 var(--cond); }
+.bike-sum > div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.bike-sum > div:first-child { border-top: 0; }
+.bike-sum b { font-weight: 600; text-align: right; }
+.bike-pending { position: sticky; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 4; margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--warn); border-radius: var(--radius-panel); }
+.bike-pend-txt { flex: 1; min-width: 0; font-weight: 600; color: var(--warn); }
 </style>
 </head>
 <body>
@@ -392,13 +422,20 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
   </section>
 
   <!-- strips -->
+  <section class="tab" id="tab-bike">
+    <div id="bikeBody"></div>
+    <div class="bike-pending" id="bikePending" hidden></div>
+  </section>
+
   <section class="tab" id="tab-strips">
-    <p class="note">Each output drives one chain of LEDs. Pick the LED chip, split the chain into segments and give each a job. Draw your strips on photos of the bike in the Map tab's Layout: that is the easy way to set segments and positions for the position-based underglow effects. The segment editor under each strip is for fine tuning. Changes apply when you tap Apply.</p>
+    <div class="btns" style="margin:0 0 10px"><button class="btn small" data-goto="bike">Back to Bike</button></div>
+    <p class="note">Each output drives one chain of LEDs. Pick the LED chip, split the chain into segments and give each a job. Bike → Add a light is the easy way to set a strip up; drawing strips on photos (Photo layout) is the way to set segments and positions for the position-based underglow effects. The segment editor under each strip is for fine tuning. Changes apply when you tap Apply.</p>
     <div id="stripCards"></div>
   </section>
 
   <!-- map -->
   <section class="tab" id="tab-map">
+    <div class="btns" style="margin:0 0 10px"><button class="btn small" data-goto="bike">Back to Bike</button></div>
     <h2>Layout</h2>
     <div class="panel">
       <div class="ph-block">
@@ -464,7 +501,7 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
         <button class="btn" id="pfStop">Stop</button>
       </div>
     </div>
-    <p class="note">Marks go into the strip's draft on the Strips tab. Tap Apply there to send them.</p>
+    <p class="note">Marks go into the strip's draft in the segment editor. Tap Apply there, or on the Bike tab, to send them.</p>
 
     <h2>Test flow</h2>
     <div class="panel pad">
@@ -562,8 +599,7 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
   <div class="in" role="tablist">
     <button role="tab" data-tab="live" aria-selected="false" disabled>Live</button>
     <button role="tab" data-tab="lights" aria-selected="false" disabled>Lights</button>
-    <button role="tab" data-tab="strips" aria-selected="false" disabled>Strips</button>
-    <button role="tab" data-tab="map" aria-selected="false" disabled>Map</button>
+    <button role="tab" data-tab="bike" aria-selected="false" disabled>Bike</button>
     <button role="tab" data-tab="setup" aria-selected="false" disabled>Setup</button>
     <button role="tab" data-tab="console" aria-selected="false" disabled>Console</button>
   </div>
@@ -1380,8 +1416,9 @@ function send(line) {
 // Settings patches go out in pieces that each fit one BLE write, then one re-read.
 function patchMany(objs) {
   const lines = objs.map(o => "set " + JSON.stringify(o));
-  if (lines.some(l => new TextEncoder().encode(l).length > MAX_WRITE - 1)) { toast("That change is too large to send at once", true); return; }
+  if (lines.some(l => new TextEncoder().encode(l).length > MAX_WRITE - 1)) { toast("That change is too large to send at once", true); return false; }
   lines.forEach(send); send("get");
+  return true;
 }
 const patch = obj => patchMany([obj]);
 // A `set` for one strip: nulls pad the strips before it.
@@ -1409,6 +1446,7 @@ function setReply(j) {
     if (--P.left <= 0) { app.pending = null; clearTimeout(P.timer); P.done(P); }
     return;
   }
+  if (BK.quiet > 0 && j.ok && !j.notes) { BK.quiet--; return; }   // the add-a-light wizard's test pixels: nothing the user applied
   if (!j.ok) toast("Not applied: " + (j.notes || "error"), true);
   else if (j.notes) toast("Applied, with notes: " + j.notes, true);
   else toast("Applied");
@@ -1420,12 +1458,14 @@ function setLink(text, ok) {
 }
 
 function showTab(name) {
-  if (app.tab === "map" && name !== "map") finderStop();
+  if ((app.tab === "map" || app.tab === "bike") && name !== app.tab) finderStop();
   app.tab = name;
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + name));
-  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name));
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === name || (b.dataset.tab === "bike" && (name === "strips" || name === "map"))));
   window.scrollTo(0, 0);
   if (name === "map") buildMap();
+  if (name === "strips" && app.settings) buildStrips();
+  if (name === "bike") buildBike();
 }
 
 // Stop the page-load wait for the remembered controller (Connect, the demo, or the page hidden).
@@ -1505,7 +1545,7 @@ $("linkBtn").onclick = async () => {
   }
   app.userClosed = true; cancelReconnect();
   finderStop();
-  app.link.close(); app.link = null; app.settings = null; app.status = null; app.testPrev = null; app.drafts = {};
+  app.link.close(); app.link = null; app.settings = null; app.status = null; app.testPrev = null; app.drafts = {}; bkReset();
   setLink("Not connected", false); $("linkBtn").hidden = true;
   document.querySelectorAll("nav button").forEach(b => { b.disabled = true; b.setAttribute("aria-selected", false); });
   paintDash({});
@@ -1716,7 +1756,7 @@ function setSettings(s) {
     (() => {
       const f = selectField("Effect", MODES, A.mode, v => patch({ accent: { mode: v } }));
       if (POS_MODES.includes(A.mode) && !s.strips.some(st => st.seg.some(g => g[1] > 0 && isMapped(g))))
-        f.append(el("div", { class: "hint", id: "posHint" }, "No segments are mapped yet — the effect runs along each strip. Map them in the Map tab."));
+        f.append(el("div", { class: "hint", id: "posHint" }, "No segments are mapped yet — the effect runs along each strip. Add them on the Bike tab, or place them under Bike → Advanced → Photo layout."));
       return f;
     })(),
     (() => { const c = el("input", { type: "color", value: hex(A.rgb), "aria-label": "Color" });
@@ -1748,6 +1788,7 @@ function setSettings(s) {
   buildStrips();
   buildSetup();
   buildMap();
+  buildBike();
 }
 
 // ---- strips ----------------------------------------------------------------
@@ -1781,6 +1822,15 @@ function paintMaps() {
 }
 
 const effStrip = i => app.drafts[i] || app.settings.strips[i];
+// Everything one strip draft changes, as `set` patches that each fit one BLE write.
+function stripDraftPatches(draft, i) {
+  const core = { out: draft.out, lamp_min_ma: draft.lamp_min_ma | 0, px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
+  const lookOut = { mode: draft.look.mode, rgb: draft.look.rgb, speed: draft.look.speed | 0, rev: !!draft.look.rev, master: !!draft.look.master };
+  // A preset is sent by name (the board fills in the rest); Custom sends every field.
+  if (draft.chip !== "custom") core.chip = draft.chip;
+  else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
+  return [stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...segPatches(i, draft.seg.map(segOut))];
+}
 const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
 function normStrip(d) {
   d.out = OUT_LABEL[d.out] ? d.out : "pixels"; d.lamp_min_ma = clamp(d.lamp_min_ma | 0, 0, 7000);
@@ -2043,19 +2093,14 @@ function buildStrips() {
       draft.seg.push([Math.min(end, Math.max(0, draft.px - 1)), Math.max(0, draft.px - end), "accent", false, [0, 0, 0], [0, 0, 0]]);
       drawRows(); redraw(); } }, "Add segment");
     const apply = el("button", { class: "btn primary", "data-apply": i, onclick: () => {
-      const core = { out: draft.out, lamp_min_ma: draft.lamp_min_ma | 0, px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
-      const lookOut = { mode: draft.look.mode, rgb: draft.look.rgb, speed: draft.look.speed | 0, rev: !!draft.look.rev, master: !!draft.look.master };
-      // A preset is sent by name (the board fills in the rest); Custom sends every field.
-      if (draft.chip !== "custom") core.chip = draft.chip;
-      else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
-      delete app.drafts[i];
-      patchMany([stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...segPatches(i, draft.seg.map(segOut))]); } }, `Apply to strip ${i + 1}`);
+      delete app.drafts[i]; delete BK.temp[i];
+      patchMany(stripDraftPatches(draft, i)); } }, `Apply to strip ${i + 1}`);
     const reset = el("button", { class: "btn", onclick: () => { delete app.drafts[i]; buildStrips(); } }, "Discard changes");
     const advKey = "adv." + i;
     const adv = el("details", { class: "sub", "data-adv": i, open: app.open.has(advKey) },
       el("summary", {}, "Segments ", el("span", { class: "note" }, "advanced")),
       el("div", { class: "body" },
-        el("p", { class: "note" }, "The Map tab's Layout is the easy way to set segments, positions and idle looks: draw the strips on photos of the bike. Edit here only to fine-tune."),
+        el("p", { class: "note" }, "Bike → Add a light sets segments up for you, and the photo layout places them exactly. Edit here only to fine-tune."),
         table, el("div", { class: "strip-actions", style: "padding:8px 0 0" }, add)));
     adv.addEventListener("toggle", () => { adv.open ? app.open.add(advKey) : app.open.delete(advKey); });
     // ---- one strip as a bar (left + right halves), its turn animation and its own idle look ----
@@ -2250,7 +2295,7 @@ const pfStrip = () => +$("pfStrip").value || 0;
 const pfPx = () => app.settings ? app.settings.strips[pfStrip()].px : 0;   // what the board has, not the draft
 function finderUi() {
   const px = pfPx(), n = +$("pfNum").value | 0;
-  $("pfState").textContent = !px ? "This strip has no pixels yet. Set the pixel count on the Strips tab and tap Apply."
+  $("pfState").textContent = !px ? "This strip has no pixels yet. Add it on the Bike tab first."
     : finder.active ? `Strip ${finder.strip + 1}, pixel ${finder.n} is lit white. Stop, or leave this tab, to turn it off.`
     : "Move the slider to light one pixel white on the bike. With more than one LED per pixel, the pixel lights a group of LEDs.";
   $("pfStop").disabled = !finder.active;
@@ -2282,7 +2327,7 @@ function finderStop() {
 }
 function pfMark(which) {
   const i = pfStrip(), k = +$("pfSeg").value, n = +$("pfNum").value | 0;
-  if (!app.settings || !effStrip(i).seg[k]) { toast("Add a segment for this strip on the Strips tab first", true); return; }
+  if (!app.settings || !effStrip(i).seg[k]) { toast("Add a segment for this strip in the segment editor first", true); return; }
   const g = draftFor(i).seg[k];
   if (which === "start") { g[0] = n; toast(`Strip ${i + 1}, segment ${k + 1} now starts at pixel ${n}`); }
   else {
@@ -3444,6 +3489,406 @@ function budgetUi() {
     ampField("Headlight Low or High", B.lit_ma, v => patch({ budget: { lit_ma: v, dark_ma: Math.max(B.dark_ma, v) } })),
     ampField("Headlight Off or Running", B.dark_ma, v => patch({ budget: { lit_ma: Math.min(B.lit_ma, v), dark_ma: v } })));
 }
+
+// ---- bike tab: every light on one picture, an add-a-light wizard, one Apply ----------------
+// A "light" is one strip output seen as what it is on the bike (front bar, rear bar, underglow
+// run, fork ring, 12 V lamp). The tab only writes strip drafts (app.drafts), the same ones the
+// Strips tab edits, so the firmware and the segment editor see nothing new.
+const BK = { screen: "home", open: -1, wiz: null, temp: {}, quiet: 0 };   // temp[i]: output i holds the wizard's test pixels
+const BK_TEST_PX = 300, BK_MAX_PX = 800;
+const BK_CAL = BIKES.onyx_rcr.side.cal, BK_IMG = BIKES.onyx_rcr.side.url, BK_W = 1150, BK_H = 644;
+const BK_KIND_KEY = "rcr.bike.kind";
+// at / run / z: default spot in bike mm (x back from the front axle, y left-/right+, z up).
+// spot: where the marker goes on the picture (px) when the segments carry no positions.
+const BK_KINDS = {
+  front:  { name: "Front bar", desc: "Left and right turn signals in one bar", bar: true, chip: "#ffa41b", ink: "#1b2026",
+            ends: [["right", "Bike-right end"], ["left", "Bike-left end"]], at: [132, 603], half: 127, spot: [[850, 270], [850, 270]],
+            d: "M4 12h16M8 8l-4 4 4 4M16 8l4 4-4 4" },
+  rear:   { name: "Rear bar", desc: "Tail, brake and both turn signals", bar: true, chip: "#c62820", ink: "#ffffff",
+            ends: [["right", "Bike-right end"], ["left", "Bike-left end"]], at: [1404, 719], half: 100, spot: [[80, 200], [80, 200]],
+            d: "M4 9h16v6H4zM9 9v6M15 9v6" },
+  glow:   { name: "Underglow run", desc: "Accent light along the frame", chip: "#1d5fd6", ink: "#ffffff",
+            ends: [["front", "Front end"], ["rear", "Rear end"]], run: [380, 745], z: 430, off: 80, spot: [[700, 372], [480, 378]],
+            d: "M3 8h18M6 13v3M12 13v5M18 13v3" },
+  ring:   { name: "Fork ring", desc: "A ring around one fork tube", chip: "#ffa41b", ink: "#1b2026",
+            ends: [], at: [83, 388], off: 100, spot: [[880, 400], [880, 400]],
+            d: "M12 5a7 7 0 1 0 0 14a7 7 0 1 0 0-14M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6" },
+  lamp:   { name: "Stock lamp", desc: "A plain 12 V bulb or lamp, no pixels", lamp: true, chip: "#5b6670", ink: "#ffffff",
+            ends: [], spot: [[130, 215], [130, 215]],
+            d: "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V15h8v-1.5A6 6 0 0 0 12 3" },
+  custom: { name: "Custom", desc: "Set the segments yourself", chip: "#1d5fd6", ink: "#ffffff",
+            ends: [], spot: [[575, 300], [575, 300]],
+            d: "M4 7h10M18 7h2M4 17h2M10 17h10M16 5v4M8 15v4" },
+};
+const BK_STEPS = { lamp: ["wire", "job", "done"], front: ["wire", "end", "center", "done"], rear: ["wire", "end", "center", "done"],
+                   glow: ["wire", "end", "side", "done"], ring: ["wire", "end", "side", "done"], custom: ["wire", "end", "done"] };
+const BK_SIDES = [["left", "Left side"], ["center", "Center"], ["right", "Right side"]];
+const BK_JOBS = OUT_MODES.filter(m => m[0] !== "pixels");
+const bkIcon = (d, size) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+const bkHints = () => { try { return JSON.parse(store.get(BK_KIND_KEY) || "{}") || {}; } catch (e) { return {}; } };
+const bkHint = (i, kind) => { const h = bkHints(); if (kind) h[i] = kind; else delete h[i]; store.set(BK_KIND_KEY, JSON.stringify(h)); };
+
+// What a strip is, read from its segments (plus the wizard's note for the kinds that look alike).
+function bkKind(i, st) {
+  if (isLampOut(st)) return "lamp";
+  const roles = new Set(st.seg.filter(g => g[1] > 0 && g[2] !== "none").map(g => g[2]));
+  const only = (...ok) => roles.size > 0 && [...roles].every(r => ok.includes(r));
+  if (roles.has("turn_l") && roles.has("turn_r") && only("turn_l", "turn_r")) return "front";
+  if ((roles.has("tail_turn_l") || roles.has("tail_turn_r")) && only("tail_turn_l", "tail_turn_r", "tail", "brake")) return "rear";
+  if (only("accent")) return bkHints()[i] === "ring" ? "ring" : bkHints()[i] === "custom" ? "custom" : "glow";
+  return "custom";
+}
+const bkTempOnly = i => !!BK.temp[i] && !app.drafts[i];           // test pixels of an unfinished wizard: not a light
+function bkLights() {
+  return app.settings.strips.map((_, i) => {
+    const st = normStrip(structuredClone(effStrip(i)));
+    return (isLampOut(st) || st.px > 0) && !bkTempOnly(i) ? { i, st, kind: bkKind(i, st) } : null;
+  }).filter(Boolean);
+}
+const bkFree = () => app.settings.strips.map((_, i) => i).filter(i => bkTempOnly(i) || (!isLampOut(effStrip(i)) && !(effStrip(i).px > 0)));
+function bkSub(L) {
+  const K = BK_KINDS[L.kind], n = L.st.px, head = `Output ${L.i + 1} · `;
+  const body = L.kind === "lamp" ? "12 V " + (OUT_SHORT[L.st.out] || "lamp")
+    : L.kind === "front" ? `${n} LEDs · left + right turn`
+    : L.kind === "rear" ? `${n} LEDs · tail, brake, turns`
+    : L.kind === "custom" ? `${n} LEDs · ${L.st.seg.length} segment${L.st.seg.length === 1 ? "" : "s"}`
+    : `${n} LEDs · ${K.name.toLowerCase()}`;
+  return head + body + (app.drafts[L.i] ? " · not sent yet" : "");
+}
+const bkProj = p => calP2I("side", BK_CAL, p[0], p[2]);
+// Lines to draw on the picture for one light, and where its number goes (picture px).
+function bkMarks(L) {
+  const K = BK_KINDS[L.kind];
+  let lines = L.st.seg.filter(g => g[1] > 0 && isMapped(g)).map(g => ({ a: bkProj(segPos(g, 0)), b: bkProj(segPos(g, 1)), c: ROLE_LINE[g[2]] || K.chip }));
+  if (!lines.length) lines = [{ a: K.spot[0], b: K.spot[1], c: K.chip }];
+  const pts = lines.flatMap(l => [l.a, l.b]);
+  const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+  return { lines, chip: [clamp(cx, 40, BK_W - 40), clamp(cy - 46, 30, BK_H - 30)] };
+}
+
+function bkGo(screen, open) {
+  if (BK.screen === "end" || BK.screen === "center") finderStop();
+  BK.screen = screen; if (open != null) BK.open = open;
+  buildBike(); window.scrollTo(0, 0);
+}
+// Outputs left on the wizard's test pixels go back to unused.
+function bkRestoreTemps(except) {
+  Object.keys(BK.temp).map(Number).forEach(i => {
+    if (i === except || app.drafts[i]) return;
+    delete BK.temp[i];
+    if (app.link) { BK.quiet += 1; patch(stripWrap(i, { px: 0 })); }
+  });
+}
+function bkReset() { BK.screen = "home"; BK.open = -1; BK.wiz = null; BK.temp = {}; BK.quiet = 0; }
+
+function buildBike() {
+  const box = $("bikeBody"); if (!box) return;
+  box.textContent = "";
+  if (!app.settings) return;
+  if (BK.screen === "detail" && !bkLights().some(L => L.i === BK.open)) BK.screen = "home";
+  if (BK.screen !== "home" && BK.screen !== "detail" && BK.screen !== "type" && !BK.wiz) BK.screen = "home";
+  ({ home: bkHome, detail: bkDetail, type: bkType, wire: bkWire, end: bkEnd, center: bkCenter, side: bkSide, job: bkJob, done: bkDone })[BK.screen](box);
+  bkPending();
+}
+function bkHead(box, title, step, back) {
+  const b = el("button", { class: "btn bike-back", "aria-label": "Back", onclick: back });
+  b.innerHTML = bkIcon("M15 5l-7 7 7 7", 20);
+  box.append(el("div", { class: "bike-head" }, b, el("div", {}, el("h2", { style: "margin:0" }, title), el("div", { class: "note" }, step))));
+}
+function bkPills(options, value, onPick, attr) {
+  return el("div", { class: "bike-pills" }, ...options.map(([v, label, off]) =>
+    el("button", { class: "btn", "aria-pressed": v === value ? "true" : "false", disabled: !!off, [attr]: v, onclick: () => onPick(v) }, label)));
+}
+
+function bkHome(box) {
+  const lights = bkLights(), free = bkFree();
+  const pic = el("div", { class: "bike-pic" }, el("img", { src: BK_IMG, alt: "Side view of the bike. Each light is marked with its output number." }));
+  let svg = `<svg aria-hidden="true" viewBox="0 0 ${BK_W} ${BK_H}" preserveAspectRatio="none">`;
+  lights.forEach(L => bkMarks(L).lines.forEach(l => {
+    const dot = Math.hypot(l.a[0] - l.b[0], l.a[1] - l.b[1]) < 6;
+    svg += dot ? `<circle cx="${l.a[0].toFixed(0)}" cy="${l.a[1].toFixed(0)}" r="11" fill="${l.c}" stroke="#fff" stroke-width="3"/>`
+               : `<line x1="${l.a[0].toFixed(0)}" y1="${l.a[1].toFixed(0)}" x2="${l.b[0].toFixed(0)}" y2="${l.b[1].toFixed(0)}" stroke="#fff" stroke-width="16" stroke-linecap="round"/>`
+               + `<line x1="${l.a[0].toFixed(0)}" y1="${l.a[1].toFixed(0)}" x2="${l.b[0].toFixed(0)}" y2="${l.b[1].toFixed(0)}" stroke="${l.c}" stroke-width="10" stroke-linecap="round"/>`;
+  }));
+  pic.insertAdjacentHTML("beforeend", svg + "</svg>");
+  lights.forEach(L => {
+    const K = BK_KINDS[L.kind], c = bkMarks(L).chip;
+    pic.append(el("div", { class: "bike-chip", "aria-hidden": "true", "data-bike-chip": L.i,
+      style: `left:${(c[0] / BK_W * 100).toFixed(1)}%;top:${(c[1] / BK_H * 100).toFixed(1)}%;background:${K.chip};color:${K.ink}` }, String(L.i + 1)));
+  });
+  const list = el("div", { class: "panel bike-list" }, el("h3", {}, "Lights on this bike"));
+  lights.forEach(L => {
+    const K = BK_KINDS[L.kind];
+    const row = el("button", { class: "bike-row", "data-bike-open": L.i, onclick: () => bkGo("detail", L.i) },
+      el("span", { class: "bike-num", "aria-hidden": "true", style: `background:${K.chip};color:${K.ink}` }, String(L.i + 1)),
+      el("span", { class: "bike-txt" }, el("b", {}, K.name), el("small", {}, bkSub(L))));
+    row.insertAdjacentHTML("beforeend", bkIcon("M9 5l7 7-7 7", 18));
+    list.append(row);
+  });
+  if (!lights.length) list.append(el("p", { class: "note", style: "margin:0;padding:0 14px 14px" }, "No lights set up yet. Tap Add a light."));
+  const add = el("button", { class: "btn primary bike-wide", id: "bikeAdd", disabled: !free.length, onclick: () => bkGo("type") }, "Add a light");
+  const note = el("p", { class: "note", style: "margin:8px 2px" },
+    (free.length ? `Free outputs: ${free.map(i => i + 1).join(", ")}.` : "All four outputs are in use. Remove a light to add another.")
+    + " Tap a light to change its look, brightness or turn style.");
+  const adv = el("details", { class: "sub", open: app.open.has("bike.adv") },
+    el("summary", {}, "Advanced ", el("span", { class: "note" }, "segments, photos, tools")),
+    el("div", { class: "body" },
+      el("div", { class: "btns", style: "margin:0" },
+        el("button", { class: "btn small", onclick: () => showTab("strips") }, "Segment editor"),
+        el("button", { class: "btn small", onclick: () => showTab("map") }, "Photo layout and tools"))));
+  adv.addEventListener("toggle", () => { adv.open ? app.open.add("bike.adv") : app.open.delete("bike.adv"); });
+  box.append(pic, list, add, note, el("div", { class: "panel", style: "margin-top:10px" }, adv));
+}
+
+// One bar for every unsent strip change, whichever screen made it.
+function bkPending() {
+  const bar = $("bikePending"), ids = Object.keys(app.drafts).map(Number).sort();
+  bar.textContent = "";
+  bar.hidden = !ids.length || !(BK.screen === "home" || BK.screen === "detail");
+  if (bar.hidden) return;
+  bar.append(el("span", { class: "bike-pend-txt" }, `Not sent yet: output ${ids.map(i => i + 1).join(", ")}`),
+    el("button", { class: "btn", id: "bikeDiscard", onclick: bkDiscard }, "Discard"),
+    el("button", { class: "btn primary", id: "bikeApply", onclick: bkApply }, "Apply"));
+}
+function bkApply() {
+  const ids = Object.keys(app.drafts).map(Number).sort();
+  const objs = ids.flatMap(i => stripDraftPatches(normStrip(app.drafts[i]), i));
+  finderStop();
+  if (!patchMany(objs)) return;
+  ids.forEach(i => { delete app.drafts[i]; delete BK.temp[i]; });
+  buildStrips(); buildBike();
+}
+function bkDiscard() {
+  Object.keys(app.drafts).forEach(i => { delete app.drafts[i]; });
+  bkRestoreTemps(-1);
+  buildStrips(); buildBike();
+  toast("Changes discarded");
+}
+
+function bkDetail(box) {
+  const i = BK.open, L = bkLights().find(x => x.i === i), v = L.st, K = BK_KINDS[L.kind];
+  const edit = fn => { fn(draftFor(i)); buildStrips(); buildBike(); };
+  bkHead(box, K.name, bkSub(L), () => bkGo("home"));
+  const main = el("div", { class: "panel" });
+  if (L.kind === "lamp") {
+    main.append(selectField("This lamp is the", BK_JOBS, v.out, val => edit(d => { d.out = val; })));
+  } else {
+    if (K.bar) {
+      const idle = v.seg.filter(g => idleOk(g[2]));
+      const usesLook = idle.some(g => (segIdleOf(g) || {}).idle === "look");
+      const f = selectField("Look when not signaling", [["off", "Off"], ...MODES], usesLook ? v.look.mode : "off", val => edit(d => {
+        d.seg.forEach(g => {
+          if (!idleOk(g[2])) return;
+          const pct = segPctOf(g); g.length = 6;
+          const ob = segObj(val === "off" ? "off" : "look", null, pct); if (ob) g.push(ob);
+        });
+        if (val !== "off") d.look.mode = val;
+      }));
+      f.querySelector("select").setAttribute("data-bike-look", i);
+      main.append(f);
+      if (usesLook) {
+        const col = el("input", { type: "color", value: hex(v.look.rgb), "aria-label": "Look color", "data-bike-color": i });
+        col.onchange = () => edit(d => { d.look.rgb = unhex(col.value); });
+        const cf = el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col);
+        if (lookRed(v.look) && idle.some(g => redBanned(g[2], app.settings))) cf.append(el("div", { class: "hint lay-warn bad", "data-note": "bike-red" }, LOOK_RED_NOTE));
+        main.append(cf, rangeField("Speed", v.look.speed, 1, 10, 1, "", val => edit(d => { d.look.speed = val; })));
+      }
+      const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
+      const ts = selectField("Turn signal style", [["global", `Same as the Lights tab (${gName})`], ...TURN_STYLES], v.turn_style, val => edit(d => { d.turn_style = val; }));
+      ts.querySelector("select").setAttribute("data-bike-turn", i);
+      main.append(ts);
+    }
+    main.append(rangeField("Brightness", v.pct, 0, 100, 1, "%", val => edit(d => { d.pct = val; }),
+      K.bar ? "For the look above. Turn, brake and tail colors are never dimmed by it."
+            : "Multiplied by the underglow brightness on the Lights tab."));
+    if (!K.bar) main.append(el("p", { class: "note", style: "margin:0;padding:0 14px 12px" },
+      L.kind === "custom" ? "This output has its own segment setup. Change what each part does in the segment editor."
+                          : "Shows the underglow effect and color set on the Lights tab."));
+  }
+  const chip = L.kind === "lamp" ? "" : " · " + ((CHIP_BY[v.chip] || {}).label || "custom LED type");
+  const facts = el("p", { class: "note", style: "margin:8px 2px" }, `Output ${i + 1} (${STRIP_JACK[i]})${L.kind === "lamp" ? "" : ` · ${v.px} LEDs`}${chip}`);
+  const more = el("div", { class: "btns" },
+    L.kind === "lamp" ? null : el("button", { class: "btn small", onclick: () => { app.open.add("adv." + i); showTab("strips"); } }, "Segments and LED type"),
+    L.kind === "lamp" ? null : el("button", { class: "btn small", onclick: () => showTab("map") }, "Place it on a photo"));
+  const rm = el("button", { class: "btn small danger", "data-bike-remove": i }, "Remove this light");
+  armed(rm, "Tap again to remove", () => {
+    const d = draftFor(i); d.out = "pixels"; d.px = 0; d.seg = [];
+    bkHint(i, null); buildStrips(); bkGo("home");
+    toast(`${K.name} removed from output ${i + 1}. Tap Apply to send it.`);
+  });
+  more.append(rm);
+  box.append(main, facts, more);
+}
+
+// ---- add a light ----
+function bkType(box) {
+  bkHead(box, "Add a light", "What are you adding?", () => bkGo("home"));
+  const grid = el("div", { class: "bike-types" });
+  Object.entries(BK_KINDS).forEach(([k, K]) => {
+    const b = el("button", { class: "bike-type", "data-bike-type": k, onclick: () => {
+      const free = bkFree();
+      if (!free.length) { toast("All four outputs are in use. Remove a light first.", true); return; }
+      BK.wiz = { type: k, out: free[0], chip: "ws2815", end: 0, n: 30, test: BK_TEST_PX, px: 0, mid: 0, side: "left", job: "turn_l" };
+      bkGo("wire");
+    } });
+    b.innerHTML = bkIcon(K.d, 28);
+    b.append(el("b", {}, K.name), el("small", {}, K.desc));
+    grid.append(b);
+  });
+  box.append(grid);
+}
+function bkWizHead(box) {
+  const W = BK.wiz, order = BK_STEPS[W.type], k = order.indexOf(BK.screen);
+  bkHead(box, BK_KINDS[W.type].name, BK.screen === "done" ? "Check it over" : `Step ${k + 1} of ${order.length - 1}`, () => {
+    if (k > 0) { bkGo(order[k - 1]); return; }
+    bkRestoreTemps(-1); BK.wiz = null; bkGo("type");
+  });
+}
+function bkNext() {
+  const W = BK.wiz, order = BK_STEPS[W.type];
+  bkGo(order[order.indexOf(BK.screen) + 1]);
+}
+const bkNextBtn = (label, fn, off) => el("button", { class: "btn primary bike-wide", id: "bikeNext", disabled: !!off, onclick: fn || bkNext }, label || "Next");
+
+function bkWire(box) {
+  const W = BK.wiz, K = BK_KINDS[W.type], free = bkFree(), lights = bkLights();
+  if (!free.includes(W.out)) W.out = free[0];
+  bkWizHead(box);
+  const used = lights.map(L => `${L.i + 1} ${BK_KINDS[L.kind].name}`);
+  const p1 = el("div", { class: "panel bike-card" }, el("h3", {}, "Which output is it plugged into?"),
+    bkPills([0, 1, 2, 3].map(i => [i, `${i + 1}`, !free.includes(i)]), W.out, v => { W.out = v; buildBike(); }, "data-bike-out"),
+    el("p", { class: "note" }, (used.length ? `In use: ${used.join(", ")}. ` : "") + `Output ${W.out + 1} is the plug marked ${STRIP_JACK[W.out]} on the board.`));
+  box.append(p1);
+  if (!K.lamp) {
+    const sel = el("select", { "aria-label": "LED type", "data-bike-chip-sel": "1", onchange: () => { W.chip = sel.value; } },
+      ...CHIPS.map(([v, t]) => el("option", { value: v, selected: v === W.chip }, t)));
+    box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "LED type"), sel));
+    if (K.ends.length) box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "Which end does the wire go to?"),
+      bkPills(K.ends.map((e, n) => [n, e[1]]), W.end, v => { W.end = v; buildBike(); }, "data-bike-end")));
+    box.append(el("p", { class: "note", style: "margin:8px 2px" },
+      `Next sets output ${W.out + 1} to ${W.test} test pixels on the controller so single LEDs can be lit. Nothing else changes until you tap Apply.`));
+  }
+  box.append(bkNextBtn("Next", () => {
+    bkRestoreTemps(W.out);
+    if (!K.lamp) bkTestPixels();
+    bkNext();
+  }));
+}
+// Put the output on plain unused pixels: the finder only lights pixels inside the strip that have no safety job.
+function bkTestPixels() {
+  const W = BK.wiz;
+  BK.temp[W.out] = true; BK.quiet = 2;
+  patchMany([stripWrap(W.out, { out: "pixels", px: W.test, chip: W.chip }), stripWrap(W.out, { nseg: 0 })]);
+}
+const bkReady = () => { const W = BK.wiz, st = app.settings.strips[W.out]; return !isLampOut(st) && st.px >= Math.max(W.test, W.px) && !st.seg.some(g => g[1] > 0 && g[2] !== "none" && g[2] !== "accent"); };
+function bkFind(n) {   // n counts from 1; the board counts pixels from 0
+  const W = BK.wiz;
+  clearTimeout(finder.timer);
+  finder.timer = setTimeout(() => { finder.strip = W.out; finder.n = n - 1; finder.active = true; send(`find ${W.out + 1} ${n - 1}`); }, 100);
+}
+// Shared slider card for "find the last LED" and "find the middle".
+function bkSlider(box, o) {
+  const W = BK.wiz, ready = bkReady();
+  const lpp = (CHIP_BY[W.chip] || { f: { lpp: 1 } }).f.lpp;
+  const read = el("div", { class: "bike-read", role: "status", id: "bikeRead" });
+  const r = el("input", { type: "range", min: 1, max: o.max, step: 1, value: o.get(), disabled: !ready, "aria-label": "Lit LED", id: "bikeRange" });
+  const set = n => { n = clamp(Math.round(n) || 1, 1, o.max); o.set(n); r.value = n; read.textContent = ready ? o.text(n) : "Getting the output ready…"; if (ready && app.tab === "bike") bkFind(n); };
+  r.addEventListener("input", () => set(+r.value));
+  const step = (label, dn, id) => el("button", { class: "btn", id, disabled: !ready, onclick: () => set(o.get() + dn) }, label);
+  const card = el("div", { class: "panel bike-card" }, el("h3", {}, o.title), el("p", { class: "note" }, o.help + (lpp > 1 ? ` This LED type lights ${lpp} LEDs per step.` : "")),
+    read, r, el("div", { class: "bike-pills two" }, step("Back one", -1, "bikeMinus"), step("Forward one", 1, "bikePlus")));
+  (o.extra || []).filter(Boolean).forEach(x => card.append(x));
+  box.append(card);
+  set(o.get());
+}
+function bkEnd(box) {
+  const W = BK.wiz;
+  bkWizHead(box);
+  const longer = W.test < BK_MAX_PX ? el("button", { class: "btn small", id: "bikeLonger", onclick: () => { W.test = BK_MAX_PX; bkTestPixels(); buildBike(); } },
+    `My strip has more than ${W.test} LEDs`) : null;
+  bkSlider(box, { title: "Find the last LED", max: W.test, get: () => W.n, set: n => { W.n = n; },
+    help: "One LED is lit white on the bike. Slide until the very last LED on the strip is the one that's lit. If nothing is lit, you are past the end: come back down.",
+    text: n => `LED ${n} is lit`, extra: [longer] });
+  box.append(bkNextBtn("That's the last one", () => {
+    W.px = W.n;
+    if (W.px < 2 && BK_KINDS[W.type].bar) { toast("A bar needs at least 2 LEDs", true); return; }
+    W.mid = clamp(W.mid || Math.ceil(W.px / 2), 1, Math.max(1, W.px - 1));
+    bkNext();
+  }, !bkReady()));
+}
+function bkCenter(box) {
+  const W = BK.wiz;
+  bkWizHead(box);
+  const mid = el("button", { class: "btn small", id: "bikeMid", onclick: () => { W.mid = Math.ceil(W.px / 2); buildBike(); } }, "Use the exact middle");
+  bkSlider(box, { title: "Find the middle of the bar", max: Math.max(1, W.px - 1), get: () => W.mid, set: n => { W.mid = n; },
+    help: "Slide until the lit LED sits at the center of the bike. The left and right turn signals split there.",
+    text: n => `LED ${n} of ${W.px} is lit. One side gets LEDs 1 to ${n}, the other ${n + 1} to ${W.px}.`, extra: [mid] });
+  box.append(bkNextBtn("That's the middle", null, !bkReady()));
+}
+function bkSide(box) {
+  const W = BK.wiz;
+  bkWizHead(box);
+  box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "Where on the bike is it?"),
+    el("p", { class: "note" }, "Enough for the wave and sweep effects to run the right way. You can place it exactly on a photo later."),
+    bkPills(BK_SIDES, W.side, v => { W.side = v; buildBike(); }, "data-bike-side")), bkNextBtn());
+}
+function bkJob(box) {
+  const W = BK.wiz;
+  bkWizHead(box);
+  box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "What does this lamp do?"),
+    el("p", { class: "note" }, "The output switches plain 12 V for it. The controller does the flashing."),
+    bkPills(BK_JOBS, W.job, v => { W.job = v; buildBike(); }, "data-bike-job")), bkNextBtn());
+}
+// The wizard's answers as strip segments (bike mm positions at the usual spot for that kind of light).
+function bkSegs(W) {
+  const K = BK_KINDS[W.type], n = W.px;
+  if (K.bar) {
+    const rear = W.type === "rear", [Lr, Rr] = rear ? ["tail_turn_l", "tail_turn_r"] : ["turn_l", "turn_r"];
+    const feedRight = K.ends[W.end][0] === "right", [first, second] = feedRight ? [Rr, Lr] : [Lr, Rr];
+    const a = clamp(W.mid, 1, n - 1), y = feedRight ? K.half : -K.half, [x, z] = K.at;
+    // Sequential turns grow outward from the middle: the first half runs reversed (towards pixel 0).
+    return [[0, a, first, true, [x, y, z], [x, 0, z], { idle: "look" }], [a, n - a, second, false, [x, 0, z], [x, -y, z], { idle: "look" }]];
+  }
+  const y = W.side === "left" ? -1 : W.side === "right" ? 1 : 0;
+  if (W.type === "glow") {
+    const [f, r] = K.run, [x0, x1] = K.ends[W.end][0] === "front" ? [f, r] : [r, f];
+    return [[0, n, "accent", false, [x0, y * K.off, K.z], [x1, y * K.off, K.z]]];
+  }
+  if (W.type === "ring") return [[0, n, "accent", false, [K.at[0], y * K.off, K.at[1]], [K.at[0], y * K.off, K.at[1]]]];
+  return [[0, n, "accent", false, [0, 0, 0], [0, 0, 0]]];
+}
+function bkDone(box) {
+  const W = BK.wiz, K = BK_KINDS[W.type];
+  bkWizHead(box);
+  const rows = K.lamp ? [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["Does", OUT_LABEL[W.job]]]
+    : [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["LED type", CHIP_BY[W.chip].label], ["LEDs", String(W.px)],
+       ...(K.ends.length ? [["Wire at", K.ends[W.end][1]]] : []),
+       ...(K.bar ? [["Turn signals split after", "LED " + W.mid]] : W.type === "custom" ? [] : [["On the bike", BK_SIDES.find(s => s[0] === W.side)[1]]])];
+  box.append(el("div", { class: "panel bike-sum" }, ...rows.map(([k, v]) => el("div", {}, el("span", { class: "note" }, k), el("b", {}, v)))),
+    el("p", { class: "note", style: "margin:8px 2px" }, K.lamp ? "Nothing reaches the controller until you tap Apply."
+      : W.type === "custom" ? "It starts as one underglow segment. Split it up in the segment editor. Nothing is final until you tap Apply."
+      : "It goes on the bike picture at the usual spot for this kind of light, with a default look. Nothing is final until you tap Apply."),
+    bkNextBtn("Add to the bike", bkWizFinish));
+}
+function bkWizFinish() {
+  const W = BK.wiz, i = W.out, K = BK_KINDS[W.type];
+  const d = normStrip(structuredClone(app.settings.strips[i]));
+  if (K.lamp) { d.out = W.job; d.px = 0; d.seg = []; }
+  else {
+    d.out = "pixels"; d.px = W.px; d.chip = W.chip; Object.assign(d, CHIP_BY[W.chip].f);
+    d.seg = bkSegs(W).map(canonSeg);
+    if (K.bar) {
+      Object.assign(d.look, { mode: "scanner", rgb: W.type === "rear" ? [255, 0, 0] : [255, 96, 0], speed: 5, rev: false });
+      if (d.turn_style === "global" && app.settings.turn.style === "flash") d.turn_style = "sweep";
+    }
+  }
+  app.drafts[i] = d;
+  bkHint(i, W.type === "ring" || W.type === "custom" ? W.type : null);
+  BK.wiz = null;
+  buildStrips(); bkGo("home");
+  toast(`${K.name} added on output ${i + 1}. Tap Apply to send it.`);
+}
+document.querySelectorAll("[data-goto]").forEach(b => { b.onclick = () => showTab(b.dataset.goto); });
 
 // Live link watchdog: no status for 2 s while connected.
 setInterval(() => {
