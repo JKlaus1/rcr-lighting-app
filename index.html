@@ -350,6 +350,41 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
 .bike-sum b { font-weight: 600; text-align: right; }
 .bike-pending { position: sticky; bottom: calc(68px + env(safe-area-inset-bottom)); z-index: 4; margin-top: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--warn); border-radius: var(--radius-panel); }
 .bike-pend-txt { flex: 1; min-width: 0; font-weight: 600; color: var(--warn); }
+/* matrix builder */
+main.wide { max-width: 1280px; }
+.mx { display: flex; flex-direction: column; gap: 12px; }
+.mx-main, .mx-side { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+@media (min-width: 900px) { .mx { display: grid; grid-template-columns: minmax(0, 1fr) 360px; align-items: start; gap: 16px; } }
+.mx-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.mx-row .btn, .mx-two .btn { min-height: 44px; padding: 0 14px; }
+.mx-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mx-hint { display: flex; flex-wrap: wrap; gap: 2px 6px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-panel); }
+.mx-scroll { overflow: auto; max-height: 72vh; border-radius: var(--radius-panel); background: var(--cluster); -webkit-overflow-scrolling: touch; }
+.mx-grid { position: relative; width: 100%; background: var(--cluster); border-radius: var(--radius-panel); touch-action: manipulation; }
+.mx-svg, .mx-svg svg, .mx-lbls { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.mx-lbls { pointer-events: none; }
+.mx-lbl { position: absolute; transform: translate(-50%, -170%); padding: 1px 6px; border-radius: 4px; color: #1b2026; font: 600 13px/1.3 var(--sans); white-space: nowrap; }
+.mx-over { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: crosshair; border-radius: var(--radius-panel); }
+.mx-legend { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.mx-panel { gap: 8px; }
+.mx-orderbox { overflow: hidden; }
+.mx-order-row { display: flex; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font-size: 15px; }
+.mx-order-row .n { flex: none; min-width: 22px; font-weight: 600; }
+.mx-order-row.loose { color: var(--warn); }
+.mx-stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mx-stats > div { padding: 8px 10px; border-radius: var(--radius-ctl); background: var(--panel); border: 1px solid var(--line); display: flex; flex-direction: column; }
+.mx-bad { color: var(--bad); }
+.mx-good { color: var(--ok); }
+.mx-prevbox { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; }
+.mx-prev { width: 100%; height: 160px; border-radius: var(--radius-ctl); background: #101419; display: block; }
+.mx-file { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.mx-load { position: relative; cursor: pointer; }
+.mx-load:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.bike-card input[type=number] { background: var(--field); border: 1px solid var(--line); border-radius: var(--radius-ctl); min-height: 44px; padding: 0 10px; width: 100%; }
+.mx-prev-wrap .field input[type=color] { height: 44px; }
+.mx-prev-wrap { padding-bottom: 0; }
+.bike-need { color: var(--warn); }
+.bike-type:disabled { opacity: .55; cursor: default; }
 /* control tab */
 #ctlBody { display: flex; flex-direction: column; gap: 12px; }
 .ct-h { margin: 0; color: var(--muted); font: 600 13px/1.2 var(--sans); letter-spacing: .06em; text-transform: uppercase; }
@@ -717,6 +752,13 @@ const MODES = [["solid", "Solid"], ["breathe", "Breathe"], ["rainbow", "Rainbow"
 const TURN_STYLES = [["flash", "Solid flash"], ["sweep", "Sequential fill"], ["comet", "Sequential comet"], ["wipe", "Sequential wipe (on, then off)"]];
 const LOOK_DEFAULT = { mode: "scanner", rgb: [255, 96, 0], speed: 5, rev: false, master: false };
 const POS_MODES = ["wave", "sweep", "rise", "rainbow_x"];  // use segment positions
+// Firmware 0.4.2 effects: they run in the light's own bounding box (h = height, w = along the wider horizontal axis). Never sent to older firmware.
+const MODES_NEW = [["rain", "Rain"], ["fire", "Fire"], ["sparkle", "Sparkle"], ["plasma", "Plasma"], ["rings", "Rings"], ["bounce", "Bounce"], ["diag", "Diagonal"]];
+const FX_NEW = MODES_NEW.map(m => m[0]);
+const MODES_ALL = [...MODES, ...MODES_NEW];
+const FIRE_RGB = [255, 80, 0];
+// Choosing Fire with the color still at its default (white, the underglow default) sets an orange one.
+function setModeFire(o, v) { o.mode = v; if (v === "fire" && o.rgb && o.rgb[0] === 255 && o.rgb[1] === 255 && o.rgb[2] === 255) o.rgb = FIRE_RGB.slice(); }
 // Chip presets: same table as firmware. Sending `chip` applies timing/rgbw/lpp/sum/px_ma.
 const CHIPS = [
   ["ws2815",          "WS2815 (12 V)",                         { timing: "800k", rgbw: false, lpp: 1, sum: false, px_ma: 18 }],
@@ -941,6 +983,9 @@ const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl
 function cmpVer(a, b) { for (let i = 0; i < 3; i++) if ((a[i] | 0) !== (b[i] | 0)) return (a[i] | 0) - (b[i] | 0); return 0; }
 const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m ? [+m[1], +m[2], +m[3]] : null; };
 const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);   // the demo is playing firmware older than 0.4.1
+const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
+const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
+const modeOk = m => MODES.some(x => x[0] === m) || (FX_NEW.includes(m) && !demoNoFx());
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp3 = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
@@ -979,6 +1024,9 @@ const parseSegs = list => (Array.isArray(list) ? list : []).slice(0, MAX_SEGS).m
 // Bounding box of every mapped segment (the position-based effects normalize over it).
 function posBounds(strips) {
   const b = { x: [Infinity, -Infinity], y: [Infinity, -Infinity], z: [Infinity, -Infinity], any: false };
+  strips.forEach(st => { if (st.geom && st.geom.pt && st.geom.pt.length >= 2) st.geom.pt.forEach(q => {
+    b.any = true; ["x", "y", "z"].forEach((a, j) => { b[a][0] = Math.min(b[a][0], q[1 + j]); b[a][1] = Math.max(b[a][1], q[1 + j]); });
+  }); });
   strips.forEach(st => st.seg.forEach(g => {
     if (g[1] <= 0 || !isMapped(g)) return;
     for (const p of [segPos(g, 0), segPos(g, 1)]) {
@@ -988,9 +1036,65 @@ function posBounds(strips) {
   }));
   return b;
 }
+// Position of pixel px on a strip's path (firmware geometry): straight lines between points, the end points beyond them.
+function geomAt(pt, px) {
+  if (px <= pt[0][0]) return pt[0].slice(1);
+  for (let i = 1; i < pt.length; i++) if (px <= pt[i][0]) {
+    const a = pt[i - 1], b = pt[i], f = b[0] > a[0] ? (px - a[0]) / (b[0] - a[0]) : 0;
+    return [0, 1, 2].map(j => a[1 + j] + (b[1 + j] - a[1 + j]) * f);
+  }
+  return pt[pt.length - 1].slice(1);
+}
 function hsv(h, s, v) {
   const f = n => { const k = (n + h / 60) % 6; return v - v * s * Math.max(0, Math.min(k, 4 - k, 1)); };
   return [f(5), f(3), f(1)].map(x => Math.round(x * 255));
+}
+// Firmware 0.4.2 effects, approximated (the demo and the matrix preview share this). L = {w, h, col, row, ax, ay}: w and h are 0..1 in the light's
+// own box (h up), col and row identify the cell (so two pixels at the same spot get the same random draw), ax and ay the box's proportions (longer side 1).
+const fxHash = (a, b) => { let h = Math.imul(a | 0, 374761393) ^ Math.imul(b | 0, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const fxFrac = v => v - Math.floor(v);
+function fxPixel(mode, rgb, sp, L, nowMs) {
+  const t = nowMs / 1000, clampK = v => Math.max(0, Math.min(1, v));
+  let k = 0, c = rgb;
+  switch (mode) {
+    case "rain": {   // a drop falls down each column, its tail fading above it
+      const ph = fxFrac(t * sp * 0.12 * (0.7 + 0.6 * fxHash(L.col, 2)) + fxHash(L.col, 1)), head = 1.3 - ph * 1.6, d = L.h - head;
+      k = d >= -0.04 && d <= 0.35 ? 1 - Math.max(0, d) / 0.35 : 0; break;
+    }
+    case "fire": {   // flicker rising from the bottom, brightest there
+      const n = fxHash(L.col + L.row * 131, Math.floor(t * sp * 3) + 7 * L.row);
+      k = clampK(1.05 - L.h * 1.1 + (n - 0.5) * 0.7); break;
+    }
+    case "sparkle": {
+      const step = t * sp * 2, r = fxHash(L.col + L.row * 131, Math.floor(step));
+      k = r > 0.9 ? 1 - 0.5 * fxFrac(step) : 0; break;
+    }
+    case "plasma": {   // ignores the color
+      const v = Math.sin(L.w * 6 + t * sp * 0.4) + Math.sin(L.h * 5 - t * sp * 0.3) + Math.sin((L.w + L.h) * 4 + t * sp * 0.2);
+      c = hsv(((v / 3 + 1) * 180 + 360) % 360, 1, 1); k = 1; break;
+    }
+    case "rings": {
+      const d = Math.hypot((L.w - 0.5) * L.ax, (L.h - 0.5) * L.ay), f = fxFrac(d * 3 - t * sp * 0.15);
+      k = f < 0.35 ? 1 - f / 0.35 : 0; break;
+    }
+    case "bounce": {
+      const ph = fxFrac(t * sp * 0.1), tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+      k = clampK(1 - Math.abs(L.h - tri) * 6); break;
+    }
+    case "diag": {
+      const f = fxFrac((L.w + L.h) * 2 - t * sp * 0.12);
+      k = f < 0.5 ? 1 : 0.08; break;
+    }
+  }
+  return { k, c };
+}
+// The 0..1 position of a mapped pixel in the box of all mapped pixels, for the demo's own use of the new effects.
+function fxLedOf(pos, bnd, idx, n) {
+  const norm = (v, r) => r[1] > r[0] ? (v - r[0]) / (r[1] - r[0]) : 0.5;
+  if (!(pos && bnd.any)) return { w: n > 1 ? idx / (n - 1) : 0, h: 0.5, col: idx, row: 0, ax: 1, ay: 0.2 };
+  const rx = bnd.x[1] - bnd.x[0], ry = bnd.y[1] - bnd.y[0], rz = bnd.z[1] - bnd.z[0], wide = Math.max(rx, ry, rz, 1);
+  const w = rx > ry ? norm(pos[0], bnd.x) : norm(pos[1], bnd.y), h = norm(pos[2], bnd.z);
+  return { w, h, col: Math.round(w * 40), row: Math.round(h * 40), ax: Math.max(rx, ry) / wide, ay: rz / wide };
 }
 // One underglow pixel in the demo preview. pos = [x,y,z] mm or null (unmapped: runs along the strip).
 function accentPix(s, idx, n, pos, bnd, now, scale, pct) {
@@ -1011,6 +1115,7 @@ function accentPix(s, idx, n, pos, bnd, now, scale, pct) {
     case "breathe": k = 0.5 + 0.5 * Math.sin(now / 1000 * sp * 0.6); break;
     case "chase": k = ((Math.floor(ph * n) - idx + n) % n) < Math.max(2, n * 0.1) ? 1 : 0; break;
     case "scanner": k = scannerLevel(idx, n, now, sp); break;
+    default: if (FX_NEW.includes(A.mode)) { const r = fxPixel(A.mode, A.rgb, sp, fxLedOf(pos, bnd, idx, n), now); k = r.k; rgb = r.c; }
   }
   const m = k * (pct == null ? A.pct : pct) / 100 * scale;
   return rgb.map(c => Math.round(c * m));
@@ -1045,16 +1150,17 @@ function sortMask(s) { return HEAD_STATES.map(h => h[0]).filter(c => (s || "").t
 // Merge a `set` patch the way firmware settingsPatch() does.
 // `pend` holds the staged `segi` batches (one per strip); returns the notes the board would send back.
 function applyPatch(s, p, pend = [null, null, null, null]) {
-  const notes = [];
+  const notes = [], prevAcc = s.accent.mode;
+  const pg = pend.g || (pend.g = [null, null, null, null]);   // staged `gpt` path batches (one per strip), committed by `ngpt`
   for (const [k, v] of Object.entries(p)) {
     if (k === "strips") {
       (v || []).forEach((e, i) => {
         if (!e || i > 3) return;
         const st = s.strips[i];
-        let nsegReq = null;
+        let nsegReq = null, ngptReq = null, nordReq = null;
         // chip first (applies its preset), then the other keys in the same patch override it
         if (typeof e.chip === "string" && CHIP_BY[e.chip]) Object.assign(st, CHIP_BY[e.chip].f);
-        for (const [sk, sv] of Object.entries(e)) {
+        for (let [sk, sv] of Object.entries(e)) {
           if (sk === "chip") continue;
           if (sk === "seg") { st.seg = parseSegs(sv); pend[i] = null; }   // a full replace supersedes a staged batch
           else if (sk === "segi") {
@@ -1073,7 +1179,41 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
             });
           } else if (sk === "nseg") nsegReq = sv;
           else if (sk === "pct") st.pct = sv;
-          else if (sk === "look") { if (sv && typeof sv === "object") st.look = { ...LOOK_DEFAULT, ...(st.look || {}), ...sv }; }
+          else if (sk === "look") {
+            if (sv && typeof sv === "object") {
+              if (sv.mode != null && !modeOk(sv.mode)) { notes.push(`strips[${i}].look.mode: unknown value`); sv = { ...sv }; delete sv.mode; }
+              st.look = { ...LOOK_DEFAULT, ...(st.look || {}), ...sv };
+            }
+          }
+          else if (sk === "ordi" || sk === "nord" || sk === "ord") {   // colour-order zones (0.4.3): [index, start, count, order] staged, committed by nord
+            if (demoNoOrd()) { notes.push(`strips[${i}].${sk}: unknown key`); continue; }
+            const og = pend.o || (pend.o = [null, null, null, null]);
+            if (sk === "nord") nordReq = sv;
+            else if (sk === "ord") {
+              const ok = Array.isArray(sv) && sv.every(a => Array.isArray(a) && a.length === 3 && Number(a[1]) >= 1 && ORDERS.includes(String(a[2]).toUpperCase()));
+              if (!ok) notes.push(`strips[${i}].ord: bad zone; zones unchanged`); else if (sv.length) st.ord = sv.map(a => [a[0] | 0, a[1] | 0, String(a[2]).toUpperCase()]); else delete st.ord;
+            } else (Array.isArray(sv) ? sv : []).forEach(a => {
+              const idx = Array.isArray(a) && a.length === 4 && Number.isInteger(a[0]) ? a[0] : -1;
+              let pd = og[i];
+              if (idx < 0 || idx >= 24) { notes.push(`strips[${i}].ordi[${idx}]: ordi entry must be [index 0..23, start, count, order]`); if (pd) pd.bad = true; return; }
+              if (!pd || idx === 0) pd = og[i] = { bad: false, z: ((st.ord) || []).map(q => q.slice()) };
+              if (!(Number(a[2]) >= 1) || !ORDERS.includes(String(a[3]).toUpperCase())) { notes.push(`strips[${i}].ordi[${idx}]: bad zone; this batch will not be applied`); pd.bad = true; return; }
+              pd.z[idx] = [a[1] | 0, a[2] | 0, String(a[3]).toUpperCase()];
+            });
+          }
+          else if (sk === "gpt" || sk === "ngpt" || sk === "geom") {
+            if (demoOld()) { notes.push(`strips[${i}].${sk}: unknown key`); continue; }
+            if (sk === "ngpt") ngptReq = sv;
+            else if (sk === "geom") { st.geom = sv && Array.isArray(sv.pt) && sv.pt.length ? { pt: sv.pt.map(q => q.map(Number)) } : undefined; if (!st.geom) delete st.geom; }
+            else (Array.isArray(sv) ? sv : []).forEach(a => {   // [index 0..47, px, x, y, z]
+              const idx = Array.isArray(a) && a.length >= 5 && Number.isInteger(a[0]) ? a[0] : -1;
+              let pd = pg[i];
+              if (idx < 0 || idx >= 48) { notes.push(`strips[${i}].gpt[${idx}]: gpt entry must be [index 0..47, px, x, y, z]`); if (pd) pd.bad = true; return; }
+              if (!pd || idx === 0) pd = pg[i] = { bad: false, pt: ((st.geom && st.geom.pt) || []).map(q => q.slice()) };
+              if (a.length !== 5 || a.slice(1).some(v => !Number.isFinite(Number(v)))) { notes.push(`strips[${i}].gpt[${idx}]: bad point; this batch will not be applied`); pd.bad = true; return; }
+              pd.pt[idx] = a.slice(1).map(Number);
+            });
+          }
           else if (sk === "turn_style") { if (sv === "global" || TURN_STYLES.some(t => t[0] === sv)) st.turn_style = sv; }
           else if (sk === "timing") { if (sv === "800k" || sv === "400k") st.timing = sv; }
           else if (sk === "order") { if (ORDERS.includes(sv)) st.order = sv; }
@@ -1086,11 +1226,33 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
           if (!Number.isInteger(n) || n < 0 || n > MAX_SEGS) notes.push(`strips[${i}].nseg: nseg must be 0..12; segments unchanged`);
           else if (pd) {
             if (pd.bad) notes.push(`strips[${i}].nseg: segment batch had errors, nothing applied; resend from index 0`);
-            else st.seg = pd.seg.slice(0, n).map(g => g.slice());
+            else {
+              st.seg = pd.seg.slice(0, n).map(g => g.slice());
+              if (st.seg.some(g => g[1] > 0 && isMapped(g))) delete st.geom;   // segments with their own positions are the newest layout: the old path goes
+            }
           } else {
             if (st.seg.length > n) st.seg.length = n;
             while (st.seg.length < n) st.seg.push([0, 0, "none", false]);
           }
+        }
+        if (nordReq != null) {
+          const pd = pend.o && pend.o[i], n = Number(nordReq); if (pend.o) pend.o[i] = null;
+          if (!Number.isInteger(n) || n < 0 || n > 24) notes.push(`strips[${i}].nord: nord must be 0..24; zones unchanged`);
+          else if (n === 0) delete st.ord;
+          else if (!pd) notes.push(`strips[${i}].nord: nothing staged; zones unchanged`);
+          else if (pd.bad) notes.push(`strips[${i}].nord: zone batch had errors, nothing applied; resend from index 0`);
+          else if (n > pd.z.length || pd.z.slice(0, n).some(q => !q)) notes.push(`strips[${i}].nord: more zones than were staged; zones unchanged`);
+          else st.ord = pd.z.slice(0, n);
+        }
+        if (ngptReq != null) {
+          const pd = pg[i], n = Number(ngptReq); pg[i] = null;
+          if (!Number.isInteger(n) || n < 0 || n > 48) notes.push(`strips[${i}].ngpt: ngpt must be 0..48; path unchanged`);
+          else if (pd) {
+            if (pd.bad) notes.push(`strips[${i}].ngpt: path batch had errors, nothing applied; resend from index 0`);
+            else if (n === 0) delete st.geom;
+            else st.geom = { pt: Array.from({ length: n }, (_, j) => pd.pt[j] || [0, 0, 0, 0]) };
+          } else if (n === 0) delete st.geom;
+          else if (st.geom && st.geom.pt.length > n) st.geom.pt.length = n;
         }
         st.chip = chipOf(st, e.chip || st.chip);
       });
@@ -1132,10 +1294,20 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
       return q;
     });
     st.look = { ...LOOK_DEFAULT, ...(st.look || {}) }; st.look.speed = clamp(st.look.speed | 0, 1, 10);
-    if (!MODES.some(m => m[0] === st.look.mode)) st.look.mode = "scanner";
+    if (!modeOk(st.look.mode)) st.look.mode = "scanner";
+    if (st.ord) {   // validate(): drop empty zones and the part past the strip, sort by start
+      st.ord = st.ord.filter(q => q[1] > 0 && q[0] < st.px).map(q => [q[0], Math.min(q[1], st.px - q[0]), q[2]]).sort((a, b) => a[0] - b[0]);
+      if (!st.ord.length) delete st.ord;
+    }
+    if (st.geom) {   // validate(): points ascending in px and inside the strip
+      let last = -1;
+      st.geom.pt = st.geom.pt.filter(q => q[0] > last && q[0] < st.px && (last = q[0], true));
+      if (!st.geom.pt.length) delete st.geom;
+    }
     if (st.turn_style !== "global" && !TURN_STYLES.some(t => t[0] === st.turn_style)) st.turn_style = "global";
     st.chip = chipOf(st, st.chip);
   }
+  if (!modeOk(s.accent.mode)) { notes.push("accent.mode: unknown value"); s.accent.mode = prevAcc; }
   return notes;
 }
 
@@ -1181,7 +1353,8 @@ function segFree(s, role, st) {
 // spct = the strip's brightness %. Decoration = global x strip x segment (never auto-dimmed); brake/tail/turn colors ignore it.
 function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
   const role = g[2], own = role === "look" || (segIdleOf(g) || {}).idle === "look", pct = decoPct(own ? 100 : s.accent.pct, spct, segPctOf(g));
-  const pos = () => isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
+  const gp = strip && strip.geom && strip.geom.pt && strip.geom.pt.length >= 2 ? strip.geom.pt : null;   // a path comes before the segments' own positions
+  const pos = () => gp ? geomAt(gp, g[0] + k) : isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
   if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale, pct), acc: true };
   if (role === "look") {   // a section with no signal job: always the strip's own look
     const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) };
@@ -1245,7 +1418,7 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 1]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 3]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
     else {   // two saved looks out of the box: "Street" is the bike as it stands, "Show" adds a rainbow and lit turn bars
@@ -1340,9 +1513,13 @@ class DemoLink {
         else this.out(this.presetCmd(args));
         break;
       case "find": {
-        const m = /^([1-4])\s+(\d+)$/.exec(args);
+        const m = /^([1-4])\s+(\d+)$/.exec(args), m2 = demoNoOrd() ? null : /^([1-4])\s+(\d+)(?:\s+(\d+)(?:\s+(\d+)\s+(\d+)\s+(\d+))?)?$/.exec(args);
         if (args === "off") { this.find = null; this.out("find off"); }
-        else if (m && +m[2] < this.s.strips[m[1] - 1].px) {
+        else if (m2 && +m2[2] < this.s.strips[m2[1] - 1].px) {
+          const cnt = m2[3] == null ? 1 : +m2[3], rgb = m2[4] == null ? [255, 255, 255] : [+m2[4], +m2[5], +m2[6]];
+          this.find = { strip: m2[1] - 1, px: +m2[2], count: cnt, rgb, until: performance.now() + 600000 };
+          this.out(m2[3] == null ? `find ${m2[1]} ${m2[2]}` : `find ${m2[1]} ${m2[2]} ${cnt} ${rgb.join(" ")}`);
+        } else if (m && +m[2] < this.s.strips[m[1] - 1].px) {
           this.find = { strip: m[1] - 1, px: +m[2], until: performance.now() + 600000 };
           this.out(`find strip ${m[1]} pixel ${m[2]}`);
         } else this.out("usage: find <strip 1-4> <pixel>|off (pixel must be inside the strip)");
@@ -1467,7 +1644,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.1";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.3";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -1500,12 +1677,17 @@ function ctlReset() {
 // Firmware version, read from the `info` reply ("RCR Lighting rev D firmware 0.4.1 (...)", commands.cpp info()). Presets, DRL sections,
 // the look role and the no-brake flag need 0.4.1; until the version is known (or when it can't be read) the page acts as 0.3.18.
 const fw4 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 1]) >= 0);
+// 0.4.2 adds the rain, fire, sparkle, plasma, rings, bounce and diag effects. Their names are never sent to older firmware.
+const fw43 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 3]) >= 0);   // 0.4.3: colour-order zones (ordi / nord) and find with a count and a colour
+const fw42 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 2]) >= 0);
+const modeList = () => fw42() ? MODES_ALL : MODES;
 function setFw(line) {
   const m = /firmware (\d+\.\d+\.\d+)/.exec(line);
   if (!m) return;
-  const was = fw4();
+  const was = fw4(), was2 = fw42(), was3 = fw43();
   app.fw = { raw: m[1], n: parseVer(m[1]) };
-  if (app.settings && was !== fw4()) { buildStrips(); buildSetup(); }
+  if (app.settings && (was2 !== fw42() || was3 !== fw43())) setSettings(app.settings);   // the effect pickers
+  else if (app.settings && was !== fw4()) { buildStrips(); buildSetup(); }
   if (fw4()) ctlList();
   buildControl();
 }
@@ -1635,6 +1817,32 @@ function segPatches(i, segs) {
   out.push(stripWrap(i, { nseg: segs.length }));
   return out;
 }
+// Patches that replace strip i's path (firmware 0.4.1 geometry): `gpt` points [index, px, x, y, z] in chunks, then `ngpt` commits them. [] clears the path.
+function geomPatches(i, pts) {
+  const out = []; let cur = [];
+  const fits = list => byteLen("set " + JSON.stringify(stripWrap(i, { gpt: list }))) <= SET_LIMIT;
+  pts.forEach((q, k) => {
+    const entry = [k, ...q];
+    if (cur.length && !fits([...cur, entry])) { out.push(stripWrap(i, { gpt: cur })); cur = []; }
+    cur.push(entry);
+  });
+  if (cur.length) out.push(stripWrap(i, { gpt: cur }));
+  out.push(stripWrap(i, { ngpt: pts.length }));
+  return out;
+}
+// Colour-order zones (firmware 0.4.3): `ordi` entries [index, start, count, order] in chunks, then `nord` commits them; [] clears.
+function ordPatches(i, zones) {
+  const out = []; let cur = [];
+  const fits = list => byteLen("set " + JSON.stringify(stripWrap(i, { ordi: list }))) <= SET_LIMIT;
+  zones.forEach((z, k) => {
+    const entry = [k, ...z];
+    if (cur.length && !fits([...cur, entry])) { out.push(stripWrap(i, { ordi: cur })); cur = []; }
+    cur.push(entry);
+  });
+  if (cur.length) out.push(stripWrap(i, { ordi: cur }));
+  out.push(stripWrap(i, { nord: zones.length }));
+  return out;
+}
 function setReply(j) {
   const P = app.pending;
   if (P) {   // replies to a batch we are tracking (Send layout)
@@ -1659,6 +1867,7 @@ function showTab(name) {
   if (name !== "strips") app.stripsFrom = null;
   if (name === "control" && app.tab === "control") CT.screen = "home";
   app.tab = name;
+  document.querySelector("main").classList.toggle("wide", name === "bike" && BK.screen === "build");
   document.querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t.id === "tab-" + name));
   const navOf = name === "lights" || (name === "strips" && app.stripsFrom === "control") ? "control" : name === "strips" || name === "map" ? "bike" : name;
   document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === navOf));
@@ -1668,6 +1877,7 @@ function showTab(name) {
   if (name === "map") buildMap();
   if (name === "strips" && app.settings) buildStrips();
   if (name === "bike") buildBike();
+  mxKick();
 }
 
 // Stop the page-load wait for the remembered controller (Connect, the demo, or the page hidden).
@@ -1961,7 +2171,7 @@ function setSettings(s) {
   ap.append(
     switchField("Underglow on at key-on", A.on, v => patch({ accent: { on: v } }), "The handlebar button switches it for the current ride."),
     (() => {
-      const f = selectField("Effect", MODES, A.mode, v => patch({ accent: { mode: v } }));
+      const f = selectField("Effect", modeList(), A.mode, v => { const o = { mode: v, rgb: A.rgb.slice() }; setModeFire(o, v); patch({ accent: o.rgb.join() !== A.rgb.join() ? o : { mode: v } }); });
       if (POS_MODES.includes(A.mode) && !s.strips.some(st => st.seg.some(g => g[1] > 0 && isMapped(g))))
         f.append(el("div", { class: "hint", id: "posHint" }, "No segments are mapped yet — the effect runs along each strip. Add them on the Bike tab, or place them under Bike → Advanced → Photo layout."));
       return f;
@@ -2038,7 +2248,9 @@ function stripDraftPatches(draft, i) {
   // A preset is sent by name (the board fills in the rest); Custom sends every field.
   if (draft.chip !== "custom") core.chip = draft.chip;
   else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
-  return [stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...segPatches(i, draft.seg.map(segOut))];
+  return [stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...segPatches(i, draft.seg.map(segOut)),
+          ...(Array.isArray(draft.geomPts) ? geomPatches(i, draft.geomPts) : []),
+          ...(Array.isArray(draft.ordZones) && fw43() ? ordPatches(i, draft.ordZones) : [])];   // zones only to 0.4.3 firmware   // a matrix sends its path after the pixel count and the segments
 }
 const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
 function normStrip(d) {
@@ -2328,7 +2540,7 @@ function buildStrips() {
     const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
     const tsField = selectField("Turn animation", [["global", `Same as All light settings (${gName})`], ...TURN_STYLES], draft.turn_style, v => { draft.turn_style = v; redraw(); });
     tsField.querySelector("select").setAttribute("data-strip-turnstyle", i);
-    const lmField = selectField("Idle look effect", MODES, lk.mode, v => { lk.mode = v; lookChanged(); });
+    const lmField = selectField("Idle look effect", modeList(), lk.mode, v => { setModeFire(lk, v); lookChanged(); });
     lmField.querySelector("select").setAttribute("data-look-mode", i);
     // bar preset
     const bType = el("select", { "aria-label": "Bar type", "data-bar-type": i },
@@ -3725,12 +3937,16 @@ const BK_KINDS = {
   lamp:   { name: "Stock lamp", desc: "A plain 12 V bulb or lamp, no pixels", lamp: true, chip: "#5b6670", ink: "#ffffff",
             ends: [], spot: [[130, 215], [130, 215]],
             d: "M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5V15h8v-1.5A6 6 0 0 0 12 3" },
+  matrix: { name: "Matrix", desc: "Several strips wired as one light", chip: "#8a3ffc", ink: "#ffffff", needs: "0.4.1",
+            ends: [], spot: [[900, 300], [900, 300]],
+            d: "M5 4v16M10 4v16M15 4v16M20 4v16M3 8h18M3 16h18" },
   custom: { name: "Custom", desc: "Set the segments yourself", chip: "#1d5fd6", ink: "#ffffff",
             ends: [], spot: [[575, 300], [575, 300]],
             d: "M4 7h10M18 7h2M4 17h2M10 17h10M16 5v4M8 15v4" },
 };
 const BK_STEPS = { lamp: ["wire", "job", "done"], front: ["wire", "end", "center", "done"], rear: ["wire", "end", "center", "done"],
-                   glow: ["wire", "end", "side", "done"], ring: ["wire", "end", "side", "done"], custom: ["wire", "end", "done"] };
+                   glow: ["wire", "end", "side", "done"], ring: ["wire", "end", "side", "done"], custom: ["wire", "end", "done"],
+                   matrix: ["wire", "build", "place", "done"] };
 const BK_SIDES = [["left", "Left side"], ["center", "Center"], ["right", "Right side"]];
 const BK_JOBS = OUT_MODES.filter(m => m[0] !== "pixels");
 const bkIcon = (d, size) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
@@ -3748,6 +3964,7 @@ function bkKind(i, st) {
   if (hint === "front" && st.px > 0 && (roles.size === 0 || only("turn_l", "turn_r"))) return "front";
   if ((roles.has("tail_turn_l") || roles.has("tail_turn_r")) && only("tail_turn_l", "tail_turn_r", "tail", "brake")) return "rear";
   if (hint === "rear" && st.px > 0 && (roles.size === 0 || only("tail_turn_l", "tail_turn_r", "tail", "brake"))) return "rear";
+  if (hint === "matrix" && roles.size === 0 && all.has("look")) return "matrix";   // a look-only light the matrix builder made
   if (only("accent") || (roles.size === 0 && all.has("look"))) return hint === "ring" ? "ring" : hint === "custom" ? "custom" : "glow";
   return "custom";
 }
@@ -3765,6 +3982,7 @@ function bkSub(L) {
     : L.kind === "front" ? `${n} LEDs · left + right turn`
     : L.kind === "rear" ? `${n} LEDs · tail, brake, turns`
     : L.kind === "custom" ? `${n} LEDs · ${L.st.seg.length} segment${L.st.seg.length === 1 ? "" : "s"}`
+    : L.kind === "matrix" ? `${n} LEDs · strips wired as one light`
     : `${n} LEDs · ${K.name.toLowerCase()}`;
   return head + body + (app.drafts[L.i] ? " · not sent yet" : "");
 }
@@ -3773,6 +3991,8 @@ const bkProj = p => calP2I("side", BK_CAL, p[0], p[2]);
 function bkMarks(L) {
   const K = BK_KINDS[L.kind];
   let lines = L.st.seg.filter(g => g[1] > 0 && isMapped(g)).map(g => ({ a: bkProj(segPos(g, 0)), b: bkProj(segPos(g, 1)), c: ROLE_LINE[g[2]] || K.chip }));
+  const gp = L.kind === "matrix" ? (L.st.geomPts || (L.st.geom && L.st.geom.pt)) : null;   // a matrix: one line per strip, from its path
+  if (gp && gp.length >= 2) for (let k = 0; k + 1 < gp.length; k += 2) lines.push({ a: bkProj(gp[k].slice(1)), b: bkProj(gp[k + 1].slice(1)), c: K.chip });
   if (!lines.length) lines = [{ a: K.spot[0], b: K.spot[1], c: K.chip }];
   const pts = lines.flatMap(l => [l.a, l.b]);
   const cx = pts.reduce((s, p) => s + p[0], 0) / pts.length, cy = pts.reduce((s, p) => s + p[1], 0) / pts.length;
@@ -3780,6 +4000,7 @@ function bkMarks(L) {
 }
 
 function bkGo(screen, open) {
+  if (screen !== "build" && BK.wiz && BK.wiz.ui && BK.wiz.ui.test) mxTestStop(BK.wiz.ui);   // never leave the color-order test lit
   if (BK.screen === "end" || BK.screen === "center") finderStop();
   BK.screen = screen; if (open != null) BK.open = open;
   buildBike(); window.scrollTo(0, 0);
@@ -3800,7 +4021,8 @@ function buildBike() {
   if (!app.settings) return;
   if (BK.screen === "detail" && !bkLights().some(L => L.i === BK.open)) BK.screen = "home";
   if (BK.screen !== "home" && BK.screen !== "detail" && BK.screen !== "type" && !BK.wiz) BK.screen = "home";
-  ({ home: bkHome, detail: bkDetail, type: bkType, wire: bkWire, end: bkEnd, center: bkCenter, side: bkSide, job: bkJob, done: bkDone })[BK.screen](box);
+  ({ home: bkHome, detail: bkDetail, type: bkType, wire: bkWire, end: bkEnd, center: bkCenter, side: bkSide, job: bkJob, done: bkDone, build: bkBuild, place: bkPlace })[BK.screen](box);
+  document.querySelector("main").classList.toggle("wide", BK.screen === "build" && app.tab === "bike");   // the matrix builder uses the width of a PC screen
   bkPending();
 }
 function bkHead(box, title, step, back) {
@@ -3888,7 +4110,7 @@ function applyBarLook(d, val) {
     const pct = segPctOf(g), nb = segNbOf(g); g.length = 6;
     const ob = segObj(val === "off" ? "off" : "look", null, pct, nb); if (ob) g.push(ob);
   });
-  if (val !== "off") d.look.mode = val;
+  if (val !== "off") setModeFire(d.look, val);
 }
 function bkDetail(box) {
   const i = BK.open, L = bkLights().find(x => x.i === i), v = L.st, K = BK_KINDS[L.kind];
@@ -3901,7 +4123,7 @@ function bkDetail(box) {
     if (K.bar) {
       const idle = v.seg.filter(g => idleOk(g[2]));
       const usesLook = idle.some(g => (segIdleOf(g) || {}).idle === "look");
-      const f = selectField("Look when not signaling", [["off", "Off"], ...MODES], usesLook ? v.look.mode : "off", val => edit(d => applyBarLook(d, val)));
+      const f = selectField("Look when not signaling", [["off", "Off"], ...modeList()], usesLook ? v.look.mode : "off", val => edit(d => applyBarLook(d, val)));
       f.querySelector("select").setAttribute("data-bike-look", i);
       main.append(f);
       if (usesLook) {
@@ -3916,10 +4138,19 @@ function bkDetail(box) {
       ts.querySelector("select").setAttribute("data-bike-turn", i);
       main.append(ts);
     }
+    if (L.kind === "matrix") {
+      const f = selectField("Effect", modeList(), v.look.mode, val => edit(d => setModeFire(d.look, val)));
+      f.querySelector("select").setAttribute("data-bike-look", i);
+      const col = el("input", { type: "color", value: hex(v.look.rgb), "aria-label": "Look color", "data-bike-color": i });
+      col.onchange = () => edit(d => { d.look.rgb = unhex(col.value); });
+      main.append(f, el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col),
+        rangeField("Speed", v.look.speed, 1, 10, 1, "", val => edit(d => { d.look.speed = val; })));
+    }
     main.append(rangeField("Brightness", v.pct, 0, 100, 1, "%", val => edit(d => { d.pct = val; }),
       K.bar ? "For the look above. Turn, brake and tail colors are never dimmed by it."
+            : L.kind === "matrix" ? "This look follows the Underglow switch. The global underglow brightness does not apply."
             : "Multiplied by the underglow brightness in All light settings."));
-    if (!K.bar) main.append(el("p", { class: "note", style: "margin:0;padding:0 14px 12px" },
+    if (!K.bar && L.kind !== "matrix") main.append(el("p", { class: "note", style: "margin:0;padding:0 14px 12px" },
       L.kind === "custom" ? "This output has its own segment setup. Change what each part does in the segment editor."
                           : "Shows the underglow effect and color set in All light settings."));
   }
@@ -3931,11 +4162,14 @@ function bkDetail(box) {
   const rm = el("button", { class: "btn small danger", "data-bike-remove": i }, "Remove this light");
   armed(rm, "Tap again to remove", () => {
     const d = draftFor(i); d.out = "pixels"; d.px = 0; d.seg = [];
+    if (L.kind === "matrix") { d.geomPts = []; if (fw43()) d.ordZones = []; }   // the path and the color zones go with it
     bkHint(i, null); buildStrips(); bkGo("home");
     toast(`${K.name} removed from output ${i + 1}. Tap Apply to send it.`);
   });
   more.append(rm);
-  box.append(main, facts, more);
+  box.append(main, facts);
+  if (L.kind === "matrix") box.append(mxDesignPanel(i, v));
+  box.append(more);
 }
 
 // ---- add a light ----
@@ -3943,14 +4177,17 @@ function bkType(box) {
   bkHead(box, "Add a light", "What are you adding?", () => bkGo("home"));
   const grid = el("div", { class: "bike-types" });
   Object.entries(BK_KINDS).forEach(([k, K]) => {
-    const b = el("button", { class: "bike-type", "data-bike-type": k, onclick: () => {
+    const off = !!K.needs && !fw4();   // firmware 0.4.1 paths
+    const b = el("button", { class: "bike-type", "data-bike-type": k, disabled: off, onclick: () => {
       const free = bkFree();
       if (!free.length) { toast("All four outputs are in use. Remove a light first.", true); return; }
       BK.wiz = { type: k, out: free[0], chip: "ws2815", end: 0, n: 30, test: BK_TEST_PX, px: 0, mid: 0, side: "left", job: "turn_l" };
+      if (k === "matrix") Object.assign(BK.wiz, { mx: mxNew(60), ui: null, look: mxDefaultLook() });
       bkGo("wire");
     } });
     b.innerHTML = bkIcon(K.d, 28);
     b.append(el("b", {}, K.name), el("small", {}, K.desc));
+    if (off) b.append(el("small", { class: "bike-need" }, `Needs firmware ${K.needs} or newer.`));
     grid.append(b);
   });
   box.append(grid);
@@ -3958,6 +4195,8 @@ function bkType(box) {
 function bkWizHead(box) {
   const W = BK.wiz, order = BK_STEPS[W.type], k = order.indexOf(BK.screen);
   bkHead(box, BK_KINDS[W.type].name, BK.screen === "done" ? "Check it over" : `Step ${k + 1} of ${order.length - 1}`, () => {
+    if (W.ui && W.ui.test) mxTestStop(W.ui);   // the color-order test must not stay lit
+    if (W.edit && order[k] === "build") { BK.wiz = null; bkGo("detail", W.out); return; }   // editing a matrix that is already on the bike
     if (k > 0) { bkGo(order[k - 1]); return; }
     bkRestoreTemps(-1); BK.wiz = null; bkGo("type");
   });
@@ -3981,14 +4220,16 @@ function bkWire(box) {
     const sel = el("select", { "aria-label": "LED type", "data-bike-chip-sel": "1", onchange: () => { W.chip = sel.value; } },
       ...CHIPS.map(([v, t]) => el("option", { value: v, selected: v === W.chip }, t)));
     box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "LED type"), sel));
+    if (W.type === "matrix") box.append(mxDensityCard(W.mx));
     if (K.ends.length) box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "Which end does the wire go to?"),
       bkPills(K.ends.map((e, n) => [n, e[1]]), W.end, v => { W.end = v; buildBike(); }, "data-bike-end")));
-    box.append(el("p", { class: "note", style: "margin:8px 2px" },
-      `Next sets output ${W.out + 1} to ${W.test} test pixels on the controller so single LEDs can be lit. Nothing else changes until you tap Apply.`));
+    box.append(el("p", { class: "note", style: "margin:8px 2px" }, W.type === "matrix"
+      ? "Next opens the matrix builder. Nothing is sent to the controller until you tap Apply."
+      : `Next sets output ${W.out + 1} to ${W.test} test pixels on the controller so single LEDs can be lit. Nothing else changes until you tap Apply.`));
   }
   box.append(bkNextBtn("Next", () => {
     bkRestoreTemps(W.out);
-    if (!K.lamp) bkTestPixels();
+    if (!K.lamp && W.type !== "matrix") bkTestPixels();
     bkNext();
   }));
 }
@@ -4079,11 +4320,13 @@ function bkDone(box) {
   const W = BK.wiz, K = BK_KINDS[W.type];
   bkWizHead(box);
   const rows = K.lamp ? [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["Does", OUT_LABEL[W.job]]]
+    : W.type === "matrix" ? mxSummaryRows(W)
     : [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["LED type", CHIP_BY[W.chip].label], ["LEDs", String(W.px)],
        ...(K.ends.length ? [["Wire at", K.ends[W.end][1]]] : []),
        ...(K.bar ? [["Turn signals split after", "LED " + W.mid]] : W.type === "custom" ? [] : [["On the bike", BK_SIDES.find(s => s[0] === W.side)[1]]])];
   box.append(el("div", { class: "panel bike-sum" }, ...rows.map(([k, v]) => el("div", {}, el("span", { class: "note" }, k), el("b", {}, v)))),
     el("p", { class: "note", style: "margin:8px 2px" }, K.lamp ? "Nothing reaches the controller until you tap Apply."
+      : W.type === "matrix" ? "It goes on the controller as one light with a default look and the position of every strip. Nothing is final until you tap Apply."
       : W.type === "custom" ? "It starts as one underglow segment. Split it up in the segment editor. Nothing is final until you tap Apply."
       : "It goes on the bike picture at the usual spot for this kind of light, with a default look. Nothing is final until you tap Apply."),
     bkNextBtn("Add to the bike", bkWizFinish));
@@ -4091,7 +4334,8 @@ function bkDone(box) {
 function bkWizFinish() {
   const W = BK.wiz, i = W.out, K = BK_KINDS[W.type];
   const d = normStrip(structuredClone(app.settings.strips[i]));
-  if (K.lamp) { d.out = W.job; d.px = 0; d.seg = []; }
+  if (W.type === "matrix") { if (!mxFinish(W, d)) return; }
+  else if (K.lamp) { d.out = W.job; d.px = 0; d.seg = []; }
   else {
     d.out = "pixels"; d.px = W.px; d.chip = W.chip; Object.assign(d, CHIP_BY[W.chip].f);
     d.seg = bkSegs(W).map(canonSeg);
@@ -4101,17 +4345,657 @@ function bkWizFinish() {
     }
   }
   app.drafts[i] = d;
-  bkHint(i, W.type === "ring" || W.type === "custom" ? W.type : null);
+  bkHint(i, W.type === "ring" || W.type === "custom" || W.type === "matrix" ? W.type : null);
   BK.wiz = null;
   buildStrips(); bkGo("home");
-  toast(`${K.name} added on output ${i + 1}. Tap Apply to send it.`);
+  toast(`${K.name} ${W.edit ? "changed" : "added"} on output ${i + 1}. Tap Apply to send it.`);
 }
+// ---- matrix: several LED strips wired as one light (firmware 0.4.1 paths, 0.4.2 effects) -------------------------------------------
+// The design is a plate with a front face and a back face. Positions are integers in quarter steps of the LED spacing on one grid that is the
+// plate "as seen looking at its front face" (x to the right, y down); the Back view is NOT mirrored. A strip: first LED (the data-in end) at
+// (x, y), n LEDs along (dx, dy), on the front ("f") or back ("b") face. A wire {a, b} runs from the last LED of strip a to the first of strip b.
+// The LED order is found by following the wires from the feed strip. Placement on the bike (mxPlace) turns grid points into bike mm.
+const MX_MAX_STRIPS = 24, MX_MAX_LEDS = 800, MX_KEY = i => "rcr.matrix." + i, MX_DENS = [30, 60, 96, 144];
+const MX_FACES = [["forward", "Forward"], ["rearward", "Rearward"], ["left", "Left"], ["right", "Right"]];
+const MX_DIR = { forward: [-1, 0], rearward: [1, 0], left: [0, -1], right: [0, 1] };   // the way the front face points, as (x back, y right)
+const MX_TOOLS = [
+  ["lay", "Lay strip", "Click where the strip starts (its data-in end), then click toward where it ends, across or up and down. It snaps to whole LEDs."],
+  ["flip", "Flip direction", "Click a strip to swap its data-in end to the other side."],
+  ["feed", "Set feed", "Click the strip the controller wire goes to. Its arrow end becomes LED 0."],
+  ["wire", "Wire", "Click the strip the data leaves (from its far end), then the strip it enters (at its arrow end). Any strip to any strip, in the order you will solder them."],
+  ["erase", "Erase", "Click a strip to remove it and its jumpers."],
+  ["side", "Side", "Click a strip to move it between the Front face and the Back face of the plate."],
+  ["order", "Color order", "Click a strip to set the color order of its LEDs. Strips from different vendors can differ."],
+];
+const mxNew = dens => ({ v: 1, dens: dens || 60, tape: 10, snap: 1, cols: 26, rows: 14, feed: null, nextId: 1, strips: [], wires: [],
+  plc: { face: "forward", x: 5, y: 0, z: 24, lean: 0, thick: 0.25 } });
+const mxDefaultLook = () => ({ mode: fw42() ? "rain" : "rise", rgb: [255, 96, 0], speed: 5 });
+const mxPitch = M => 1000 / M.dens, mxQ = M => 1000 / M.dens / 4;   // LED spacing and one grid step, mm
+const mxEnd = t => ({ x: t.x + t.dx * 4 * (t.n - 1), y: t.y + t.dy * 4 * (t.n - 1) });
+const mxById = (M, id) => M.strips.find(t => t.id === id) || null;
+const mxTotal = M => M.strips.reduce((a, t) => a + t.n, 0);
+const mxInch = mm => (Math.round(mm / 25.4 * 10) / 10).toFixed(1) + " in";
+// The strip's footprint in mm: half an LED spacing past the first and last LED, half the strip width to each side.
+function mxRect(M, t) {
+  const e = mxEnd(t), q = mxQ(M), w = M.tape / 2, h = mxPitch(M) / 2, ax = t.dx !== 0 ? h : w, ay = t.dy !== 0 ? h : w;
+  return [Math.min(t.x, e.x) * q - ax, Math.min(t.y, e.y) * q - ay, Math.max(t.x, e.x) * q + ax, Math.max(t.y, e.y) * q + ay];
+}
+// Would t overlap another strip on its own face? (Strips on the other face never clash.)
+function mxClash(M, t, skipId) {
+  const a = mxRect(M, t), eps = 0.3;
+  return M.strips.some(o => o.id !== skipId && o.side === t.side && (b => a[0] < b[2] - eps && a[2] > b[0] + eps && a[1] < b[3] - eps && a[3] > b[1] + eps)(mxRect(M, o)));
+}
+// The strip under (xm, ym) mm: the face being looked at first.
+function mxHit(M, xm, ym, view) {
+  for (const f of view === "b" ? ["b", "f"] : ["f", "b"]) {
+    const t = M.strips.find(o => o.side === f && (r => xm >= r[0] - 1.5 && xm <= r[2] + 1.5 && ym >= r[1] - 1.5 && ym <= r[3] + 1.5)(mxRect(M, o)));
+    if (t) return t;
+  }
+  return null;
+}
+// Strips in LED order, following the wires from the feed, with the count of each one's first LED.
+function mxOrder(M) {
+  const out = [], seen = new Set(); let cur = mxById(M, M.feed), first = 0;
+  while (cur && !seen.has(cur.id)) {
+    seen.add(cur.id); out.push({ t: cur, first }); first += cur.n;
+    const w = M.wires.find(x => x.a === cur.id); cur = w ? mxById(M, w.b) : null;
+  }
+  return out;
+}
+// Lay a strip on `face` from the start p (grid units) toward the second click (xm, ym mm). {t}, {cancel} or {err}.
+function mxLay(M, face, p, xm, ym) {
+  const q = mxQ(M), maxX = (M.cols - 1) * 4, maxY = (M.rows - 1) * 4;
+  const ddx = xm - p.x * q, ddy = ym - p.y * q, horiz = Math.abs(ddx) >= Math.abs(ddy), d = horiz ? ddx : ddy;
+  let n = Math.round(Math.abs(d) / mxPitch(M)) + 1;
+  if (n < 2) return { cancel: true };
+  const dir = d > 0 ? 1 : -1, room = horiz ? (dir > 0 ? maxX - p.x : p.x) : (dir > 0 ? maxY - p.y : p.y);
+  n = Math.min(n, Math.floor(room / 4) + 1);
+  if (n < 2) return { err: "No room that way: the strip would leave the grid." };
+  if (M.strips.length >= MX_MAX_STRIPS) return { err: `At most ${MX_MAX_STRIPS} strips on one output. This matrix has ${M.strips.length}.` };
+  if (mxTotal(M) + n > MX_MAX_LEDS) return { err: `At most ${MX_MAX_LEDS} LEDs on one output: ${mxTotal(M)} so far, this strip adds ${n}.` };
+  const t = { id: M.nextId, x: p.x, y: p.y, dx: horiz ? dir : 0, dy: horiz ? 0 : dir, n, side: face, order: "" };   // order "" = the output's own
+  if (mxClash(M, t)) return { err: "That would overlap another strip on this face at this strip width." };
+  M.strips.push(t); M.nextId++;
+  if (M.feed == null) M.feed = t.id;
+  return { t };
+}
+// Wire the data from the end of strip a to the start of strip b. Returns the reason it is refused, or "".
+function mxWire(M, a, b) {
+  if (b === M.feed) return "The feed strip comes first, so nothing wires into it. Move the feed with Set feed.";
+  const next = {}; M.wires.forEach(w => { if (w.a !== a && w.b !== b) next[w.a] = w.b; });
+  for (let cur = b, i = 0; cur != null && i < 200; cur = next[cur], i++) if (cur === a) return "That would make a loop.";
+  M.wires = M.wires.filter(w => w.a !== a && w.b !== b).concat([{ a, b }]);
+  return "";
+}
+function mxErase(M, id) { M.strips = M.strips.filter(t => t.id !== id); M.wires = M.wires.filter(w => w.a !== id && w.b !== id); if (M.feed === id) M.feed = null; }
+function mxFlip(M, t) { const e = mxEnd(t); Object.assign(t, { x: e.x, y: e.y, dx: -t.dx, dy: -t.dy }); }
+function mxSetSide(M, t) {
+  const to = t.side === "f" ? "b" : "f";
+  if (mxClash(M, { ...t, side: to }, t.id)) return `That would overlap a strip already on the ${to === "f" ? "front" : "back"} face.`;
+  t.side = to; return "";
+}
+// One click of the builder (xm, ym in mm on the grid). U = {tool, pend, view, msg, bad}. Returns nothing; U.msg is what to say.
+function mxAct(M, U, xm, ym) {
+  const q = mxQ(M), step = 4 / M.snap, maxX = (M.cols - 1) * 4, maxY = (M.rows - 1) * 4;
+  const ux = Math.round(xm / q / step) * step, uy = Math.round(ym / q / step) * step;
+  const hit = mxHit(M, xm, ym, U.view), say = (m, bad = true) => { U.msg = m; U.bad = bad; };
+  U.msg = ""; U.bad = false;
+  if (U.tool === "lay") {
+    const face = U.view === "b" ? "b" : "f";
+    if (!U.pend) {
+      if (ux < 0 || ux > maxX || uy < 0 || uy > maxY) return;
+      if (hit && hit.side === face) return say("There is already a strip there. Use Erase first to redo it.");
+      U.pend = { x: ux, y: uy }; return;
+    }
+    const r = mxLay(M, face, U.pend, xm, ym);
+    if (r.cancel) U.pend = null; else if (r.err) say(r.err); else U.pend = null;
+    return;
+  }
+  if (!hit) return;
+  if (U.tool === "flip") mxFlip(M, hit);
+  else if (U.tool === "feed") { M.feed = hit.id; M.wires = M.wires.filter(w => w.b !== hit.id); }
+  else if (U.tool === "order") U.sel = hit.id;
+  else if (U.tool === "erase") { mxErase(M, hit.id); U.pend = null; if (U.sel === hit.id) U.sel = null; }
+  else if (U.tool === "side") { const e = mxSetSide(M, hit); if (e) say(e); else say(`Strip moved to the ${hit.side === "f" ? "front" : "back"} face.`, false); }
+  else if (U.tool === "wire") {
+    if (!U.pend) { U.pend = { id: hit.id }; return; }
+    const a = U.pend.id;
+    if (a === hit.id) { U.pend = null; return; }
+    const e = mxWire(M, a, hit.id);
+    if (e) say(e); else U.pend = null;
+  }
+}
+// Where the lit area is on the grid: the box around every strip's footprint, both faces.
+function mxFrame(M) {
+  if (!M.strips.length) return { cx: 0, cy: 0, w: 0, h: 0 };
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  M.strips.forEach(t => { const r = mxRect(M, t); x0 = Math.min(x0, r[0]); y0 = Math.min(y0, r[1]); x1 = Math.max(x1, r[2]); y1 = Math.max(y1, r[3]); });
+  return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 };
+}
+// Placement: a point on the plate to bike mm. P = {face, cx, cy, cz (mm, center of the lit area), lean (deg), thick (mm)}.
+// u = mm to the right and w = mm up, as seen looking at the front face, from the center of the lit area; back = a back-face LED.
+// h = the horizontal way the front face points, as (x back, y right). The viewer looks the other way, so the viewer's right is r = (-hy, hx).
+// The plate leans back at the top by `lean`: its up vector is (-hx sin, -hy sin, cos) and its front normal (hx cos, hy cos, sin).
+// A back-face LED sits `thick` behind the front face, along the normal.
+//   x = cx + u rx - w hx sin - d hx cos,  y = cy + u ry - w hy sin - d hy cos,  z = cz + w cos - d sin   (d = thick for the back face, else 0)
+function mxPlace(P, u, w, back) {
+  const h = MX_DIR[P.face] || MX_DIR.forward, th = (P.lean || 0) * Math.PI / 180, s = Math.sin(th), c = Math.cos(th);
+  const rx = -h[1], ry = h[0], d = back ? (P.thick || 0) : 0;
+  return [P.cx + u * rx - w * h[0] * s - d * h[0] * c, P.cy + u * ry - w * h[1] * s - d * h[1] * c, P.cz + w * c - d * s];
+}
+const mxPlcMm = M => ({ face: M.plc.face, cx: M.plc.x * 25.4, cy: M.plc.y * 25.4, cz: M.plc.z * 25.4, lean: M.plc.lean, thick: M.plc.thick * 25.4 });
+// Every wired LED in order: its grid spot (mm) and its bike position (mm).
+function mxLeds(M) {
+  const q = mxQ(M), fr = mxFrame(M), P = mxPlcMm(M), out = [];
+  mxOrder(M).forEach(({ t, first }) => {
+    for (let k = 0; k < t.n; k++) {
+      const gx = (t.x + t.dx * 4 * k) * q, gy = (t.y + t.dy * 4 * k) * q, back = t.side === "b";
+      out.push({ px: first + k, t, back, gx, gy, pos: mxPlace(P, gx - fr.cx, -(gy - fr.cy), back) });
+    }
+  });
+  return out;
+}
+// The path sent to the controller: two points per strip, [pixel, x, y, z] (whole mm), in LED order.
+function mxGeom(M) {
+  const led = mxLeds(M), pts = [];
+  mxOrder(M).forEach(({ t, first }) => [0, t.n - 1].forEach(k => { const L = led[first + k]; pts.push([L.px, ...L.pos.map(v => Math.round(v))]); }));
+  return pts;
+}
+function mxBox(M) {   // the box the wired LEDs fill on the bike, mm
+  const led = mxLeds(M); if (!led.length) return null;
+  const b = [[Infinity, -Infinity], [Infinity, -Infinity], [Infinity, -Infinity]];
+  led.forEach(L => L.pos.forEach((v, j) => { b[j][0] = Math.min(b[j][0], v); b[j][1] = Math.max(b[j][1], v); }));
+  return { x: b[0], y: b[1], z: b[2] };
+}
+// Why the matrix cannot be added yet, or "".
+function mxCheck(M) {
+  if (!M.strips.length) return "Lay at least one strip.";
+  if (M.feed == null || !mxById(M, M.feed)) return "Pick the feed: the strip end where the wire from the controller connects.";
+  const loose = M.strips.length - mxOrder(M).length;
+  if (loose) return `${loose} ${loose === 1 ? "strip is" : "strips are"} not wired in yet. Use Wire: click the strip the data leaves, then the strip it goes to.`;
+  if (M.strips.length > MX_MAX_STRIPS) return `More than ${MX_MAX_STRIPS} strips: too many for one output.`;
+  if (mxTotal(M) > MX_MAX_LEDS) return `Over the ${MX_MAX_LEDS}-LED limit for one output.`;
+  return "";
+}
+// Color zones for the controller: one [start, count, ORDER] per run of consecutive LEDs whose strip order differs from the output's.
+function mxZones(M, outOrder) {
+  const z = [];
+  mxOrder(M).forEach(({ t, first }) => {
+    if (!t.order || t.order === outOrder) return;
+    const last = z[z.length - 1];
+    if (last && last[2] === t.order && last[0] + last[1] === first) last[1] += t.n; else z.push([first, t.n, t.order]);
+  });
+  return z;
+}
+// What a strip really is, from what it showed. The controller sends logical R, G, B at the wire positions the order O names; the LED's k-th wire
+// position drives channel T[k]. So logical red shows as T[posO(R)] = s1 and green as T[posO(G)] = s2, and blue is the channel left over.
+// s1, s2: "R", "G" or "B" (null = nothing lit). Returns the true order, or null when the answers cannot tell.
+function mxOrderFromSeen(O, s1, s2) {
+  if (!s1 || !s2 || s1 === s2 || !"RGB".includes(s1) || !"RGB".includes(s2) || O.length !== 3) return null;
+  const T = []; T[O.indexOf("R")] = s1; T[O.indexOf("G")] = s2; T[O.indexOf("B")] = "RGB".replace(s1, "").replace(s2, "");
+  return T.join("");
+}
+const mxFaces = M => { const f = M.strips.filter(t => t.side === "f").length; return [f, M.strips.length - f]; };
+// ---- the design on this device (per output) and in a file ----
+const mxSerialize = M => JSON.stringify({ app: "rcr-lighting-matrix", ...M }, null, 1);
+function mxParse(text) {
+  let j; try { j = JSON.parse(text); } catch (e) { return { err: "That file is not a matrix design (it is not JSON)." }; }
+  const bad = why => ({ err: "That file is not a matrix design: " + why + "." });
+  if (!j || typeof j !== "object" || !Array.isArray(j.strips) || !Array.isArray(j.wires)) return bad("no strips");
+  const num = (v, lo, hi) => Number.isFinite(Number(v)) && Number(v) >= lo && Number(v) <= hi;
+  const M = mxNew(60);
+  if (!num(j.dens, 10, 300)) return bad("the LEDs per meter is missing");
+  M.dens = Number(j.dens);
+  M.tape = num(j.tape, 3, 40) ? Number(j.tape) : 10; M.snap = [1, 2, 4].includes(j.snap) ? j.snap : 1;
+  M.cols = num(j.cols, 4, 64) ? Math.round(j.cols) : 26; M.rows = num(j.rows, 2, 64) ? Math.round(j.rows) : 14;
+  const ids = new Set();
+  for (const t of j.strips) {
+    if (!t || !Number.isInteger(t.id) || ids.has(t.id) || !Number.isInteger(t.x) || !Number.isInteger(t.y) || !Number.isInteger(t.n) || t.n < 2 || t.n > MX_MAX_LEDS
+        || ![t.dx, t.dy].every(v => v === 0 || v === 1 || v === -1) || Math.abs(t.dx) + Math.abs(t.dy) !== 1) return bad("a strip is not valid");
+    ids.add(t.id); M.strips.push({ id: t.id, x: t.x, y: t.y, dx: t.dx, dy: t.dy, n: t.n, side: t.side === "b" ? "b" : "f", order: ORDERS.includes(t.order) ? t.order : "" });
+  }
+  for (const w of j.wires) { if (!w || !ids.has(w.a) || !ids.has(w.b) || w.a === w.b) return bad("a wire is not valid"); M.wires.push({ a: w.a, b: w.b }); }
+  M.feed = ids.has(j.feed) ? j.feed : null;
+  M.nextId = Math.max(Number.isInteger(j.nextId) ? j.nextId : 1, ...[...ids].map(v => v + 1), 1);
+  const p = j.plc || {};
+  M.plc = { face: MX_DIR[p.face] ? p.face : "forward", x: num(p.x, -2000, 2000) ? Number(p.x) : 5, y: num(p.y, -2000, 2000) ? Number(p.y) : 0,
+            z: num(p.z, -2000, 2000) ? Number(p.z) : 24, lean: num(p.lean, -85, 85) ? Number(p.lean) : 0, thick: num(p.thick, 0, 40) ? Number(p.thick) : 0.25 };
+  M.strips.forEach(t => { const e = mxEnd(t); M.cols = Math.max(M.cols, Math.ceil(Math.max(t.x, e.x) / 4) + 1); M.rows = Math.max(M.rows, Math.ceil(Math.max(t.y, e.y) / 4) + 1); });
+  return { M };
+}
+function mxStore(i, M) { store.set(MX_KEY(i), mxSerialize(M)); }
+// The design saved on this device for output i, if it still matches the controller's pixel count.
+function mxStored(i, px) {
+  const t = store.get(MX_KEY(i)); if (!t) return null;
+  const r = mxParse(t); return r.M && (px == null || mxTotal(r.M) === px) ? r.M : null;
+}
+function mxDownload(M, name) {
+  try {
+    const url = URL.createObjectURL(new Blob([mxSerialize(M)], { type: "application/json" }));
+    const a = el("a", { href: url, download: name }); document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch (e) { toast("This browser would not save the file: " + e.message, true); }
+}
+
+// ---- matrix preview: the chosen effect drawn on the matrix's own strip layout (approximate) ----
+// The position-based effects (wave, sweep, rise, rainbow_x) use the LEDs' bike positions like the controller does. The 0.4.2 effects run in
+// the plate's own box: h = height, w = along the plate's width, rising with the bike coordinate (x or y) it runs along; an LED on the back
+// face gets the colour of the front-face LED at the same grid spot (same col and row).
+function mxPreview(M, look, nowMs, ledList) {
+  const led = ledList || mxLeds(M), n = led.length; if (!n) return [];
+  const bnd = { any: true, x: [Infinity, -Infinity], y: [Infinity, -Infinity], z: [Infinity, -Infinity] }, gx = [Infinity, -Infinity], gy = [Infinity, -Infinity];
+  led.forEach(L => {
+    L.pos.forEach((v, j) => { const r = bnd["xyz"[j]]; r[0] = Math.min(r[0], v); r[1] = Math.max(r[1], v); });
+    gx[0] = Math.min(gx[0], L.gx); gx[1] = Math.max(gx[1], L.gx); gy[0] = Math.min(gy[0], L.gy); gy[1] = Math.max(gy[1], L.gy);
+  });
+  const norm = (v, r) => r[1] > r[0] ? (v - r[0]) / (r[1] - r[0]) : 0.5, ex = gx[1] - gx[0], ey = gy[1] - gy[0];
+  const hd = MX_DIR[M.plc.face] || MX_DIR.forward, up = hd[0] - hd[1] > 0 ? 1 : -1;   // does the bike coordinate along the plate's width fall (-1) or rise (+1) to the viewer's right
+  const big = Math.max(ex, ey, 1), half = mxPitch(M) / 2, sp = look.speed || 5, rgb = look.rgb || [255, 96, 0];
+  const A = { accent: { on: true, mode: look.mode, rgb, speed: sp, pct: 100 } };
+  return led.map((L, i) => {
+    if (FX_NEW.includes(look.mode)) {
+      const f = fxPixel(look.mode, rgb, sp, { w: up > 0 ? norm(L.gx, gx) : 1 - norm(L.gx, gx), h: ey > 0 ? 1 - (L.gy - gy[0]) / ey : 0.5,
+        col: Math.round(L.gx / half), row: Math.round(L.gy / half), ax: ex / big, ay: ey / big }, nowMs);
+      return f.c.map(v => Math.round(v * f.k));
+    }
+    return accentPix(A, look.rev ? n - 1 - i : i, n, L.pos, bnd, nowMs, 1, 100);
+  });
+}
+// view: "f", "b" or "both" (side by side). Returns false when there is no canvas context (jsdom without canvas).
+function mxDraw(cv, M, look, nowMs, view) {
+  const ctx = cv.getContext && cv.getContext("2d"); if (!ctx) return false;
+  const led = mxLeds(M), cols = mxPreview(M, look, nowMs, led);
+  const hasBack = led.some(L => L.back), faces = view === "f" ? ["f"] : view === "b" ? ["b"] : hasBack ? ["f", "b"] : ["f"];
+  const ext = [Infinity, -Infinity, Infinity, -Infinity];
+  led.forEach(L => { ext[0] = Math.min(ext[0], L.gx); ext[1] = Math.max(ext[1], L.gx); ext[2] = Math.min(ext[2], L.gy); ext[3] = Math.max(ext[3], L.gy); });
+  if (!led.length) { ext[0] = ext[1] = ext[2] = ext[3] = 0; }
+  const pitch = mxPitch(M), ew = ext[1] - ext[0] + pitch, eh = ext[3] - ext[2] + pitch, nf = faces.length, pad = 10, gap = 16, lab = 18;
+  // The backing store is the canvas's CSS size times the device pixel ratio, so text and dots are sharp.
+  const dpr = Math.max(1, Math.min(3, (typeof window !== "undefined" && window.devicePixelRatio) || 1));
+  const cssW = Math.round(cv.clientWidth || 300 * nf + gap * (nf - 1) + pad * 2);
+  const cw = (cssW - pad * 2 - gap * (nf - 1)) / nf;
+  const sc = Math.min(cw / ew, 24 / pitch, 380 / eh);   // true proportions, a cell never bigger than 24 CSS px, so a short strip stays small
+  const cssH = Math.max(90, Math.round(eh * sc) + lab + pad * 2);
+  const W = Math.round(cssW * dpr), H = Math.round(cssH * dpr);
+  if (cv.width !== W) cv.width = W; if (cv.height !== H) cv.height = H;
+  cv.style.height = cssH + "px";
+  const r = Math.min(10, Math.max(1.6, sc * pitch * 0.34));
+  ctx.setTransform && ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = "#101419"; ctx.fillRect(0, 0, cssW, cssH);
+  ctx.font = "600 12px sans-serif"; ctx.textBaseline = "top";
+  faces.forEach((f, k) => {
+    const ox = pad + k * (cw + gap) + (cw - ew * sc) / 2 + pitch * sc / 2, oy = pad + lab + (cssH - pad * 2 - lab - eh * sc) / 2 + pitch * sc / 2;
+    ctx.fillStyle = "#c3cad1"; ctx.fillText(f === "f" ? "Front" : "Back", pad + k * (cw + gap), pad - 2);
+    led.forEach(L => {
+      if ((L.back ? "b" : "f") !== f) return;
+      const c = cols[L.px], lit = c[0] + c[1] + c[2] > 12;
+      ctx.beginPath(); ctx.arc(ox + (L.gx - ext[0]) * sc, oy + (L.gy - ext[2]) * sc, r, 0, 6.2832);
+      ctx.fillStyle = lit ? `rgb(${c[0]},${c[1]},${c[2]})` : "#242c34"; ctx.fill();
+    });
+  });
+  return true;
+}
+// Animation: one loop for every preview canvas on screen; it runs only while one is visible (tab shown, card open, page not hidden)
+// and draws a single still frame when the user prefers reduced motion.
+const MXA = { set: new Set(), raf: 0, frames: 0 };
+const mxReduced = () => { try { return !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) { return false; } };
+function mxVisible(cv) {
+  if (!cv.isConnected || document.hidden || cv.closest("[hidden]")) return false;
+  const tab = cv.closest(".tab"); return !tab || tab.classList.contains("active");
+}
+function mxTick() {
+  MXA.raf = 0;
+  const still = mxReduced(); let live = false;
+  for (const cv of [...MXA.set]) {
+    if (!cv.isConnected) { MXA.set.delete(cv); continue; }
+    if (!mxVisible(cv)) continue;
+    cv._mxDraw(still ? 0 : performance.now()); MXA.frames++; live = true;
+  }
+  if (live && !still) MXA.raf = requestAnimationFrame(mxTick);
+}
+function mxKick() { if (!MXA.raf && MXA.set.size) MXA.raf = requestAnimationFrame(mxTick); }
+function mxWatch(cv, draw) { cv._mxDraw = draw; MXA.set.add(cv); mxKick(); }
+document.addEventListener("visibilitychange", mxKick);
+window.addEventListener("resize", mxKick);
+function mxPreviewBox(M, getLook, view) {
+  const get = typeof view === "function" ? view : () => view;
+  const cv = el("canvas", { class: "mx-prev", width: 640, height: 240, role: "img", "aria-label": "Preview of the matrix with the chosen effect (approximate)", "data-mx-canvas": "1" });
+  mxWatch(cv, now => mxDraw(cv, M, getLook(), now, get()));
+  return el("div", { class: "mx-prevbox" }, el("div", { class: "ct-h" }, "Preview (approximate)"), cv,
+    el("p", { class: "note", style: "margin:0" }, "Patterns only, drawn from the plate as seen from the front. The real light differs in detail. It holds still when reduced motion is on."));
+}
+
+// ---- matrix: screens ----
+function mxDensityCard(M) {
+  const inp = el("input", { type: "number", min: 10, max: 300, step: 1, value: M.dens, inputmode: "numeric", id: "mxDensIn" });
+  inp.addEventListener("change", () => { M.dens = clamp(Math.round(Number(inp.value)) || M.dens, 10, 300); buildBike(); });
+  return el("div", { class: "panel bike-card" }, el("h3", {}, "LEDs per meter"),
+    el("p", { class: "note" }, "This sets the grid spacing, both ways. For a strip with several LEDs per pixel, count pixels per meter."),
+    el("div", { class: "bike-pills" }, ...MX_DENS.map(d => el("button", { class: "btn", "aria-pressed": String(M.dens === d), "data-mx-dens": d, onclick: () => { M.dens = d; buildBike(); } }, String(d)))),
+    el("label", { class: "ct-lbl" }, "Or type a number", inp),
+    el("p", { class: "note" }, `${(1000 / M.dens).toFixed(1)} mm between LEDs.`));
+}
+function mxLoadLabel(onLoad, id) {
+  const inp = el("input", { type: "file", accept: ".json,application/json", id, class: "mx-file", "aria-label": "Load a design file" });
+  inp.addEventListener("change", () => {
+    const f = inp.files && inp.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = () => { const r = mxParse(String(rd.result)); if (r.err) toast(r.err, true); else onLoad(r.M); };
+    rd.onerror = () => toast("That file could not be read.", true);
+    rd.readAsText(f);
+  });
+  return el("label", { class: "btn mx-load" }, "Load a design file", inp);
+}
+// The grid's drawing area in mm: a margin of 1.4 LED spacings (at least 16 mm) around the grid points.
+function mxVb(M) { const pitch = mxPitch(M), m = Math.max(16, pitch * 1.4); return { pitch, vbx: -m, vby: -m, vbw: (M.cols - 1) * pitch + 2 * m, vbh: (M.rows - 1) * pitch + 2 * m }; }
+const mxDirText = t => (t.dx > 0 ? "across, left to right" : t.dx < 0 ? "across, right to left" : t.dy > 0 ? "down" : "up");
+function mxDraw2(M, U, outOrder) {   // the SVG of the grid and the labels
+  const g = mxVb(M), q = mxQ(M), u = g.pitch, f = v => v.toFixed(1), rad = Math.max(1.3, Math.min(3.4, u * 0.24));
+  const dot = (x, y, r) => `M${f(x - r)} ${f(y)}a${f(r)} ${f(r)} 0 1 0 ${f(2 * r)} 0a${f(r)} ${f(r)} 0 1 0 ${f(-2 * r)} 0`;
+  const reached = new Map(mxOrder(M).map(o => [o.t.id, o]));
+  let gridD = ""; for (let r = 0; r < M.rows; r++) for (let c = 0; c < M.cols; c++) gridD += dot(c * u, r * u, Math.max(0.7, u * 0.06));
+  const G = {};   // face + ghost flag -> {tape, bad, led, arrow}
+  const grp = (t) => { const k = t.side + (U.view === "both" || t.side === U.view ? "" : "g"); return G[k] || (G[k] = { tape: "", bad: "", led: "", arrow: "" }); };
+  M.strips.forEach(t => {
+    const e = mxEnd(t), x0 = t.x * q, y0 = t.y * q, x1 = e.x * q, y1 = e.y * q, h = u / 2, S = grp(t);
+    const seg = `M${f(x0 - t.dx * h)} ${f(y0 - t.dy * h)}L${f(x1 + t.dx * h)} ${f(y1 + t.dy * h)}`;
+    if (reached.has(t.id)) S.tape += seg; else S.bad += seg;
+    for (let i = 1; i < t.n; i++) S.led += dot(x0 + t.dx * u * i, y0 + t.dy * u * i, rad);
+    const a = Math.min(u * 0.4, M.tape * 0.55);
+    S.arrow += `M${f(x0 + t.dx * a)} ${f(y0 + t.dy * a)}L${f(x0 - t.dx * a * 0.7 - t.dy * a * 0.8)} ${f(y0 - t.dy * a * 0.7 + t.dx * a * 0.8)}L${f(x0 - t.dx * a * 0.7 + t.dy * a * 0.8)} ${f(y0 - t.dy * a * 0.7 - t.dx * a * 0.8)}Z`;
+  });
+  let svg = `<path d="${gridD}" fill="#4a535d"/>`;
+  ["bg", "fg", "b", "f"].forEach(k => {
+    const S = G[k]; if (!S) return;
+    const back = k[0] === "b", dash = back ? ' stroke-dasharray="5 4"' : "";   // back-face strips: dashed tape and ring-shaped LEDs
+    svg += `<g${k.length > 1 ? ' opacity=".3"' : ""}>`
+      + (S.tape ? `<path d="${S.tape}" fill="none" stroke="${back ? "#2f6fb0" : "#39414a"}" stroke-width="${M.tape}"${dash}/>` : "")
+      + (S.bad ? `<path d="${S.bad}" fill="none" stroke="#7a4a10" stroke-width="${M.tape}"${dash}/>` : "")
+      + (back ? `<path d="${S.led}" fill="none" stroke="#9fd4ff" stroke-width="${f(Math.max(0.5, rad * 0.45))}"/>` : `<path d="${S.led}" fill="#ffffff"/>`)
+      + `<path d="${S.arrow}" fill="#2fbf68"/></g>`;
+  });
+  let wires = "";
+  M.wires.forEach(w => {
+    const a = mxById(M, w.a), b = mxById(M, w.b); if (!a || !b) return;
+    const e = mxEnd(a);
+    wires += `M${f(e.x * q)} ${f(e.y * q)}L${f(b.x * q)} ${f(b.y * q)}`;
+  });
+  svg += `<path d="${wires}" fill="none" stroke="#3d8bff" stroke-width="${f(Math.max(0.9, u * 0.1))}" stroke-linecap="round"/>`;
+  const feed = mxById(M, M.feed);
+  if (feed) svg += `<path d="${dot(feed.x * q, feed.y * q, u * 0.5)}" fill="none" stroke="#2fbf68" stroke-width="${f(Math.max(0.9, u * 0.1))}"/>`;
+  if (U.pend && U.tool === "lay") svg += `<path d="${dot(U.pend.x * q, U.pend.y * q, u * 0.42)}" fill="none" stroke="#ffa41b" stroke-width="${f(Math.max(0.9, u * 0.1))}"/>`;
+  if (U.pend && U.tool === "wire") { const p = mxById(M, U.pend.id); if (p) { const e = mxEnd(p); svg += `<path d="${dot(e.x * q, e.y * q, u * 0.42)}" fill="none" stroke="#ffa41b" stroke-width="${f(Math.max(0.9, u * 0.1))}"/>`; } }
+  const pct = (v, o, s) => ((v - o) / s * 100).toFixed(2) + "%";
+  const labels = M.strips.filter(t => U.view === "both" || t.side === U.view).map(t => {
+    const o = reached.get(t.id), isFeed = t.id === M.feed;
+    return { l: pct(t.x * q, g.vbx, g.vbw), t: pct(t.y * q, g.vby, g.vbh), bg: o ? (isFeed ? "#2fbf68" : "#ffffff") : "#ffa41b",
+             text: (o ? (isFeed ? "Feed · 0" : String(o.first)) : "not wired") + (t.side === "b" ? " · back" : "") + (t.order && t.order !== outOrder ? " · " + t.order : ""), id: t.id };
+  });
+  return { g, svg: `<svg id="mxSvg" aria-hidden="true" viewBox="${f(g.vbx)} ${f(g.vby)} ${f(g.vbw)} ${f(g.vbh)}" preserveAspectRatio="none">${svg}</svg>`, labels };
+}
+function mxJumper(M) {   // straight-line length of every wire, mm (a wire between faces also crosses the plate thickness)
+  const q = mxQ(M); let sum = 0;
+  M.wires.forEach(w => {
+    const a = mxById(M, w.a), b = mxById(M, w.b); if (!a || !b) return;
+    const e = mxEnd(a), cross = a.side !== b.side ? M.plc.thick * 25.4 : 0;
+    sum += Math.hypot((b.x - e.x) * q, (b.y - e.y) * q, cross);
+  });
+  return sum;
+}
+function bkBuild(box) {
+  const W = BK.wiz, M = W.mx, U = W.ui || (W.ui = { tool: "lay", pend: null, view: "f", prev: false, msg: "", bad: false });
+  bkWizHead(box);
+  const root = el("div", { class: "mx", id: "mxRoot" }), main = el("div", { class: "mx-main" }), side = el("div", { class: "mx-side" });
+  root.append(main, side); box.append(root);
+  const row = (label, ...kids) => el("div", { class: "mx-row", role: "group", "aria-label": label }, ...kids);
+  const pill = (attr, v, text, fn) => el("button", { class: "btn", [attr]: v, "aria-pressed": "false", onclick: fn }, text);
+  const panel = (title, ...kids) => el("div", { class: "panel bike-card mx-panel" }, el("h3", {}, title), ...kids);
+
+  // -- main column: tools, hint, grid, legend, preview --
+  const outOrder = () => ((app.drafts[W.out] || app.settings.strips[W.out] || {}).order) || "GRB";
+  const tools = row("Tools", ...MX_TOOLS.filter(t => t[0] !== "order" || fw43()).map(([k, t]) => pill("data-mx-tool", k, t, () => { U.tool = k; U.pend = null; U.msg = ""; refresh(); })));
+  const views = row("Face shown", ...[["f", "Front"], ["b", "Back"], ["both", "Both"]].map(([k, t]) => pill("data-mx-view", k, t, () => { U.view = k; U.pend = null; refresh(); })),
+    el("button", { class: "btn", id: "mxPreviewBtn", "aria-pressed": "false", onclick: () => { U.prev = !U.prev; refresh(); } }, "Preview"));
+  const hintT = el("b", {}), hintX = el("span", { class: "note" });
+  const hint = el("div", { class: "mx-hint", role: "status", id: "mxHint" }, hintT, hintX);
+  const gbox = el("div", { class: "mx-grid" }), svgBox = el("div", { class: "mx-svg" }), lbls = el("div", { class: "mx-lbls" });
+  const over = el("button", { class: "mx-over", id: "mxGrid", "aria-label": "Matrix grid. Click grid points to use the selected tool." });
+  gbox.append(svgBox, lbls, over);
+  const scroll = el("div", { class: "mx-scroll", id: "mxScroll" }, gbox);
+  const zoomTxt = el("span", { class: "note", id: "mxZoomTxt" });
+  const cellNow = () => { const g = mxVb(M); return U.cell || Math.max(24, scroll.clientWidth ? Math.floor(scroll.clientWidth / (g.vbw / g.pitch)) : 24); };
+  const zoom = (f) => () => { U.cell = clamp(Math.round(cellNow() * f), 12, 90); refresh(); };
+  const zoomRow = row("Zoom", el("button", { class: "btn", id: "mxZoomOut", "aria-label": "Zoom out", onclick: zoom(1 / 1.25) }, "Zoom −"),
+    el("button", { class: "btn", id: "mxZoomIn", "aria-label": "Zoom in", onclick: zoom(1.25) }, "Zoom +"), zoomTxt);
+  over.addEventListener("click", e => {
+    const g = mxVb(M), r = over.getBoundingClientRect(); if (!r.width || !r.height) return;
+    mxAct(M, U, g.vbx + (e.clientX - r.left) / r.width * g.vbw, g.vby + (e.clientY - r.top) / r.height * g.vbh);
+    refresh();
+  });
+  const faceNote = el("p", { class: "note", style: "margin:0", id: "mxFaceNote" });
+  const legend = el("div", { class: "mx-legend note" },
+    el("span", {}, "Green arrow: data-in end and direction of a strip."), el("span", {}, "Green ring: the feed."), el("span", {}, "Blue line: a jumper you drew."),
+    el("span", {}, "Dashed outline with ring LEDs: a strip on the back face."), el("span", {}, "Orange: not wired in yet."), el("span", {}, "The number on a strip is the count of its first LED."));
+  // preview with its own effect pick
+  const L = W.look;
+  const eff = selectField("Effect", modeList(), L.mode, v => { setModeFire(L, v); col.value = hex(L.rgb); mxKick(); });
+  eff.querySelector("select").id = "mxPrevMode";
+  const col = el("input", { type: "color", value: hex(L.rgb), "aria-label": "Color", id: "mxPrevColor" });
+  col.onchange = () => { L.rgb = unhex(col.value); mxKick(); };
+  const prev = el("div", { class: "mx-prev-wrap panel", id: "mxPrevWrap", hidden: true }, mxPreviewBox(M, () => L, () => U.view), eff,
+    el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col),
+    rangeField("Speed", L.speed, 1, 10, 1, "", v => { L.speed = v; mxKick(); }),
+    el("p", { class: "note", style: "margin:0;padding:0 14px 12px" }, "This effect is where the light starts. You can change it any time on the Control tab."));
+  // color order of one strip (the Color order tool)
+  const ordBox = el("div", { class: "panel bike-card mx-panel", id: "mxOrdPanel", hidden: true });
+  main.append(tools, views, hint, zoomRow, scroll, faceNote, ordBox, legend, prev);
+
+  // -- side column: grid settings, order, messages, stats, files, next --
+  const slider = (id, label, min, max, get, set, fmt) => {
+    const out = el("span", {}, fmt(get())), r = el("input", { type: "range", id, min, max, step: 1, value: get() });
+    r.addEventListener("input", () => { out.textContent = fmt(Number(r.value)); });
+    r.addEventListener("change", () => { set(Number(r.value)); refresh(); });
+    return { r, out, fmt, node: el("label", { class: "ct-lbl" }, el("span", {}, label + ": ", out), r) };
+  };
+  const tapeS = slider("mxTape", "Strip width", 5, 15, () => M.tape, v => { M.tape = v; }, v => v + " mm");
+  const colsS = slider("mxCols", "Columns", 4, 64, () => M.cols, v => { M.cols = Math.max(v, mxUsed(M)[0]); }, v => String(v));
+  const rowsS = slider("mxRows", "Rows", 2, 64, () => M.rows, v => { M.rows = Math.max(v, mxUsed(M)[1]); }, v => String(v));
+  const snaps = el("div", { class: "bike-pills" }, ...[["Whole step", 1], ["Half", 2], ["Quarter", 4]].map(([t, v]) => pill("data-mx-snap", v, t, () => { M.snap = v; U.pend = null; refresh(); })));
+  const gnote = el("p", { class: "note", style: "margin:0" });
+  const gridPanel = panel("Grid", el("p", { class: "note" }, `${(1000 / M.dens).toFixed(1)} mm between LEDs (${M.dens} per meter), both ways.`),
+    tapeS.node, el("span", { class: "ct-lbl" }, "Placement step"), snaps, el("div", { class: "mx-two" }, colsS.node, rowsS.node), gnote);
+  const orderBox = el("div", { class: "panel mx-orderbox" }), orderHead = el("div", { class: "ct-h", style: "padding:12px 14px 8px" }), orderRows = el("div", { id: "mxOrder" });
+  orderBox.append(orderHead, orderRows);
+  const status = el("p", { id: "mxStatus", style: "margin:0;font-weight:600", role: "status" }), msg = el("p", { id: "mxMsg", style: "margin:0;font-weight:500", role: "status" });
+  const stats = el("div", { class: "mx-stats", id: "mxStats" });
+  const files = el("div", { class: "mx-two" },
+    el("button", { class: "btn", id: "mxSave", onclick: () => mxDownload(M, `matrix-output-${W.out + 1}.json`) }, "Save design to a file"),
+    mxLoadLabel(m => { Object.keys(M).forEach(k => delete M[k]); Object.assign(M, m); U.pend = null; U.msg = "Design loaded."; U.bad = false; buildBike(); }, "mxLoad"));
+  const clearW = el("button", { class: "btn", id: "mxClearWires", onclick: () => { M.wires = []; U.pend = null; refresh(); } }, "Clear the wiring");
+  const clearA = el("button", { class: "btn danger", id: "mxClearAll" }, "Clear everything");
+  armed(clearA, "Tap again to clear", () => { M.strips = []; M.wires = []; M.feed = null; U.pend = null; U.msg = ""; refresh(); });
+  const next = bkNextBtn("Next: place it on the bike", () => { const w = mxCheck(M); if (w) { toast(w, true); return; } bkNext(); }, true);
+  if (W.edit) side.append(mxDensityCard(M));   // a rebuild has no LED-spacing step before it
+  side.append(gridPanel, orderBox, status, msg, stats, files, el("div", { class: "mx-two" }, clearW, clearA), next);
+
+  function refresh() {
+    root.querySelectorAll("[data-mx-tool]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mxTool === U.tool)));
+    root.querySelectorAll("[data-mx-view]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mxView === U.view)));
+    root.querySelectorAll("[data-mx-snap]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mxSnap === String(M.snap))));
+    $("mxPreviewBtn").setAttribute("aria-pressed", String(U.prev)); prev.hidden = !U.prev;
+    const cur = MX_TOOLS.find(t => t[0] === U.tool);
+    hintT.textContent = cur[1];
+    hintX.textContent = U.tool === "lay" && U.pend ? "Start point set (orange ring). Now click toward the end: left, right, up or down. Click the start again to cancel."
+      : U.tool === "wire" && U.pend ? "Jumper starts at the orange ring. Now click the strip it goes to. Click the same strip again to cancel."
+      : cur[2] + (U.tool === "lay" ? ` New strips go on the ${U.view === "b" ? "back" : "front"} face.` : "");
+    const d = mxDraw2(M, U, outOrder());
+    svgBox.innerHTML = d.svg; gbox.style.aspectRatio = `${d.g.vbw.toFixed(1)} / ${d.g.vbh.toFixed(1)}`;
+    const cell = cellNow(); gbox.style.width = (d.g.vbw / d.g.pitch * cell).toFixed(0) + "px"; gbox.dataset.cell = String(cell);
+    zoomTxt.textContent = `${cell} px per LED`;
+    ordPanel();
+    lbls.replaceChildren(...d.labels.map(l => el("span", { class: "mx-lbl", "data-mx-label": l.id, style: `left:${l.l};top:${l.t};background:${l.bg}` }, l.text)));
+    faceNote.textContent = (U.view === "b" ? "Back face, drawn as seen from the front: the grid is not mirrored, so a spot is in the same place on both faces. " : U.view === "both" ? "Both faces on one grid, as seen from the front; the grid is not mirrored. " : "Front face, as seen looking at it. ")
+      + "The other face is shown faintly; you can still click its strips.";
+    const ord = mxOrder(M), reached = new Set(ord.map(o => o.t.id)), loose = M.strips.filter(t => !reached.has(t.id)), total = mxTotal(M), wired = ord.reduce((a, o) => a + o.t.n, 0);
+    orderHead.textContent = `LED order · ${wired} of ${total} LEDs wired`;
+    orderRows.replaceChildren(...ord.map((o, i) => el("div", { class: "mx-order-row" }, el("span", { class: "n" }, String(i + 1)),
+        el("span", {}, `${o.t.n} LEDs ${mxDirText(o.t)}${o.t.side === "b" ? " · back" : ""} · LEDs ${o.first} to ${o.first + o.t.n - 1}`))),
+      ...loose.map(t => el("div", { class: "mx-order-row loose" }, el("span", { class: "n" }, "–"), el("span", {}, `${t.n} LEDs ${mxDirText(t)}${t.side === "b" ? " · back" : ""} · not wired in`))));
+    const why = mxCheck(M);
+    status.textContent = !M.strips.length ? "Empty grid. Pick Lay strip, then click where a strip starts and where it ends." : why || `All wired. The LEDs count 0 to ${total - 1} in the order listed.`;
+    status.className = !M.strips.length ? "" : why ? "mx-bad" : "mx-good";
+    msg.textContent = U.msg; msg.className = U.msg ? (U.bad ? "mx-bad" : "mx-good") : "";
+    const [nf, nb] = mxFaces(M), fr = mxFrame(M);
+    stats.replaceChildren(...[["Strips", `${M.strips.length} (${nf} front, ${nb} back)`], [`LEDs (limit ${MX_MAX_LEDS} per output)`, String(total)],
+      ["Lit area", M.strips.length ? `${mxInch(fr.w)} × ${mxInch(fr.h)}` : "0.0 in × 0.0 in"], ["Jumper wire drawn", mxInch(mxJumper(M))]]
+      .map(([k, v]) => el("div", {}, el("span", { class: "note" }, k), el("b", {}, v))));
+    const [uc, ur] = mxUsed(M);
+    colsS.r.min = Math.max(4, uc); rowsS.r.min = Math.max(2, ur);
+    colsS.r.value = M.cols; rowsS.r.value = M.rows; colsS.out.textContent = String(M.cols); rowsS.out.textContent = String(M.rows);
+    tapeS.r.value = M.tape; tapeS.out.textContent = M.tape + " mm";
+    gnote.textContent = `Strips start on a ${(mxPitch(M) / M.snap).toFixed(1)} mm step, so rows can sit closer than one LED spacing when the strip width allows. Grid area ${mxInch((M.cols - 1) * mxPitch(M))} × ${mxInch((M.rows - 1) * mxPitch(M))}.`;
+    next.disabled = !!why;
+    mxKick();
+  }
+  // -- the Color order panel and its test --
+  function ordPanel() {
+    ordBox.hidden = U.tool !== "order" || !fw43(); if (ordBox.hidden) return;
+    const t = mxById(M, U.sel), kids = [el("h3", {}, "Color order")];
+    if (!t) { ordBox.replaceChildren(...kids, el("p", { class: "note" }, "Click a strip on the grid.")); return; }
+    const first = (mxOrder(M).find(o => o.t.id === t.id) || {}).first;
+    kids.push(el("p", { class: "note" }, `Strip ${M.strips.indexOf(t) + 1}, ${t.side === "f" ? "front" : "back"}, ${t.n} LEDs${first == null ? ", not wired in" : `, LEDs ${first} to ${first + t.n - 1}`}.`));
+    const sel = el("select", { id: "mxOrdSel", "data-mx-ord": t.id, "aria-label": "Color order of this strip" },
+      el("option", { value: "", selected: !t.order }, `Same as output (${outOrder()})`), ...ORDERS.map(o => el("option", { value: o, selected: o === t.order }, o)));
+    sel.addEventListener("change", () => { t.order = sel.value; refresh(); });
+    kids.push(el("label", { class: "ct-lbl" }, "Order", sel),
+      el("div", { class: "mx-two" }, ...[["f", "Front"], ["b", "Back"]].map(([f, n]) => el("button", { class: "btn", "data-mx-ordall": f,
+        onclick: () => { M.strips.forEach(x => { if (x.side === f) x.order = t.order; }); refresh(); } }, `Use for every ${n} strip`))));
+    const why = first == null ? "Wire this strip in first." : mxTestWhy(W);
+    if (U.test && U.test.id === t.id) {
+      const T2 = U.test;
+      kids.push(el("p", { id: "mxAsk", style: "margin:0;font-weight:600", role: "status" }, `Strip ${M.strips.indexOf(t) + 1} is lit ${T2.step === 1 ? "red" : "green"} on the bike. What color is this strip?`),
+        el("div", { class: "mx-row" }, ...[["R", "Red"], ["G", "Green"], ["B", "Blue"], ["N", "Nothing lit"]].map(([v, n]) => el("button", { class: "btn", "data-mx-seen": v, onclick: () => mxTestAnswer(W, v === "N" ? null : v) }, n)),
+          el("button", { class: "btn", id: "mxTestStop", onclick: () => { mxTestStop(U); refresh(); } }, "Stop test")));
+    } else {
+      kids.push(el("button", { class: "btn", id: "mxTestBtn", "data-mx-test": t.id, disabled: !!why, onclick: () => mxTestStart(W, t) }, "Test this strip"));
+      if (why) kids.push(el("p", { class: "note", style: "margin:0", id: "mxTestWhy" }, why));
+    }
+    ordBox.replaceChildren(...kids);
+    if (U.test) U.test.draw = refresh;
+  }
+  U.redraw = refresh;
+  if (!fw43()) side.append(el("p", { class: "note", id: "mxOrdOld", style: "margin:0" }, "Per-strip color order needs firmware 0.4.3."));
+  refresh();
+}
+// Why the color-order test cannot run now, or "".
+function mxTestWhy(W) {
+  const st = app.settings.strips[W.out];
+  if (!app.link || !fw43()) return "Connect to a controller with firmware 0.4.3 to test.";
+  if (app.drafts[W.out] || !st || st.px !== mxTotal(W.mx) || mxCheck(W.mx)) return "Apply the matrix first: the test lights the strip on the controller.";
+  return "";
+}
+// The order the controller uses for pixel px of strip out right now: its zone there, else the output's order.
+function mxOrderNow(out, px) {
+  const st = app.settings.strips[out], z = (st.ord || []).find(q => px >= q[0] && px < q[0] + q[1]);
+  return (z ? z[2] : st.order || "GRB").toUpperCase();
+}
+function mxTestSend(W, t, rgb) { send(`find ${W.out + 1} ${mxOrder(W.mx).find(o => o.t.id === t.id).first} ${t.n} ${rgb.join(" ")}`); }
+function mxTestStart(W, t) {
+  const U = W.ui, first = mxOrder(W.mx).find(o => o.t.id === t.id).first;
+  U.test = { id: t.id, step: 1, O: mxOrderNow(W.out, first), s1: null };
+  mxTestSend(W, t, [255, 0, 0]); U.msg = ""; U.redraw();
+}
+function mxTestStop(U) { if (U.test) { U.test = null; send("find off"); } }
+function mxTestAnswer(W, seen) {
+  const U = W.ui, T = U.test, t = mxById(W.mx, T.id); if (!T || !t) return;
+  if (T.step === 1 && seen) { T.s1 = seen; T.step = 2; mxTestSend(W, t, [0, 255, 0]); U.redraw(); return; }
+  const s1 = T.s1; U.test = null; send("find off");
+  const r = T.step === 2 ? mxOrderFromSeen(T.O, s1, seen) : null;
+  if (!r) { U.msg = "Could not tell the color order from those answers, so nothing was changed. Try again, or pick the order by hand."; U.bad = true; }
+  else { t.order = r === ((app.drafts[W.out] || app.settings.strips[W.out]).order || "GRB") ? "" : r; U.msg = `Strip uses ${r}.`; U.bad = false; }
+  U.redraw();
+}
+// The columns and rows (grid points) the strips need.
+function mxUsed(M) {
+  let c = 0, r = 0;
+  M.strips.forEach(t => { const e = mxEnd(t); c = Math.max(c, Math.ceil(Math.max(t.x, e.x) / 4)); r = Math.max(r, Math.ceil(Math.max(t.y, e.y) / 4)); });
+  return [c + 1, r + 1];
+}
+function bkPlace(box) {
+  const W = BK.wiz, M = W.mx, P = M.plc;
+  bkWizHead(box);
+  const note = el("p", { class: "note", id: "mxBoxNote", role: "status", style: "margin:0" });
+  const upd = () => { note.textContent = mxBoxText(M); };
+  const num = (id, label, key, min, max, step) => {
+    const inp = el("input", { type: "number", id, min, max, step, value: P[key], inputmode: "decimal" });
+    inp.addEventListener("change", () => { const v = Number(inp.value); if (inp.value !== "" && Number.isFinite(v)) P[key] = clamp(v, min, max); inp.value = P[key]; upd(); });
+    return el("label", { class: "ct-lbl" }, label, inp);
+  };
+  const faceSel = el("select", { id: "mxFace", "aria-label": "Which way the front face points" }, ...MX_FACES.map(([v, t]) => el("option", { value: v, selected: v === P.face }, t)));
+  faceSel.addEventListener("change", () => { P.face = faceSel.value; upd(); });
+  box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "Where is the plate on the bike?"),
+    el("p", { class: "note" }, "The grid you drew is the plate as seen looking at its front face. Type where the middle of the lit area is and which way the front face points."),
+    el("label", { class: "ct-lbl" }, "Which way the front face points", faceSel),
+    num("mxPx", "Center of the lit area: inches back from the front axle", "x", -60, 120, 0.1),
+    num("mxPy", "Inches from the bike's centerline (left is negative, right is positive)", "y", -40, 40, 0.1),
+    num("mxPz", "Inches above the ground", "z", 0, 80, 0.1),
+    num("mxLean", "Leans back at the top (degrees)", "lean", -85, 85, 1),
+    num("mxThick", "Distance between the front-face and back-face LEDs (inches)", "thick", 0, 2, 0.05),
+    note), bkNextBtn());
+  upd();
+}
+function mxBoxText(M) {
+  const b = mxBox(M); if (!b) return "";
+  const r = [b.x, b.y, b.z].map(a => a[1] - a[0]);
+  return `On the bike the lit LEDs fill ${mxInch(r[0])} front to back (${mxInch(b.x[0])} to ${mxInch(b.x[1])} back from the front axle), ${mxInch(r[1])} side to side, and ${mxInch(r[2])} of height (${mxInch(b.z[0])} to ${mxInch(b.z[1])} above the ground).`;
+}
+function mxSummaryRows(W) {
+  const M = W.mx, [nf, nb] = mxFaces(M), look = W.look;
+  return [["Light", "Matrix"], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["LED type", (CHIP_BY[W.chip] || { label: "as set" }).label],
+    ["LEDs", `${mxTotal(M)} at ${M.dens} per meter`], ["Strips", `${M.strips.length} (${nf} front, ${nb} back)`],
+    ["Front face points", MX_FACES.find(f => f[0] === M.plc.face)[1]], ["Starting look", modeName(look.mode)]];
+}
+// Fill the strip draft d from the finished design. False (with a message) when it cannot be added.
+function mxFinish(W, d) {
+  const M = W.mx, why = mxCheck(M);
+  if (why) { toast(why, true); return false; }
+  const total = mxTotal(M);
+  d.out = "pixels";
+  if (!W.edit) {
+    d.chip = W.chip; if (CHIP_BY[W.chip]) Object.assign(d, CHIP_BY[W.chip].f);
+    const mode = FX_NEW.includes(W.look.mode) && !fw42() ? "rise" : W.look.mode;
+    d.look = { ...LOOK_DEFAULT, mode, rgb: W.look.rgb.slice(), speed: W.look.speed, rev: false };
+  }
+  d.look.master = true;   // the Underglow switch turns the matrix on and off, like an underglow run with its own look
+  d.px = total; d.seg = [canonSeg([0, total, "look", false])]; d.geomPts = mxGeom(M);
+  if (fw43()) d.ordZones = mxZones(M, d.order);   // per-strip color order: one zone per run of strips that differ from the output's order
+  mxStore(W.out, M);
+  return true;
+}
+// The Bike detail screen's part for a matrix: its design on this device, or how to bring it back.
+function mxDesignPanel(i, v) {
+  const M = mxStored(i, v.px), p = el("div", { class: "panel bike-card", id: "mxDesign", style: "margin-top:10px" }, el("h3", {}, "Matrix design"));
+  const look = () => ({ mode: v.look.mode, rgb: v.look.rgb.slice(), speed: v.look.speed });
+  const open = m => { BK.wiz = { type: "matrix", out: i, edit: true, chip: v.chip, mx: m, ui: null, look: look(), n: 30, test: BK_TEST_PX, px: 0, mid: 0, side: "left", job: "turn_l", end: 0 }; bkGo("build"); };
+  if (M) {
+    const [nf, nb] = mxFaces(M);
+    p.append(el("p", { class: "note" }, `${M.strips.length} strips (${nf} front, ${nb} back), ${mxTotal(M)} LEDs. The design is saved on this device.`),
+      el("div", { class: "mx-two" }, el("button", { class: "btn primary", "data-mx-edit": i, onclick: () => open(M) }, "Edit the matrix"),
+        el("button", { class: "btn", onclick: () => mxDownload(M, `matrix-output-${i + 1}.json`) }, "Save design to a file")));
+  } else {
+    p.append(el("p", { class: "note", "data-note": "mx-nodesign" }, "This matrix is on the controller, but its design is not on this device. Load the design file you saved, or rebuild it from scratch."),
+      el("div", { class: "mx-two" }, mxLoadLabel(m => open(m), "mxLoadDetail"),
+        el("button", { class: "btn", "data-mx-rebuild": i, onclick: () => open(mxNew(60)) }, "Rebuild")));
+  }
+  return p;
+}
+
 // ---- control tab: presets, strip map, quick toggles, each light, preset editor ------------------------
 // Control sends its changes at once (`set` lines, no draft) and keeps app.settings in step with the same applyPatch the demo uses.
 // While the Bike tab holds unsent drafts (app.drafts) the per-light, preset and zone controls here wait for its Apply / Discard.
 const pendingDrafts = () => Object.keys(app.drafts).length > 0;
 const ctlName = t => String(t || "").replace(/[^\x20-\x7e]/g, "?").trim().slice(0, 24);   // preset names: printable ASCII, 24 characters (kPresetNameMax)
-const modeName = m => ((MODES.find(x => x[0] === m) || [0, m])[1]).split(" (")[0];
+const modeName = m => ((MODES_ALL.find(x => x[0] === m) || [0, m])[1]).split(" (")[0];
 const SW_BAR = [["Amber", [255, 96, 0]], ["White", [255, 255, 255]], ["Blue", [29, 95, 214]], ["Green", [47, 191, 104]], ["Purple", [138, 63, 252]], ["Red", [255, 0, 0]]];
 const SW_DRL = [["White", [255, 255, 255]], ["Warm white", [255, 217, 160]], ["Amber", [255, 164, 27]], ["Ice blue", [159, 212, 255]]];
 const CT_OFF = "#39414a", CT_TAIL = "#8f2019", CT_BRAKE = "#ff4a3d", CT_TURN = "#ffa41b";
@@ -4330,6 +5214,7 @@ function ctlLightSub(L) {
   const st = L.st;
   if (L.kind === "lamp") return "12 V " + (OUT_SHORT[st.out] || "lamp");
   if (BK_KINDS[L.kind].bar) return `${st.px} LEDs · look ${barUsesLook(st) ? modeName(st.look.mode) : "off"} · ${st.pct} %`;
+  if (L.kind === "matrix") return `${st.px} LEDs · ${modeName(st.look.mode)} · ${st.pct} %`;
   if (L.kind === "custom") return `${st.px} LEDs · ${st.seg.length} segment${st.seg.length === 1 ? "" : "s"} · ${st.pct} %`;
   return `${st.px} LEDs · ${glowOwn(st) ? "own look: " + modeName(st.look.mode) : "with underglow"} · ${st.pct} %`;
 }
@@ -4339,7 +5224,7 @@ function ctlLightBody(L, body, dis) {
   if (K.bar) {
     const uses = barUsesLook(st);
     body.append(el("h4", {}, "This light's own look when it's not signaling"),
-      ctlPills([["off", "Off"], ...MODES.map(([v, t]) => [v, t.split(" (")[0]])], uses ? st.look.mode : "off", dis, "data-ct-look", v => ctlStripEdit(i, d => applyBarLook(d, v), "look" + i)));
+      ctlPills([["off", "Off"], ...modeList().map(([v, t]) => [v, t.split(" (")[0]])], uses ? st.look.mode : "off", dis, "data-ct-look", v => ctlStripEdit(i, d => applyBarLook(d, v), "look" + i)));
     if (uses) {
       body.append(ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }));
       if (lookRed(st.look) && st.seg.some(g => idleOk(g[2]) && redBanned(g[2], app.settings))) body.append(el("p", { class: "lay-warn bad", "data-note": "ct-red" }, LOOK_RED_NOTE));
@@ -4351,6 +5236,7 @@ function ctlLightBody(L, body, dis) {
     body.append(el("label", { class: "ct-lbl" }, "Turn signal style", sel), ...ctlBrightness(L, dis, "For the look above. Turn, brake and tail colors are never dimmed by it."));
     return;
   }
+  if (L.kind === "matrix") { ctlMatrixBody(L, body, dis); return; }
   if (L.kind === "custom") { body.append(...ctlBrightness(L, dis), el("p", { class: "note", style: "margin:0" }, "This output has its own segment setup. Change what each part does in the segment editor.")); return; }
   // underglow run or fork ring
   const own = glowOwn(st);
@@ -4363,7 +5249,7 @@ function ctlLightBody(L, body, dis) {
     }));
   }
   if (own) {
-    body.append(ctlPills(MODES.map(([v, t]) => [v, t.split(" (")[0]]), st.look.mode, dis, "data-ct-look", v => ctlStripEdit(i, d => { d.look.mode = v; }, "look" + i)),
+    body.append(ctlPills(modeList().map(([v, t]) => [v, t.split(" (")[0]]), st.look.mode, dis, "data-ct-look", v => ctlStripEdit(i, d => { setModeFire(d.look, v); }, "look" + i)),
       ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }),
       ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }),
       ...ctlBrightness(L, dis, "This look follows the Underglow switch. The global underglow brightness does not apply."));
@@ -4378,8 +5264,20 @@ function ctlLightCard(L, dis) {
     el("span", { class: "bike-txt" }, el("b", {}, K.name), el("small", {}, ctlLightSub(L))));
   const body = el("div", { class: "ct-light-body ct-body", hidden: !open, "data-ct-card": L.i });
   ctlLightBody(L, body, dis);
-  head.onclick = () => { const o = body.hidden; body.hidden = !o; head.setAttribute("aria-expanded", String(o)); o ? app.open.add(key) : app.open.delete(key); };
+  head.onclick = () => { const o = body.hidden; body.hidden = !o; head.setAttribute("aria-expanded", String(o)); o ? app.open.add(key) : app.open.delete(key); mxKick(); };
   return el("div", { class: "ct-light" }, head, body);
+}
+// A matrix: its effect, color, speed and brightness like an underglow run with its own look, and the animated preview of its layout.
+function ctlMatrixBody(L, body, dis) {
+  const i = L.i, st = L.st;
+  body.append(el("h4", {}, "Look"),
+    ctlPills(modeList().map(([v, t]) => [v, t.split(" (")[0]]), st.look.mode, dis, "data-ct-look", v => ctlStripEdit(i, d => { setModeFire(d.look, v); }, "look" + i)),
+    ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }),
+    ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }),
+    ...ctlBrightness(L, dis, "This look follows the Underglow switch. The global underglow brightness does not apply."));
+  const M = mxStored(i, st.px);
+  if (M) body.append(mxPreviewBox(M, () => (app.settings.strips[i] || st).look, "both"));
+  else body.append(el("p", { class: "note", style: "margin:0" }, "The design of this matrix is not on this device, so there is no preview. Open the light on the Bike tab to load it."));
 }
 function ctlDrlCard() {
   const D = app.settings.drl, key = "ct.drl", open = app.open.has(key);
@@ -4555,6 +5453,12 @@ function ctlZonePanel(L, dis) {
 function ctlEditPillsUi() {
   const box = $("ctlEditPills"); if (!box) return;
   box.textContent = "";
+  // The name field follows the active preset until the user types in it. The preset list can arrive after the
+  // settings (`get`) that rebuilt this screen, so refresh the field here too or it keeps the previous preset's name.
+  const nameIn = $("ctlName");
+  if (nameIn && CT.name == null && document.activeElement !== nameIn) nameIn.value = CT.pre.slots[CT.pre.pre] || "";
+  const delBtn = $("ctlDelete");
+  if (delBtn) delBtn.disabled = CT.pre.pre < 0;
   const dis = pendingDrafts();
   CT.pre.slots.forEach((nm, n) => {
     if (nm == null) return;
@@ -4585,11 +5489,12 @@ function ctlEditScreen(box) {
     full.hidden = true; ctlSavePreset(n, CT.name != null && nameIn.value.trim() ? nameIn.value : "Preset " + (n + 1));   // an unchanged name would just copy the active one
   } }, "Save as new");
   const save = el("button", { class: "btn save", id: "ctlSave", onclick: () => {
-    if (act < 0) { saveNew.click(); return; }
-    ctlSavePreset(act, nameIn.value);
+    const a = CT.pre.pre;   // the slot active now, not when this screen was built: the preset list can arrive later
+    if (a < 0) { saveNew.click(); return; }
+    ctlSavePreset(a, nameIn.value);
   } }, "Save preset");
   const del = el("button", { class: "btn danger", id: "ctlDelete", disabled: act < 0 }, "Delete");
-  armed(del, "Tap again to delete", () => { send(`preset del ${act}`); CT.name = null; ctlList(); });
+  armed(del, "Tap again to delete", () => { const a = CT.pre.pre; if (a < 0) return; send(`preset del ${a}`); CT.name = null; ctlList(); });
   box.append(el("div", { class: "ct-actions" }, saveNew, save), full, del);
   const rows = el("div", { class: "panel ct-rows" },
     el("button", { id: "ctlRowBtn", onclick: () => { showTab("setup"); const h = $("btnPanel").previousElementSibling; if (h && h.scrollIntoView) h.scrollIntoView(); } }, el("span", {}, "Handlebar button: a press can step to the next preset"), el("span", { "aria-hidden": "true" }, "›")),
