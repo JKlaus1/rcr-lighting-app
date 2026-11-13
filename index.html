@@ -318,6 +318,7 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
   padding: 10px 14px; border-radius: var(--radius-ctl); font-size: 14px; z-index: 9; display: none;
 }
 .toast.show { display: block; }
+.toast { pointer-events: none; }   /* never in the way: taps go through to whatever is under it */
 /* restart / firmware update progress: stays up across the Bluetooth drop until it ends */
 .job { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 8;
   width: min(520px, calc(100% - 32px)); background: var(--panel); color: var(--ink); border: 2px solid var(--accent, #3d8bff);
@@ -1961,7 +1962,12 @@ function ordPatches(i, zones) {
   out.push(stripWrap(i, { nord: zones.length }));
   return out;
 }
+// The firmware appends its setup warnings ("no brake light configured" ...) to every `set` reply as a final
+// "WARNING: ..." note. Those already show as the banner from the live status, so they never pop up here:
+// only real notes (a clamped value, an unknown key) or a refusal do.
+const realNotes = n => (n || "").replace(/(?:^|;\s*)WARNING: [\s\S]*$/, "").trim();
 function setReply(j) {
+  j = { ...j, notes: j.ok ? realNotes(j.notes) : j.notes };
   const P = app.pending;
   if (P) {   // replies to a batch we are tracking (Send layout)
     if (!j.ok) P.bad.push(j.notes || "error"); else if (j.notes) P.notes.push(j.notes);
@@ -5184,7 +5190,7 @@ function ctlReply(line) {   // the text replies of the preset commands
   else if ((m = /^preset (\d) "(.*)" applied/.exec(line))) toast(`“${m[2]}” is on the bike`);
   else if ((m = /^preset (\d) erased/.exec(line))) toast(`Preset ${+m[1] + 1} deleted`);
   else if (/^preset \d(:| is empty)|^no presets saved/.test(line)) toast(line, true);
-  else if ((m = /^warning: (.*)/.exec(line))) { CT.fwWarn = m[1]; toast("Done, with a warning: " + m[1], true); ctlWarnPaint(); }
+  else if ((m = /^warning: (.*)/.exec(line))) { CT.fwWarn = m[1]; ctlWarnPaint(); }   // shown on the banner / editor note, no pop-up
 }
 function ctlStatus(s) {
   if (fw4() && typeof s.pre === "number" && (s.pre !== CT.pre.pre || (s.prem | 0) !== (CT.pre.prem | 0))) {
