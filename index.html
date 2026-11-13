@@ -670,9 +670,9 @@ main.wide { max-width: 1280px; }
       <div class="field"><span class="lbl">Phones</span><button class="btn" id="pairBtn">Add a phone</button>
         <div class="hint" id="pairHint">Lets a new phone pair during the next 2 minutes.</div></div>
       <div class="field"><span class="lbl">Update access point</span><span class="val" id="otaInfo" style="min-width:0;text-align:right">–</span>
-        <div class="hint">Wi-Fi name and password for the firmware update page.</div></div>
+        <div class="hint">Wi-Fi name (and password, if you set one) for the firmware update page.</div></div>
       <div class="field"><label for="bleName">Bluetooth name</label><input type="text" id="bleName" maxlength="20"></div>
-      <div class="field"><label for="otaPass">Update Wi-Fi password</label><input type="password" id="otaPass" maxlength="32" placeholder="unchanged" autocomplete="new-password"><div class="hint">8 to 32 characters. Used by the firmware update access point.</div></div>
+      <div class="field"><label for="otaPass">Update Wi-Fi password</label><input type="password" id="otaPass" maxlength="32" placeholder="unchanged" autocomplete="new-password"><div class="hint">Optional, 8 to 32 characters. With none (the default from firmware 0.4.6) the update Wi-Fi is open; it only exists while an update was asked for and closes after 15 min. <button class="btn small" type="button" id="otaOpenBtn">Remove password</button></div></div>
       <div class="strip-actions"><button class="btn" id="radioBtn">Save radio settings</button></div>
     </div>
     <h2>Controller</h2>
@@ -999,6 +999,7 @@ const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m 
 const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);   // the demo is playing firmware older than 0.4.1
 const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
 const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
+const demoOtaOpen = () => !(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 6]) < 0);   // 0.4.6+: open update Wi-Fi by default
 const demoNoOta = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 5]) < 0);   // older than 0.4.5: old ota / reboot replies
 const demoNoTurnRgb = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 4]) < 0);   // older than 0.4.4: turn signals fixed amber
 const modeOk = m => MODES.some(x => x[0] === m) || (FX_NEW.includes(m) && !demoNoFx());
@@ -1440,7 +1441,7 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 5]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 6]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
     if (demoNoTurnRgb()) delete this.s.turn.rgb;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
@@ -1571,7 +1572,7 @@ class DemoLink {
         if (args === "next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
         else if (onoff >= 0) this.s.accent.on = !!onoff;
         this.out(`accent ${this.s.accent.on ? "on" : "off"}, ${this.s.accent.mode}`); break;
-      case "info": this.out(`RCR Lighting demo (simulated in this page), firmware ${this.fw}\nOTA access point \"RCR-Lighting-DEMO\", password rcr-1a2b3c4d\nno board connected: settings reset when the page reloads`); break;
+      case "info": this.out(`RCR Lighting demo (simulated in this page), firmware ${this.fw}\n${demoOtaOpen() ? "OTA access point: Wi-Fi \"RCR-Lighting-DEMO\" (open, no password)" : "OTA access point \"RCR-Lighting-DEMO\", password rcr-1a2b3c4d"}\nno board connected: settings reset when the page reloads`); break;
       case "pair": this.pairUntil = performance.now() + 120000; this.out("BLE pairing open for 2 minutes"); break;
       case "sense": this.out(SENSE.map((c, i) => `${SENSE_KEYS[i].padEnd(6)} ${this.status().a[i].toFixed(2)} A`).join("\n")); break;
       case "cal": this.out("cal: simulated, nothing to calibrate"); break;
@@ -1586,7 +1587,8 @@ class DemoLink {
       case "save": this.out("saved"); break;
       case "ota":
         if (demoNoOta()) { this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break; }
-        this.out("OTA starting: Wi-Fi \"RCR-Lighting-DEMO\", password demo1234, page http://192.168.4.1");
+        this.out(demoOtaOpen() ? "OTA starting: Wi-Fi \"RCR-Lighting-DEMO\" (open, no password), page http://192.168.4.1"
+                               : "OTA starting: Wi-Fi \"RCR-Lighting-DEMO\", password demo1234, page http://192.168.4.1");
         this.out("Bluetooth turns off in about 2 s (not enough memory for both) and stays off until the controller restarts: after the update, or 15 min with no update once the lights are off.");
         if (DemoLink.sim) DemoLink.sim("ota", this);
         break;
@@ -1675,7 +1677,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.5";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.6";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -1737,8 +1739,8 @@ const handlers = {
     if (/^RCR Lighting/.test(line)) { $("infoText").textContent = line; setFw(line); jobInfo(line); }
     jobLine(line);
     ctlReply(line);
-    const ota = /^OTA access point "([^"]+)", password (\S+)/.exec(line);
-    if (ota) $("otaInfo").textContent = `${ota[1]} / ${ota[2]}`;
+    const ota = /^OTA access point(?::)? (?:Wi-Fi )?"([^"]+)"(?:, password (\S+)| \(open, no password\))/.exec(line);
+    if (ota) $("otaInfo").textContent = ota[2] ? `${ota[1]} / ${ota[2]}` : `${ota[1]} (open, no password)`;
     log(line);
   },
   onLive(line) { try { setStatus(JSON.parse(line)); } catch (e) { /* partial or garbled frame */ } },
@@ -1845,7 +1847,7 @@ function jobPaint() {
   }));
   const kids = [el("h3", {}, title + (job.end === "ok" ? ": done" : job.end === "bad" ? ": stopped" : "…")), ol];
   if (job.kind === "ota" && job.wifi && !job.end) {
-    kids.push(el("div", { class: "cred" }, el("span", {}, "Wi-Fi"), el("b", {}, job.wifi.ssid), el("span", {}, "Password"), el("b", {}, job.wifi.pass),
+    kids.push(el("div", { class: "cred" }, el("span", {}, "Wi-Fi"), el("b", {}, job.wifi.ssid), el("span", {}, "Password"), el("b", {}, job.wifi.pass || "none (open)"),
       el("span", {}, "Page"), el("b", {}, job.wifi.url)));
     kids.push(el("p", { class: "note", style: "margin:4px 0 0" }, job.wifi.old
       ? "This firmware (before 0.4.5) can't keep Bluetooth and the update Wi-Fi up together: the Wi-Fi may not appear at all. If it doesn't, update over USB once."
@@ -1863,10 +1865,10 @@ function jobLine(line) {   // replies from the controller
     job.step = Math.max(job.step, 3); clearTimeout(job.timer);
     // The link should drop within a couple of seconds; if it doesn't, say so.
     job.timer = setTimeout(() => { if (job.kind === "restart" && !job.dropped && !job.end) jobEnd("bad", "The controller said it was restarting, but the link never dropped. Check `info` uptime on the Console tab."); }, 8000);
-  } else if (job.kind === "ota" && (m = /^OTA (?:starting|already running): Wi-Fi "([^"]+)", password (\S+), page (\S+)/.exec(line))) {
-    job.wifi = { ssid: m[1], pass: m[2], url: m[3], old: false }; job.step = Math.max(job.step, 3); clearTimeout(job.timer);
+  } else if (job.kind === "ota" && (m = /^OTA (?:starting|already running): Wi-Fi "([^"]+)"(?:, password (\S+)| \(open, no password\)), page (\S+)/.exec(line))) {
+    job.wifi = { ssid: m[1], pass: m[2] || "", url: m[3], old: false }; job.step = Math.max(job.step, 3); clearTimeout(job.timer);
   } else if (job.kind === "ota" && (m = /^OTA access point "([^"]+)" starting/.exec(line))) {   // 0.4.4 and older
-    const pw = (/\/ (\S+)$/.exec($("otaInfo").textContent) || [])[1] || "(see Setup)";
+    const pw = (/\/ (\S+)$/.exec($("otaInfo").textContent) || [])[1] || "";
     job.wifi = { ssid: m[1], pass: pw, url: "http://192.168.4.1", old: true }; job.step = Math.max(job.step, 3); clearTimeout(job.timer);
   } else if (/^(ota|reboot): switch the lights off first/.test(line)) {
     jobEnd("bad", "Refused: switch the lights off first (no brake or turn signal), then try again.");
@@ -2776,6 +2778,7 @@ $("radioBtn").onclick = () => {
   patch(p); $("otaPass").value = "";
   toast("Saved. The new Bluetooth name shows after a restart.");
 };
+armed($("otaOpenBtn"), "Tap again: open update Wi-Fi", () => { patch({ ota_pass: "" }); send("info"); toast("Update Wi-Fi password removed: the update Wi-Fi is open."); });
 $("saveBtn").onclick = () => send("save");
 $("pairBtn").onclick = () => send("pair");
 
