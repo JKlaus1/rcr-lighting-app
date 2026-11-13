@@ -978,6 +978,7 @@ const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl
   ];
   DEFAULTS.budget = { lit_ma: 14000, dark_ma: 20000 };  // firmware defaults
   DEFAULTS.drl = { on: true, rgb: [255, 255, 255], pct: 80 };   // firmware 0.4.1 (the demo drops it again when it plays 0.3.18)
+  DEFAULTS.turn.rgb = [255, 96, 0];   // firmware 0.4.4: adjustable turn signal color (the demo drops it for older firmware)
   DEFAULTS.preset = -1;
 }
 function cmpVer(a, b) { for (let i = 0; i < 3; i++) if ((a[i] | 0) !== (b[i] | 0)) return (a[i] | 0) - (b[i] | 0); return 0; }
@@ -985,6 +986,7 @@ const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m 
 const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);   // the demo is playing firmware older than 0.4.1
 const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
 const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
+const demoNoTurnRgb = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 4]) < 0);   // older than 0.4.4: turn signals fixed amber
 const modeOk = m => MODES.some(x => x[0] === m) || (FX_NEW.includes(m) && !demoNoFx());
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -1269,6 +1271,12 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
       /* write-only */
     } else if (k === "drl" && !s.drl) {
       notes.push("drl: unknown key");
+    } else if (k === "turn" && v && typeof v === "object" && "rgb" in v) {
+      const { rgb, ...rest } = v;
+      Object.assign(s.turn, rest);
+      if (demoNoTurnRgb()) notes.push("turn.rgb: unknown key");
+      else if (!Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(x => Number.isInteger(x) && x >= 0 && x <= 255)) notes.push("turn.rgb: expected [r, g, b]");
+      else s.turn.rgb = rgb.slice();
     } else if (v && typeof v === "object" && !Array.isArray(v) && s[k] && typeof s[k] === "object") {
       Object.assign(s[k], v);
     } else {
@@ -1314,7 +1322,7 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
 // What a segment shows right now, as an RGB triple (mirrors core/render.cpp).
 function segRgb(s, role, st, g) {
   const pct = (c, p) => c.map(x => Math.round(x * p / 100));
-  const RED = [255, 0, 0], AMBER = [255, 96, 0], BLACK = [0, 0, 0];
+  const RED = [255, 0, 0], AMBER = Array.isArray(s.turn.rgb) ? s.turn.rgb : [255, 96, 0], BLACK = [0, 0, 0];   // AMBER = the turn color
   const running = st.head && st.head !== "off", nb = !!(g && segNbOf(g));
   const tail = () => !st.v ? pct(RED, s.boot_red_pct) : st.brk && !nb ? pct(RED, s.brake_pct)
                  : (running || s.tail_always) ? pct(RED, s.tail_pct) : BLACK;
@@ -1418,8 +1426,9 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 3]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 4]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
+    if (demoNoTurnRgb()) delete this.s.turn.rgb;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
     else {   // two saved looks out of the box: "Street" is the bike as it stands, "Show" adds a rainbow and lit turn bars
       this.slots[0] = this.snap("Street");
@@ -1644,7 +1653,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.3";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.4";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -2187,13 +2196,20 @@ function setSettings(s) {
     rangeField("Flash rate", s.blink.fpm, 60, 120, 1, " /min", v => patch({ blink: { fpm: v } })),
     rangeField("On time", s.blink.duty, 30, 75, 1, "%", v => patch({ blink: { duty: v } })),
     selectField("Style", TURN_STYLES, s.turn.style, v => patch({ turn: { style: v } })),
-    selectField("Rear color", [["amber", "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
+    ...(Array.isArray(s.turn.rgb) ? [(() => {
+      const c = el("input", { type: "color", id: "turnRgb", value: hex(s.turn.rgb), "aria-label": "Turn signal color" });
+      c.onchange = () => patch({ turn: { rgb: unhex(c.value) } });
+      const reset = el("button", { class: "btn small", id: "turnRgbReset", type: "button", onclick: () => patch({ turn: { rgb: [255, 96, 0] } }) }, "Amber");
+      return el("div", { class: "field" }, el("span", { class: "lbl" }, "Turn signal color"), c, reset,
+        el("div", { class: "hint" }, "Front and rear turn signals and the front marker. \u201cAmber\u201d puts back the default 255 / 96 / 0."));
+    })()] : [el("div", { class: "hint", id: "turnRgbOld" }, "Turn signal color needs firmware 0.4.4 (fixed amber on this controller).")]),
+    selectField("Rear color", [["amber", Array.isArray(s.turn.rgb) ? "Same as the turn signal color" : "Amber"], ["red", "Red"]], s.turn.color, v => patch({ turn: { color: v } })),
     rangeField("Brightness", s.turn.pct, 40, 100, 1, "%", v => patch({ turn: { pct: v } })),
     switchField("Allow red at the front", !!s.front_red, v => patch({ front_red: v }),
-      "Off-road / show use: lets the front turn segments show a red idle color or strip look (a red scanner). Off by default; red visible from the front is not road legal. Turn signals stay amber."),
+      "Off-road / show use: lets the front turn segments show a red idle color or strip look (a red scanner). Off by default; red visible from the front is not road legal. Turn signals keep the turn signal color."),
     rangeField("Front marker", s.marker_pct, 0, 50, 1, "%", v => patch({ marker_pct: v }), "Amber glow on the front turn segments while the lights are on. 0 turns it off."),
     switchField("Stock flasher still fitted", !!s.turn.follow, v => patch({ turn: { follow: v } }),
-      "On when the bike's own flasher relay is still in place, so the turn leads pulse: the lights follow the pulses instead of flashing on their own. Off when the flasher was removed and the leads carry steady 12 V."));
+      "On when the bike's own flasher relay is still in place, so the turn leads pulse: the lights flash with the pulses instead of on their own. The turn style runs over each pulse (firmware 0.4.4 learns the flasher's on-time; older firmware shows every style as a plain flash). Off when the flasher was removed and the leads carry steady 12 V."));
 
   const rp = $("rearPanel"); rp.textContent = "";
   rp.append(
@@ -4999,6 +5015,7 @@ const modeName = m => ((MODES_ALL.find(x => x[0] === m) || [0, m])[1]).split(" (
 const SW_BAR = [["Amber", [255, 96, 0]], ["White", [255, 255, 255]], ["Blue", [29, 95, 214]], ["Green", [47, 191, 104]], ["Purple", [138, 63, 252]], ["Red", [255, 0, 0]]];
 const SW_DRL = [["White", [255, 255, 255]], ["Warm white", [255, 217, 160]], ["Amber", [255, 164, 27]], ["Ice blue", [159, 212, 255]]];
 const CT_OFF = "#39414a", CT_TAIL = "#8f2019", CT_BRAKE = "#ff4a3d", CT_TURN = "#ffa41b";
+const ctTurn = () => { const t = app.settings && app.settings.turn; return t && Array.isArray(t.rgb) ? hex(t.rgb) : CT_TURN; };   // the rider's turn color (0.4.4+)
 const CT_ICON = { haz: "M12 4L3 20h18zM12 10v5M12 17.5v.5", glow: "M3 8h18M6 13v3M12 13v5M18 13v3",
   drl: "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2",
   pods: "M4 12a8 8 0 0 1 8-8v16a8 8 0 0 1-8-8M15 8h5M15 12h6M15 16h5" };
@@ -5099,6 +5116,7 @@ function ctlPresetsUi() {
 // -- per-LED pictures --
 function ctlCells(px, look, segs) {
   const S = app.settings, drlC = hex(S.drl ? S.drl.rgb : [255, 255, 255]), lookC = hex(look.rgb), accC = hex(S.accent.rgb);
+  const turnC = ctTurn();
   const cells = Array.from({ length: px }, () => ({ bg: CT_OFF, sh: "none", turn: false }));
   const idleC = g => { const o = segIdleOf(g); return !o ? null : o.idle === "look" ? lookC : o.idle === "drl" ? drlC : o.idle === "accent" ? accC : hex(o.rgb || [0, 0, 255]); };
   for (const g of segs) {
@@ -5106,8 +5124,8 @@ function ctlCells(px, look, segs) {
     const nb = segNbOf(g);
     let c;
     switch (g[2]) {
-      case "turn_l": case "turn_r": { const ic = idleC(g); c = { bg: CT_TURN, sh: ic ? `inset 0 8px 0 ${ic}` : "none", turn: true }; break; }
-      case "tail_turn_l": case "tail_turn_r": c = { bg: CT_TURN, sh: `inset 0 -7px 0 ${nb ? CT_TAIL : CT_BRAKE}`, turn: true }; break;
+      case "turn_l": case "turn_r": { const ic = idleC(g); c = { bg: turnC, sh: ic ? `inset 0 8px 0 ${ic}` : "none", turn: true }; break; }
+      case "tail_turn_l": case "tail_turn_r": c = { bg: turnC, sh: `inset 0 -7px 0 ${nb ? CT_TAIL : CT_BRAKE}`, turn: true }; break;
       case "tail": c = { bg: nb ? CT_TAIL : CT_BRAKE, sh: "none", turn: false }; break;   // a tail without nb brightens on brake
       case "brake": c = { bg: CT_BRAKE, sh: "none", turn: false }; break;
       case "drl": c = { bg: drlC, sh: "none", turn: false }; break;
@@ -5133,7 +5151,7 @@ function ctlMapPanel() {
     box.append(el("div", { style: "display:flex;flex-direction:column;gap:3px" },
       el("span", { class: "cap" }, `${BK_KINDS[L.kind].name} · ${L.st.px} LEDs`), ctlCellRow(L.st.px, ctlCells(L.st.px, L.st.look, L.st.seg))));
   });
-  const leg = [[CT_TURN, "Turn"], [CT_BRAKE, "Brake / tail"], [CT_TAIL, "Tail only"], [hex(S.drl ? S.drl.rgb : [255, 255, 255]), "DRL"], ["#3d8bff", "Look"], [hex(S.accent.rgb), "Underglow"]];
+  const leg = [[ctTurn(), "Turn"], [CT_BRAKE, "Brake / tail"], [CT_TAIL, "Tail only"], [hex(S.drl ? S.drl.rgb : [255, 255, 255]), "DRL"], ["#3d8bff", "Look"], [hex(S.accent.rgb), "Underglow"]];
   box.append(el("div", { class: "ct-legend" }, ...leg.map(([c, t]) => el("span", {}, el("i", { style: `background:${c}` }), t))));
   const drlOnTurn = S.strips.some(st => st.seg.some(g => (g[2] === "turn_l" || g[2] === "turn_r") && (segIdleOf(g) || {}).idle === "drl"));
   box.append(el("span", {}, drlOnTurn ? "Front turn sections show the DRL color until that side signals." : "Turn sections stay dark until that side signals."));
