@@ -432,6 +432,17 @@ main.wide { max-width: 1280px; }
 .ct-pills { display: flex; flex-wrap: wrap; gap: 8px; }
 .ct-pills .btn { min-height: 44px; padding: 0 14px; font-size: 15px; }
 .ct-pills .btn[aria-pressed=true] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+.pal-ed { display: flex; flex-direction: column; gap: 8px; padding: 11px 14px; border-top: 1px solid var(--line); }
+.pal-ed h4 { margin: 0; font: 600 15px/1.2 var(--sans); }
+.pal-ed .field { padding: 0; border-top: 0; }
+.str-sec { display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--line); }
+.str-sec .field { padding: 0 0 0 0; border-top: 0; }
+.pal-sw { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pal-one { display: inline-flex; align-items: center; gap: 2px; }
+.pal-one input[type=color] { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--field); padding: 2px; }
+.pal-one .x { min-height: 44px; padding: 0 10px; }
+.pal-show { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; }
+.pal-show label { display: flex; align-items: center; gap: 6px; font-size: 15px; }
 .ct-sw { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--ink); cursor: pointer; padding: 0; }
 .ct-sw[aria-pressed=true] { box-shadow: 0 0 0 3px var(--panel), 0 0 0 6px var(--ink); }
 .ct-body input[type=range], .ct-lbl input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--ink); }
@@ -770,9 +781,30 @@ const POS_MODES = ["wave", "sweep", "rise", "rainbow_x"];  // use segment positi
 const MODES_NEW = [["rain", "Rain"], ["fire", "Fire"], ["sparkle", "Sparkle"], ["plasma", "Plasma"], ["rings", "Rings"], ["bounce", "Bounce"], ["diag", "Diagonal"]];
 const FX_NEW = MODES_NEW.map(m => m[0]);
 const MODES_ALL = [...MODES, ...MODES_NEW];
+// Firmware 0.4.8 light-string effects (bulb colors from a palette). They run by pixel index along the run, never mapped. Never sent to older firmware.
+const MODES_STR = [["bulbs", "Steady bulbs"], ["march", "Marching chase"], ["alternate", "Alternating flash"], ["theater", "Theater chase"], ["wipe", "Color wipe"],
+                   ["twinkle", "Twinkle"], ["shimmer", "Shimmer"], ["glitter", "Glitter"], ["candle", "Candle flicker"], ["fill", "Random fill"], ["comets", "Comets"],
+                   ["stack", "Stacking"], ["bursts", "Bursts"], ["colorwave", "Color wave"], ["fade", "Color fade"], ["show", "Auto show"]];
+const STR_FX = MODES_STR.map(m => m[0]);
+const STR_SHOW = MODES_STR.slice(0, 15);   // the effects an Auto show can cycle through: bit n of `show` = STR_SHOW[n]
+const isStrMode = m => STR_FX.includes(m);
+const MODES_EVERY = [...MODES_ALL, ...MODES_STR];
+const PAL_MAX = 6;
+const PAL_PRESETS = [["classic", "Classic multicolor", [[255, 0, 0], [0, 170, 0], [0, 60, 255], [255, 120, 0], [190, 0, 255]]],
+                     ["red_green", "Red & green", [[255, 0, 0], [0, 170, 0]]], ["rgw", "Red, green & white", [[255, 0, 0], [0, 170, 0], [255, 180, 90]]],
+                     ["candy", "Candy cane", [[255, 0, 0], [255, 255, 255]]], ["warm", "Warm white", [[255, 147, 41]]],
+                     ["ice", "Ice", [[160, 200, 255], [0, 60, 255]]], ["blue_white", "Blue & white", [[0, 60, 255], [255, 255, 255]]],
+                     ["gold_red", "Gold & red", [[255, 170, 0], [255, 0, 0]]]];
+const palClassic = () => PAL_PRESETS[0][2].map(c => c.slice());
+const LOOK2_DEFAULT = { mode: "bulbs", rgb: [255, 147, 41], speed: 5, rev: false, master: false };
+const RX = { brake: 1, left: 2, right: 4 };
 const FIRE_RGB = [255, 80, 0];
 // Choosing Fire with the color still at its default (white, the underglow default) sets an orange one.
-function setModeFire(o, v) { o.mode = v; if (v === "fire" && o.rgb && o.rgb[0] === 255 && o.rgb[1] === 255 && o.rgb[2] === 255) o.rgb = FIRE_RGB.slice(); }
+// Choosing a light-string effect while the palette is empty fills in Classic multicolor.
+function setModeFire(o, v) {
+  o.mode = v; if (v === "fire" && o.rgb && o.rgb[0] === 255 && o.rgb[1] === 255 && o.rgb[2] === 255) o.rgb = FIRE_RGB.slice();
+  if (isStrMode(v) && !palOf(o).length) o.pal = palClassic();
+}
 // Chip presets: same table as firmware. Sending `chip` applies timing/rgbw/lpp/sum/px_ma.
 const CHIPS = [
   ["ws2815",          "WS2815 (12 V)",                         { timing: "800k", rgbw: false, lpp: 1, sum: false, px_ma: 18 }],
@@ -815,14 +847,26 @@ const segObjOf = g => g.slice(4).find(e => e && typeof e === "object" && !Array.
 const segIdleOf = g => { const o = segObjOf(g); return o && (o.idle === "accent" || o.idle === "color" || o.idle === "look" || o.idle === "drl") ? o : null; };
 const segNbOf = g => { const o = segObjOf(g); return !!(o && o.nb); };   // 0.4.1: this tail segment never brightens on brake
 const segPctOf = g => { const o = segObjOf(g), p = o && o.pct != null ? Number(o.pct) : 100; return Number.isFinite(p) ? clamp(rnd(p), 0, 100) : 100; };
-const idleOk = role => role !== "accent" && role !== "none" && role !== "drl" && role !== "look";   // these have no idle look
+const idleOk = role => role !== "accent" && role !== "none" && role !== "drl" && role !== "look" && role !== "look2";   // these have no idle look
+const segRxOf = g => { const o = segObjOf(g), v = o && Number(o.rx); return Number.isFinite(v) ? (v | 0) & 7 : 0; };   // 0.4.8: which signals a look / look2 section reacts to
+const rxRole = role => role === "look" || role === "look2";
+const segRxFor = g => rxRole(g[2]) ? segRxOf(g) : 0;
+// Rewrite the trailing option object of a draft segment ([start, count, role, rev, p0, p1, {opts}]): ch = {pct, rx}; idle and nb stay.
+function segSetOpts(g, ch) {
+  const k0 = segIdleOf(g), pct = "pct" in ch ? ch.pct : segPctOf(g), rx = "rx" in ch ? ch.rx : segRxOf(g), nb = segNbOf(g);
+  for (let j = g.length - 1; j >= 4; j--) if (g[j] && typeof g[j] === "object" && !Array.isArray(g[j])) g.splice(j, 1);
+  const o = segObj(k0 && idleOk(g[2]) ? k0.idle : "off", k0 && k0.rgb, pct, nb, rxRole(g[2]) ? rx : 0);
+  if (o) { while (g.length < 6) g.push([0, 0, 0]); g.push(o); }
+}
+const setSegRx = (g, rx) => segSetOpts(g, { rx });
 const idleObj = (mode, rgb) => mode === "color" ? { idle: "color", rgb: (rgb || [0, 0, 255]).map(v => clamp(rnd(v), 0, 255)) }
                              : mode === "accent" ? { idle: "accent" } : mode === "look" ? { idle: "look" } : mode === "drl" ? { idle: "drl" } : null;
 // The segment's trailing object: the idle look and/or its brightness (% of the strip's); null when both are at their defaults.
-const segObj = (mode, rgb, pct, nb) => {
+const segObj = (mode, rgb, pct, nb, rx) => {
   const o = idleObj(mode, rgb) || {}, p = pct == null ? 100 : clamp(rnd(pct), 0, 100);
   if (p !== 100) o.pct = p;
   if (nb) o.nb = true;
+  if (rx) o.rx = rx & 7;
   return Object.keys(o).length ? o : null;
 };
 // Red-ish idle colors are refused (the board sets idle off) on brake-role and front-pod segments: they would read as a lit lamp.
@@ -832,7 +876,7 @@ const redBanned = (role, s) => role === "brake" || (!(s && s.front_red) && (role
 const idleBad = (role, idl, s) => !!(idl && idl.idle === "color" && redBanned(role, s) && isRedHue(idl.rgb || [0, 0, 255]));
 const RED_NOTE = "Red isn't allowed here at rest; it would look like a lit brake/front signal.";
 // The strip look's color is used by every mode except the rainbows; red on a brake / front-pod segment is refused like a red idle color.
-const lookRed = lk => !!lk && lk.mode !== "rainbow" && lk.mode !== "rainbow_x" && isRedHue(lk.rgb || [0, 0, 0]);
+const lookRed = lk => !!lk && (isStrMode(lk.mode) ? palColors(lk).some(isRedHue) : lk.mode !== "rainbow" && lk.mode !== "rainbow_x" && isRedHue(lk.rgb || [0, 0, 0]));
 const LOOK_RED_NOTE = "Red is refused on front turn and brake segments, so the board turns this look off there. For off-road / show use, turn on \"Allow red at the front\" in All light settings (front turn segments only; brake segments never take red at rest).";
 const REAR_ROLES = ["tail", "brake", "tail_turn_l", "tail_turn_r"];
 const isTurnRole = r => r === "turn_l" || r === "turn_r" || r === "tail_turn_l" || r === "tail_turn_r";
@@ -842,19 +886,20 @@ const decoPct = (global, strip, seg) => Math.round((global * (strip == null ? 10
 const segOut = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3]];
   if (isMapped(g)) o.push(segPos(g, 0).map(rnd), segPos(g, 1).map(rnd));
-  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl, app.settings) ? idl.idle : "off", idl && idl.rgb, segPctOf(g), segNbOf(g));
+  const idl = idleOk(g[2]) && segIdleOf(g), ob = segObj(idl && !idleBad(g[2], idl, app.settings) ? idl.idle : "off", idl && idl.rgb, segPctOf(g), segNbOf(g), segRxFor(g));
   if (ob) o.push(ob);
   return o;
 };
 // Draft form used by the Strips tab: positions always present as arrays, idle object last.
 const canonSeg = g => {
   const o = [g[0] | 0, g[1] | 0, g[2], !!g[3], segPos(g, 0).slice(), segPos(g, 1).slice()];
-  const i = segIdleOf(g), ob = segObj(i ? i.idle : "off", i && i.rgb, segPctOf(g), segNbOf(g)); if (ob) o.push(ob);
+  const i = segIdleOf(g), ob = segObj(i ? i.idle : "off", i && i.rgb, segPctOf(g), segNbOf(g), segRxFor(g)); if (ob) o.push(ob);
   return o;
 };
 const ROLE_LINE = { tail: "#e8352b", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
-                    tail_turn_l: "#ffa41b", tail_turn_r: "#ffa41b", accent: "#3b82ff", none: "#8a949e", drl: "#d9dde1", look: "#3d8bff" };
+                    tail_turn_l: "#ffa41b", tail_turn_r: "#ffa41b", accent: "#3b82ff", none: "#8a949e", drl: "#d9dde1", look: "#3d8bff", look2: "#b04bd8" };
 const ROLES_V4 = [["drl", "DRL section"], ["look", "Strip look (always)"]];   // firmware 0.4.1 and newer only
+const ROLE_STR = ["look2", "Light string"];   // firmware 0.4.8 and newer only
 const MIRROR_ROLE = { turn_l: "turn_r", turn_r: "turn_l", tail_turn_l: "tail_turn_r", tail_turn_r: "tail_turn_l" };
 const SIDE_OF = { turn_l: "right", turn_r: "left", tail_turn_l: "right", tail_turn_r: "left" };  // side we copy FROM
 const ACTIONS = [["none", "Nothing"], ["accent_toggle", "Underglow on/off"], ["accent_next", "Next underglow effect"],
@@ -1001,10 +1046,11 @@ const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);  
 const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
 const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
 const demoNoDrlJoin = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 7]) < 0);   // older than 0.4.7: a DRL section stays dark with the DRL off
+const demoNo48 = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 8]) < 0);   // older than 0.4.8: no palettes, light-string effects, look2, rx
 const demoOtaOpen = () => !(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 6]) < 0);   // 0.4.6+: open update Wi-Fi by default
 const demoNoOta = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 5]) < 0);   // older than 0.4.5: old ota / reboot replies
 const demoNoTurnRgb = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 4]) < 0);   // older than 0.4.4: turn signals fixed amber
-const modeOk = m => MODES.some(x => x[0] === m) || (FX_NEW.includes(m) && !demoNoFx());
+const modeOk = m => MODES.some(x => x[0] === m) || (FX_NEW.includes(m) && !demoNoFx()) || (STR_FX.includes(m) && !demoNo48());
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 const lerp3 = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
@@ -1012,11 +1058,11 @@ const lerp3 = (a, b, t) => [0, 1, 2].map(i => a[i] + (b[i] - a[i]) * t);
 // One segment from a `set` patch, in the board's echo form: all-zero positions are dropped, idle only on safety roles.
 function parseSeg(g) {
   const pt = a => [0, 1, 2].map(j => Math.round(Number(a && a[j]) || 0));
-  const o = [g[0] | 0, g[1] | 0, ROLE_LINE[g[2]] ? g[2] : "none", !!g[3]];
+  const o = [g[0] | 0, g[1] | 0, ROLE_LINE[g[2]] && !(g[2] === "look2" && demoNo48()) ? g[2] : "none", !!g[3]];
   const arrs = segArrs(g);
   if (arrs.length >= 2) { const p0 = pt(arrs[0]), p1 = pt(arrs[1]); if ([...p0, ...p1].some(v => v)) o.push(p0, p1); }
   const ob = segIdleOf(g), mode = ob && idleOk(o[2]) ? ob.idle : "off";
-  const to = segObj(mode, mode === "color" && Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null, segPctOf(g), segNbOf(g));   // the board echoes it when idle is on or pct is not 100
+  const to = segObj(mode, mode === "color" && Array.isArray(ob.rgb) && ob.rgb.length === 3 ? ob.rgb : null, segPctOf(g), segNbOf(g), demoNo48() || !rxRole(o[2]) ? 0 : segRxOf(g));   // the board echoes it when idle is on or pct is not 100
   if (to) o.push(to);
   return o;
 }
@@ -1024,6 +1070,7 @@ function parseSeg(g) {
 function segEntryOk(a) {
   if (!Array.isArray(a) || a.length < 3 || !Number.isFinite(Number(a[0])) || !Number.isFinite(Number(a[1])) || !ROLE_LINE[a[2]]) return false;
   if (demoOld() && (a[2] === "drl" || a[2] === "look")) return false;     // 0.3.18 does not know these roles
+  if (demoNo48() && a[2] === "look2") return false;                          // the light-string role is 0.4.8
   if (a.length > 3 && a[3] != null && typeof a[3] !== "boolean" && !Number.isFinite(Number(a[3]))) return false;
   let npos = 0;
   for (const e of a.slice(4)) {
@@ -1032,6 +1079,7 @@ function segEntryOk(a) {
     else if (typeof e === "object") {
       if (e.idle != null && !["off", "accent", "color", "look", ...(demoOld() ? [] : ["drl"])].includes(e.idle)) return false;
       if (e.nb != null && demoOld()) return false;
+      if (e.rx != null && (demoNo48() || !Number.isFinite(Number(e.rx)))) return false;
       if (e.pct != null && !Number.isFinite(Number(e.pct))) return false;
       if (e.rgb != null && (!Array.isArray(e.rgb) || e.rgb.length !== 3 || e.rgb.some(v => !Number.isFinite(Number(v))))) return false;
     } else return false;
@@ -1115,6 +1163,92 @@ function fxLedOf(pos, bnd, idx, n) {
   const w = rx > ry ? norm(pos[0], bnd.x) : norm(pos[1], bnd.y), h = norm(pos[2], bnd.z);
   return { w, h, col: Math.round(w * 40), row: Math.round(h * 40), ax: Math.max(rx, ry) / wide, ay: rz / wide };
 }
+// ---- light-string effects (A5): a JS port of the firmware formulas. The hash need not match the firmware's bit for bit. ----
+const strH32 = x => { x = Math.imul(x ^ (x >>> 16), 0x7feb352d); x = Math.imul(x ^ (x >>> 15), 0x846ca68b); return (x ^ (x >>> 16)) >>> 0; };
+const strH2 = (a, b) => strH32((Math.imul(a | 0, 0x9e3779b1) + (b | 0) + 0x7f4a7c15) | 0);
+const strU = h => h / 4294967296;
+const strSm = v => v * v * (3 - 2 * v);
+const strTri = x => x < 0.5 ? 2 * x : 2 - 2 * x;
+const strMod = (a, b) => ((a % b) + b) % b;
+const strMix = (a, b, f) => [0, 1, 2].map(j => a[j] + (b[j] - a[j]) * f);
+const strNoise = (x, seed) => { const cell = Math.floor(x), fr = x - cell, a = strU(strH2(seed, cell)), b = strU(strH2(seed, cell + 1)); return a + (b - a) * strSm(fr); };
+const palColors = lk => Array.isArray(lk && lk.pal) && lk.pal.length ? lk.pal : [(lk && lk.rgb) || [255, 255, 255]];
+const showList = lk => { const m = (lk && lk.show | 0) & 0x7fff, l = []; for (let n = 0; n < 15; n++) if (!m || (m >> n) & 1) l.push(STR_SHOW[n][0]); return l; };
+// One bulb of a string effect: lk = {rgb, pal, size, speed, dwell, show}, pos = index along the run (direction applied), len = run length, t = ms. Returns [r,g,b] 0..255 (the effect's own level included).
+function strPix(mode, lk, pos, len, t) {
+  const sp = clamp(Number(lk.speed) || 5, 1, 10), S = clamp(Number(lk.size) || 1, 1, 20), pal = palColors(lk), nc = pal.length, G = Math.max(nc, 2);
+  const BLK = [0, 0, 0], C = k => pal[strMod(k, nc)], C2 = k => { const m = strMod(k, G); return m < nc ? pal[m] : BLK; };
+  const blk = Math.floor(pos / S), lvl = (c, l) => c.map(v => Math.round(clamp(v * clamp(l, 0, 1), 0, 255)));
+  len = Math.max(1, len | 0); t = Math.max(0, t);
+  switch (mode) {
+    case "bulbs": return C(blk).slice();
+    case "march": { const step = Math.floor(t * sp / 1500), q = strMod(pos - step, G * S); return C2(Math.floor(q / S)).slice(); }
+    case "alternate": { const k = Math.floor(t * sp / 3000) % G; return strMod(blk, G) === k ? C(blk).slice() : BLK.slice(); }   // C, not C2: one color lights even bulbs, then odd
+    case "theater": { const step = Math.floor(t * sp / 1000), P3 = 3 * S, m = strMod(pos - step, P3); return m < S ? C(strMod(Math.floor((pos - step) / P3), nc)).slice() : BLK.slice(); }
+    case "wipe": { const Tw = Math.max(1, Math.floor(len * 300 / sp)), k = Math.floor(t / Tw), f = (t % Tw) / Tw; return (pos < f * len ? C2(k) : C2(k + G - 1)).slice(); }
+    case "twinkle": case "shimmer": {
+      const h = strH2(pos, mode === "twinkle" ? 0xA1 : 0xB2), P = mode === "twinkle" ? Math.max(80, (4000 + 5000 * strU(h)) / sp) : Math.max(60, (2500 + 3500 * strU(h)) / sp);
+      const tt = t + strU(strH32((h + 1) | 0)) * P, cyc = Math.floor(tt / P), ph = (tt % P) / P;
+      if (mode === "twinkle") return ph < 0.5 ? lvl(C(strH2(pos, cyc) % nc), strSm(strTri(ph / 0.5))) : BLK.slice();
+      const dips = strH2(pos ^ 0x5bd1, cyc) & 1;
+      return lvl(C(blk), dips && ph < 0.4 ? 1 - 0.85 * strSm(strTri(ph / 0.4)) : 1);
+    }
+    case "glitter": { const slot = Math.floor(t * sp / 300); return strH2(pos, slot) % 100 < 4 ? [255, 255, 255] : lvl(C(blk), 0.6); }
+    case "candle": {
+      const tau = Math.max(20, 700 / sp), n1 = strNoise(t / tau, pos), n2 = strNoise(t / (tau / 3), pos ^ 0x9e37);
+      return lvl(C(blk), 0.45 + 0.55 * clamp(0.7 * n1 + 0.3 * n2 + 0.15, 0, 1));
+    }
+    case "fill": {
+      const Tf = Math.max(1, Math.floor(len * 200 / sp)), hold = 7500 / sp, dark = 2500 / sp, Tc = 2 * Tf + hold + dark, cyc = Math.floor(t / Tc), x = t % Tc;
+      const r = strU(strH2(pos, cyc ^ 0xF111));
+      const on = x < Tf ? r < x / Tf : x < Tf + hold ? true : x < 2 * Tf + hold ? r >= (x - Tf - hold) / Tf : false;
+      return on ? C(blk).slice() : BLK.slice();
+    }
+    case "comets": {
+      const D = Math.max(1, Math.min(len, 24)), TL = Math.max(2, D / 3), per = 1000 * D * nc, A = strMod(Math.floor(t * sp * 4) - pos * 1000, per);
+      const k = Math.floor(A / (1000 * D)), d = (A % (1000 * D)) / 1000;
+      return d < TL ? lvl(C(k), (1 - d / TL) ** 2) : BLK.slice();
+    }
+    case "stack": {
+      const L = Math.ceil(len / S), T = L * (L + 1) / 2, Df = 100000 / sp, Dh = 10000 / sp, Dc = 2500 / sp, x = t % (Df + Dh + Dc), q = Math.floor(pos / S);
+      if (x >= Df + Dh) return BLK.slice();
+      if (x >= Df) return C(L - 1 - q).slice();
+      const s0 = Math.min(T - 1, Math.floor(x * T / Df)), cum = k => k * L - k * (k - 1) / 2;
+      let k = Math.max(0, Math.min(L - 1, Math.round(L + 0.5 - Math.sqrt(Math.max(0, (L + 0.5) ** 2 - 2 * s0)))));
+      while (k > 0 && cum(k) > s0) k--;
+      while (k + 1 < L && cum(k + 1) <= s0) k++;
+      const m = s0 - cum(k);
+      return q >= L - k ? C(L - 1 - q).slice() : q === m ? C(k).slice() : BLK.slice();
+    }
+    case "bursts": {
+      const Tb = Math.max(40, 4000 / sp), j0 = Math.floor(t / Tb), R = Math.max(3, len / 6);
+      let best = 0, col = BLK;
+      for (const j of [j0, j0 - 1]) {
+        if (j < 0) continue;
+        const hb = strH2(j, 0xD4), c = strU(hb) * len, a = (t - j * Tb) / (2 * Tb), r = a * R, dist = Math.abs(pos + 0.5 - c);
+        if (a < 0 || a >= 1 || dist > r + 0.5) continue;
+        const lv = (1 - a) ** 2 * (0.35 + 0.65 * dist / (r + 0.5));
+        if (lv > best) { best = lv; col = C(strH32(hb ^ 0x1234) % nc); }
+      }
+      return best > 0 ? lvl(col, best) : BLK.slice();
+    }
+    case "colorwave": {
+      const W = 4 * S, per = 1000 * W * G, A = strMod(Math.floor(t * sp * 12 / 10) - pos * 1000, per), i = Math.floor(A / (1000 * W)), f = (A % (1000 * W)) / (1000 * W);
+      return strMix(C2(i), C2(i + 1), strSm(f)).map(Math.round);
+    }
+    case "fade": {
+      const Tc = 15000 / sp, i = Math.floor(t / Tc), f = (t % Tc) / Tc, b = f < 0.4 ? 0 : strSm((f - 0.4) / 0.6);
+      return strMix(C2(i), C2(i + 1), b).map(Math.round);
+    }
+    case "show": {
+      const list = showList(lk), dw = clamp(Number(lk.dwell) || 20, 5, 120) * 1000, k = Math.floor(t / dw) % list.length, x = t % dw;
+      return lvl(strPix(list[k], lk, pos, len, t), Math.min(x, dw - x) / 400);
+    }
+  }
+  return BLK.slice();
+}
+// An underglow-style wrapper around one look, for accentPix (carries the string-effect keys too).
+const lookAcc = (lk, pct) => ({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct, pal: lk.pal, size: lk.size, dwell: lk.dwell, show: lk.show } });
 // One underglow pixel in the demo preview. pos = [x,y,z] mm or null (unmapped: runs along the strip).
 function accentPix(s, idx, n, pos, bnd, now, scale, pct) {
   const A = s.accent;
@@ -1134,7 +1268,7 @@ function accentPix(s, idx, n, pos, bnd, now, scale, pct) {
     case "breathe": k = 0.5 + 0.5 * Math.sin(now / 1000 * sp * 0.6); break;
     case "chase": k = ((Math.floor(ph * n) - idx + n) % n) < Math.max(2, n * 0.1) ? 1 : 0; break;
     case "scanner": k = scannerLevel(idx, n, now, sp); break;
-    default: if (FX_NEW.includes(A.mode)) { const r = fxPixel(A.mode, A.rgb, sp, fxLedOf(pos, bnd, idx, n), now); k = r.k; rgb = r.c; }
+    default: if (STR_FX.includes(A.mode)) { rgb = strPix(A.mode, A, idx, n, now); k = 1; } else if (FX_NEW.includes(A.mode)) { const r = fxPixel(A.mode, A.rgb, sp, fxLedOf(pos, bnd, idx, n), now); k = r.k; rgb = r.c; }
   }
   const m = k * (pct == null ? A.pct : pct) / 100 * scale;
   return rgb.map(c => Math.round(c * m));
@@ -1159,6 +1293,26 @@ function lookSpan(sp) {
   return hi > lo ? { lo, len: hi - lo } : null;
 }
 
+// The run a strip's look2 sections cover together (first pixel of the first to the last pixel of the last).
+function look2Span(sp) {
+  let lo = Infinity, hi = -Infinity;
+  for (const g of (sp && sp.seg) || []) { if (g[2] !== "look2" || g[1] <= 0) continue; lo = Math.min(lo, g[0]); hi = Math.max(hi, g[0] + g[1]); }
+  return hi > lo ? { lo, len: hi - lo } : null;
+}
+// Reacting sections (A4): the colour a look / look2 section shows while its brake / turn reaction is active, or null for "show the effect".
+function rxPix(s, st, g, k, now, pct, scale) {
+  const rx = demoNo48() ? 0 : segRxFor(g);
+  if (!rx || !st.v) return null;
+  const L = !!st.l, R = !!st.r, turnC = Array.isArray(s.turn.rgb) ? s.turn.rgb : [255, 96, 0];
+  const sc = c => c.map(v => Math.round(v * pct / 100 * scale)), bg = (rx & 1) && st.brk ? [255, 0, 0] : [0, 0, 0];
+  if (L && R && (rx & 6)) return sc(st.blk ? turnC : bg);
+  if (L !== R && ((L && (rx & 2)) || (R && (rx & 4)))) {
+    const step = Math.floor(now / 1000 * 12), low = L !== !!g[3], abs = g[0] + k;   // left signal: toward lower pixel index; Flip direction swaps both
+    return sc(strMod(low ? abs + step : abs - step, 6) < 3 ? turnC : bg);
+  }
+  return (rx & 1) && st.brk ? sc([255, 0, 0]) : null;
+}
+
 function detectPreset(head) {
   for (const [k, m] of Object.entries(PRESETS))
     if (["low","high","aux","drl"].every(l => sortMask(head[l]) === sortMask(m[l]))) return k;
@@ -1166,6 +1320,54 @@ function detectPreset(head) {
 }
 function sortMask(s) { return HEAD_STATES.map(h => h[0]).filter(c => (s || "").toUpperCase().includes(c)).join(""); }
 
+// 0.4.8 look keys. A palette is up to 6 colors [r, g, b]; the rest are small clamped numbers.
+const palOk = p => Array.isArray(p) && p.length <= PAL_MAX && p.every(c => Array.isArray(c) && c.length === 3 && c.every(v => Number.isInteger(v) && v >= 0 && v <= 255));
+const palOf = o => (o && Array.isArray(o.pal) ? o.pal : []);
+const sizeOf = o => clamp((o && o.size | 0) || 1, 1, 20);
+const dwellOf = o => clamp(o && o.dwell != null ? o.dwell | 0 : 20, 5, 120);
+const showOf = o => ((o && o.show) | 0) & 0x7fff;
+const LOOKX = [["pal", []], ["size", 1], ["dwell", 20], ["show", 0]];
+// A `look` / `look2` / `accent` patch the way firmware 0.4.8 reads it: unknown mode or a bad palette = a note and that key unchanged; older firmware: unknown keys.
+function lookPatchOk(sv, label, notes) {
+  const o = { ...sv };
+  if (o.mode != null && !modeOk(o.mode)) { notes.push(`${label}.mode: unknown value`); delete o.mode; }
+  for (const [k] of LOOKX) if (k in o && demoNo48()) { notes.push(`${label}.${k}: unknown key`); delete o[k]; }
+  if ("pal" in o) { if (palOk(o.pal)) o.pal = o.pal.map(c => c.slice()); else { notes.push(`${label}.pal: expected at most ${PAL_MAX} colors [r, g, b]; palette unchanged`); delete o.pal; } }
+  return o;
+}
+const clampLookX = o => {
+  if (!o) return o;
+  if ("size" in o) o.size = clamp(o.size | 0, 1, 20);
+  if ("dwell" in o) o.dwell = clamp(o.dwell | 0, 5, 120);
+  if ("show" in o) o.show = (o.show | 0) & 0x7fff;
+  return o;
+};
+// What the board writes for a look: the five old keys, then pal / size / dwell / show only when they are not at their defaults.
+function lookSer(lk) {
+  const o = {};
+  for (const k of ["mode", "rgb", "speed", "rev", "master"]) if (k in lk) o[k] = lk[k];
+  if (palOf(lk).length) o.pal = lk.pal.map(c => c.slice());
+  if (lk.size != null && (lk.size | 0) !== 1) o.size = lk.size | 0;
+  if (lk.dwell != null && (lk.dwell | 0) !== 20) o.dwell = lk.dwell | 0;
+  if (lk.show != null && (lk.show | 0) !== 0) o.show = lk.show | 0;
+  return o;
+}
+const look2Plain = lk => JSON.stringify(lookSer({ ...LOOK2_DEFAULT, ...(lk || {}) })) === JSON.stringify(lookSer(LOOK2_DEFAULT));
+const hasLook2Seg = st => st.seg.some(g => g[2] === "look2" && g[1] > 0);
+// The settings as `get` prints them: new keys only when set, look2 right after look and only when the strip uses it.
+function demoSerial(s0) {
+  const c = structuredClone(s0);
+  c.accent = { ...c.accent }; { const x = lookSer(c.accent), keep = {}; for (const k of Object.keys(c.accent)) if (!LOOKX.some(q => q[0] === k)) keep[k] = c.accent[k]; c.accent = { ...keep, ...Object.fromEntries(Object.entries(x).filter(([k]) => LOOKX.some(q => q[0] === k))) }; }
+  c.strips = c.strips.map(st => {
+    const o = {};
+    for (const k of Object.keys(st)) {
+      if (k === "look") { o.look = lookSer(st.look); if (!demoNo48() && (hasLook2Seg(st) || !look2Plain(st.look2))) o.look2 = lookSer({ ...LOOK2_DEFAULT, ...st.look2 }); }
+      else if (k !== "look2") o[k] = st[k];
+    }
+    return o;
+  });
+  return c;
+}
 // Merge a `set` patch the way firmware settingsPatch() does.
 // `pend` holds the staged `segi` batches (one per strip); returns the notes the board would send back.
 function applyPatch(s, p, pend = [null, null, null, null]) {
@@ -1199,10 +1401,11 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
           } else if (sk === "nseg") nsegReq = sv;
           else if (sk === "pct") st.pct = sv;
           else if (sk === "look") {
-            if (sv && typeof sv === "object") {
-              if (sv.mode != null && !modeOk(sv.mode)) { notes.push(`strips[${i}].look.mode: unknown value`); sv = { ...sv }; delete sv.mode; }
-              st.look = { ...LOOK_DEFAULT, ...(st.look || {}), ...sv };
-            }
+            if (sv && typeof sv === "object") st.look = { ...LOOK_DEFAULT, ...(st.look || {}), ...lookPatchOk(sv, `strips[${i}].look`, notes) };
+          }
+          else if (sk === "look2") {
+            if (demoNo48()) notes.push(`strips[${i}].look2: unknown key`);
+            else if (sv && typeof sv === "object") st.look2 = { ...LOOK2_DEFAULT, ...(st.look2 || {}), ...lookPatchOk(sv, `strips[${i}].look2`, notes) };
           }
           else if (sk === "ordi" || sk === "nord" || sk === "ord") {   // colour-order zones (0.4.3): [index, start, count, order] staged, committed by nord
             if (demoNoOrd()) { notes.push(`strips[${i}].${sk}: unknown key`); continue; }
@@ -1294,6 +1497,8 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
       if (demoNoTurnRgb()) notes.push("turn.rgb: unknown key");
       else if (!Array.isArray(rgb) || rgb.length !== 3 || !rgb.every(x => Number.isInteger(x) && x >= 0 && x <= 255)) notes.push("turn.rgb: expected [r, g, b]");
       else s.turn.rgb = rgb.slice();
+    } else if (k === "accent" && v && typeof v === "object" && !Array.isArray(v)) {
+      Object.assign(s.accent, lookPatchOk(v, "accent", notes));
     } else if (v && typeof v === "object" && !Array.isArray(v) && s[k] && typeof s[k] === "object") {
       Object.assign(s[k], v);
     } else {
@@ -1320,6 +1525,12 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
     });
     st.look = { ...LOOK_DEFAULT, ...(st.look || {}) }; st.look.speed = clamp(st.look.speed | 0, 1, 10);
     if (!modeOk(st.look.mode)) st.look.mode = "scanner";
+    clampLookX(st.look);
+    if (st.look2) {
+      st.look2 = { ...LOOK2_DEFAULT, ...st.look2 }; st.look2.speed = clamp(st.look2.speed | 0, 1, 10);
+      if (!modeOk(st.look2.mode)) st.look2.mode = "bulbs";
+      clampLookX(st.look2);
+    }
     if (st.ord) {   // validate(): drop empty zones and the part past the strip, sort by start
       st.ord = st.ord.filter(q => q[1] > 0 && q[0] < st.px).map(q => [q[0], Math.min(q[1], st.px - q[0]), q[2]]).sort((a, b) => a[0] - b[0]);
       if (!st.ord.length) delete st.ord;
@@ -1333,6 +1544,7 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
     st.chip = chipOf(st, st.chip);
   }
   if (!modeOk(s.accent.mode)) { notes.push("accent.mode: unknown value"); s.accent.mode = prevAcc; }
+  clampLookX(s.accent);
   return notes;
 }
 
@@ -1377,22 +1589,30 @@ function segFree(s, role, st) {
 // One pixel of a segment in the demo: {c: rgb, acc: true when it is an underglow-class pixel (subject to the budget)}.
 // spct = the strip's brightness %. Decoration = global x strip x segment (never auto-dimmed); brake/tail/turn colors ignore it.
 function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
-  const role = g[2], own = role === "look" || (segIdleOf(g) || {}).idle === "look", pct = decoPct(own ? 100 : s.accent.pct, spct, segPctOf(g));
+  const role = g[2], own = role === "look" || role === "look2" || (segIdleOf(g) || {}).idle === "look", pct = decoPct(own ? 100 : s.accent.pct, spct, segPctOf(g));
   const gp = strip && strip.geom && strip.geom.pt && strip.geom.pt.length >= 2 ? strip.geom.pt : null;   // a path comes before the segments' own positions
   const pos = () => gp ? geomAt(gp, g[0] + k) : isMapped(g) ? lerp3(segPos(g, 0), segPos(g, 1), n > 1 ? k / (n - 1) : 0) : null;
   if (role === "accent") return { c: accentPix(s, k, n, pos(), bnd, now, scale, pct), acc: true };
   if (role === "look") {   // a section with no signal job: always the strip's own look
     const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) };
     if (!(s.accent.on || !lk.master) || !pct) return { c: [0, 0, 0], acc: false };
+    const rc = rxPix(s, st, g, k, now, pct, scale); if (rc) return { c: rc, acc: true };
     const span = lookSpan(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
-    return { c: accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct } }, p, span.len, pos(), bnd, now, scale, pct), acc: true };
+    return { c: accentPix(lookAcc(lk, pct), p, span.len, pos(), bnd, now, scale, pct), acc: true };
+  }
+  if (role === "look2") {   // 0.4.8: a section with no signal job that always shows the strip's second look (its own run)
+    const lk = { ...LOOK2_DEFAULT, ...((strip && strip.look2) || {}) };
+    if (!(s.accent.on || !lk.master) || !pct) return { c: [0, 0, 0], acc: false };
+    const rc = rxPix(s, st, g, k, now, pct, scale); if (rc) return { c: rc, acc: true };
+    const span = look2Span(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
+    return { c: accentPix(lookAcc(lk, pct), p, span.len, pos(), bnd, now, scale, pct), acc: true };
   }
   // firmware 0.4.7: a DRL section joins the strip's look while the DRL is switched off (when the strip has a look)
   if (role === "drl" && st.v && s.drl && !s.drl.on && lookSpan(strip) && !demoNoDrlJoin()) {
     const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) }, lp = decoPct(100, spct, segPctOf(g));
     if (!(s.accent.on || !lk.master) || !lp) return { c: [0, 0, 0], acc: false };
     const span = lookSpan(strip), rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
-    let c = accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct: lp } }, p, span.len, pos(), bnd, now, scale, lp);
+    let c = accentPix(lookAcc(lk, lp), p, span.len, pos(), bnd, now, scale, lp);
     if (!s.front_red && isRedHue(c)) c = [0, 0, 0];
     return { c, acc: true };
   }
@@ -1408,7 +1628,7 @@ function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
     if (!on || !pct || (isTurnRole(role) && (st.l || st.r))) return { c: [0, 0, 0], acc: false };
     if (own) {
       const span = lookSpan(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
-      let c = accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct } }, p, span.len, pos(), bnd, now, scale, pct);
+      let c = accentPix(lookAcc(lk, pct), p, span.len, pos(), bnd, now, scale, pct);
       if ((role === "turn_l" || role === "turn_r") && !s.front_red && isRedHue(c)) c = [0, 0, 0];
       return { c, acc: true };
     }
@@ -1452,7 +1672,7 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 7]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 8]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
     if (demoNoTurnRgb()) delete this.s.turn.rgb;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
@@ -1467,9 +1687,9 @@ class DemoLink {
   // A saved look: what a firmware preset holds (no positions, no pixel counts).
   snap(name) {
     const s = this.s;
-    return { name: String(name).slice(0, 24), accent: { on: s.accent.on, mode: s.accent.mode, rgb: s.accent.rgb.slice(), pct: s.accent.pct, speed: s.accent.speed },
+    return { name: String(name).slice(0, 24), accent: { on: s.accent.on, mode: s.accent.mode, rgb: s.accent.rgb.slice(), pct: s.accent.pct, speed: s.accent.speed, ...Object.fromEntries(Object.entries(lookSer(s.accent)).filter(([k]) => LOOKX.some(q => q[0] === k))) },
              turn_style: s.turn.style, drl: { ...s.drl },
-             strips: s.strips.map(st => ({ pct: st.pct, turn_style: st.turn_style, look: { ...st.look },
+             strips: s.strips.map(st => ({ pct: st.pct, turn_style: st.turn_style, look: { ...st.look }, ...(!demoNo48() && (hasLook2Seg(st) || !look2Plain(st.look2)) ? { look2: { ...LOOK2_DEFAULT, ...st.look2 } } : {}),
                                            seg: st.seg.map(g => { const o = segObjOf(g); return o ? [g[0], g[1], g[2], g[3], structuredClone(o)] : [g[0], g[1], g[2], g[3]]; }) })) };
   }
   presetNext() {
@@ -1478,11 +1698,13 @@ class DemoLink {
   }
   applySlot(n) {
     const p = this.slots[n], s = this.s;
+    LOOKX.forEach(([k, dv]) => { s.accent[k] = structuredClone(dv); });   // a preset without a palette clears it
     Object.assign(s.accent, structuredClone(p.accent)); s.turn.style = p.turn_style; Object.assign(s.drl, p.drl);
     p.strips.forEach((q, i) => {
       const st = s.strips[i];
       if (isLampOut(st) || !st.px) return;
       st.pct = q.pct; st.turn_style = q.turn_style; st.look = { ...q.look };
+      if (q.look2) st.look2 = { ...LOOK2_DEFAULT, ...q.look2 }; else delete st.look2;
       st.seg = parseSegs(structuredClone(q.seg));
     });
     applyPatch(s, {}); this.pre = n; this.dirty = false;
@@ -1536,7 +1758,7 @@ class DemoLink {
     const cmd = sp < 0 ? t : t.slice(0, sp), args = sp < 0 ? "" : t.slice(sp + 1).trim();
     const onoff = args === "on" ? 1 : args === "off" ? 0 : -1;
     switch (cmd) {
-      case "get": { const c = structuredClone(this.s); c.ota_pass = "********"; this.out(JSON.stringify(c)); break; }
+      case "get": { const c = demoSerial(this.s); c.ota_pass = "********"; this.out(JSON.stringify(c)); break; }
       case "status": this.out(JSON.stringify(this.status())); break;
       case "set":
         try { const notes = applyPatch(this.s, JSON.parse(args), this.pend); if (this.pre >= 0) this.dirty = true; this.out(JSON.stringify({ ok: true, notes: notes.join("; ") })); }
@@ -1636,7 +1858,7 @@ class DemoLink {
       let base = sp.px, acc = 0;
       for (const g of sp.seg) {
         const n = g[1]; if (n <= 0) continue;
-        if (g[2] !== "accent" && g[2] !== "look" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st, g), sp); continue; }   // brake/tail/turn: never dimmed
+        if (g[2] !== "accent" && g[2] !== "look" && g[2] !== "look2" && !(idleOk(g[2]) && segIdleOf(g))) { base += n * sp.px_ma * frac(segRgb(s, g[2], st, g), sp); continue; }   // brake/tail/turn: never dimmed
         for (let k = 0; k < n; k++) {
           const r = segPixel(s, g, k, n, st, bnd, now, 1, sp.pct, sp), f = sp.px_ma * frac(r.c, sp);
           if (r.acc) acc += f; else base += f;
@@ -1688,7 +1910,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.7";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.8";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -1724,14 +1946,18 @@ const fw4 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 1]) >= 0);
 // 0.4.2 adds the rain, fire, sparkle, plasma, rings, bounce and diag effects. Their names are never sent to older firmware.
 const fw43 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 3]) >= 0);   // 0.4.3: colour-order zones (ordi / nord) and find with a count and a colour
 const fw47 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 7]) >= 0);   // 0.4.7: a DRL section joins the strip look while the DRL is off
+const fw48 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 8]) >= 0);   // 0.4.8: palettes, light-string effects, look2 / light-string sections, reacting sections
 const fw42 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 2]) >= 0);
-const modeList = () => fw42() ? MODES_ALL : MODES;
+const modeBase = () => fw42() ? MODES_ALL : MODES;   // the effects that were there before 0.4.8
+const modeList = () => fw48() ? MODES_EVERY : modeBase();
+// <select> options: grouped from 0.4.8 (Effects / Patterns / Light strings), the flat list before.
+const modeGroups = () => fw48() ? [{ group: "Effects", options: MODES }, { group: "Patterns", options: MODES_NEW }, { group: "Light strings", options: MODES_STR }] : modeList();
 function setFw(line) {
   const m = /firmware (\d+\.\d+\.\d+)/.exec(line);
   if (!m) return;
-  const was = fw4(), was2 = fw42(), was3 = fw43();
+  const was = fw4(), was2 = fw42(), was3 = fw43(), was4 = fw48();
   app.fw = { raw: m[1], n: parseVer(m[1]) };
-  if (app.settings && (was2 !== fw42() || was3 !== fw43())) setSettings(app.settings);   // the effect pickers
+  if (app.settings && (was2 !== fw42() || was3 !== fw43() || was4 !== fw48())) setSettings(app.settings);   // the effect pickers
   else if (app.settings && was !== fw4()) { buildStrips(); buildSetup(); }
   if (fw4()) ctlList();
   buildControl();
@@ -2294,11 +2520,51 @@ function numField(label, value, min, max, step, onCommit, hint, key) {
 }
 function selectField(label, options, value, onCommit) {
   const id = "f" + Math.random().toString(36).slice(2);
-  const s = el("select", { id, onchange: () => onCommit(s.value) }, ...options.map(([v, t]) => el("option", { value: v, selected: v === value }, t)));
+  const opt = ([v, t]) => el("option", { value: v, selected: v === value }, t);
+  const s = el("select", { id, onchange: () => onCommit(s.value) }, ...options.map(o => Array.isArray(o) ? opt(o) : el("optgroup", { label: o.group }, ...o.options.map(opt))));
   return el("div", { class: "field" }, el("label", { for: id }, label), s);
 }
 const hex = rgb => "#" + rgb.map(x => x.toString(16).padStart(2, "0")).join("");
 const unhex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+
+// ---- palette editor (firmware 0.4.8): bulb colors, bulbs per color, and the Auto show's timing and effect list ----
+// look = the values now ({mode, pal, size, dwell, show}); set(keys) applies a change (the owner patches or edits a draft and redraws). null when the effect has no palette.
+function palEditor(look, set, o = {}) {
+  if (!fw48() || !isStrMode(look.mode)) return null;
+  const pal = palOf(look), box = el("div", { class: "pal-ed", "data-pal-ed": o.key == null ? "1" : o.key }), same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const dis = !!o.dis;
+  box.append(el("h4", {}, "Bulb colors"));
+  const chips = el("div", { class: "ct-pills" });
+  PAL_PRESETS.forEach(([id, label, cols]) => chips.append(el("button", { class: "btn", type: "button", "data-pal-preset": id, disabled: dis, "aria-pressed": String(same(pal, cols)), onclick: () => set({ pal: cols.map(c => c.slice()) }) }, label)));
+  box.append(chips);
+  const sw = el("div", { class: "pal-sw" });
+  pal.forEach((c, k) => {
+    const inp = el("input", { type: "color", value: hex(c), "aria-label": `Bulb color ${k + 1}`, "data-pal-sw": k, disabled: dis });
+    inp.onchange = () => set({ pal: pal.map((q, j) => j === k ? unhex(inp.value) : q.slice()) });
+    const rm = el("button", { class: "btn x", type: "button", "aria-label": `Remove bulb color ${k + 1}`, "data-pal-rm": k, disabled: dis, onclick: () => set({ pal: pal.filter((_, j) => j !== k).map(q => q.slice()) }) }, "×");
+    sw.append(el("span", { class: "pal-one" }, inp, rm));
+  });
+  if (pal.length < PAL_MAX) sw.append(el("button", { class: "btn", type: "button", "data-pal-add": "1", disabled: dis, onclick: () => set({ pal: [...pal.map(q => q.slice()), pal.length ? pal[pal.length - 1].slice() : [255, 255, 255]] }) }, "Add color"));
+  box.append(sw);
+  if (!pal.length) box.append(el("p", { class: "note", style: "margin:0" }, "No colors picked: every bulb uses the single color above. Tap a set or Add color."));
+  box.append(numField("Bulbs per color", sizeOf(look), 1, 20, 1, v => set({ size: v }), "Bulbs in a row that share a color.", "pal-size"));
+  if (look.mode === "show") {
+    box.append(numField("Change every N seconds", dwellOf(look), 5, 120, 1, v => set({ dwell: v }), "How long each effect runs before the next one fades in.", "pal-dwell"));
+    const mask = showOf(look), on = n => !mask || ((mask >> n) & 1), list = el("div", { class: "pal-show" });
+    STR_SHOW.forEach(([id, label], n) => {
+      const c = el("input", { type: "checkbox", checked: on(n), "data-pal-show": n, disabled: dis, "aria-label": label });
+      c.onchange = () => {
+        let m = 0; for (let j = 0; j < 15; j++) { const v = j === n ? c.checked : on(j); if (v) m |= 1 << j; }
+        if (!m) { c.checked = true; toast("Keep at least one effect ticked", true); return; }
+        set({ show: m === 0x7fff ? 0 : m });
+      };
+      list.append(el("label", {}, c, " " + label));
+    });
+    box.append(el("h4", {}, "Effects in the show"), list);
+  }
+  return box;
+}
+
 
 function setSettings(s) {
   app.settings = s;
@@ -2307,7 +2573,11 @@ function setSettings(s) {
   ap.append(
     switchField("Underglow on at key-on", A.on, v => patch({ accent: { on: v } }), "The handlebar button switches it for the current ride."),
     (() => {
-      const f = selectField("Effect", modeList(), A.mode, v => { const o = { mode: v, rgb: A.rgb.slice() }; setModeFire(o, v); patch({ accent: o.rgb.join() !== A.rgb.join() ? o : { mode: v } }); });
+      const f = selectField("Effect", modeGroups(), A.mode, v => {
+        const o = { mode: v, rgb: A.rgb.slice(), pal: palOf(A).map(c => c.slice()) }; setModeFire(o, v);
+        const pp = { mode: v }; if (o.rgb.join() !== A.rgb.join()) pp.rgb = o.rgb; if (JSON.stringify(o.pal) !== JSON.stringify(palOf(A))) pp.pal = o.pal;
+        patch({ accent: pp }); });
+      f.querySelector("select").setAttribute("data-accent-mode", "1");
       if (POS_MODES.includes(A.mode) && !s.strips.some(st => st.seg.some(g => g[1] > 0 && isMapped(g))))
         f.append(el("div", { class: "hint", id: "posHint" }, "No segments are mapped yet — the effect runs along each strip. Add them on the Bike tab, or place them under Bike → Advanced → Photo layout."));
       return f;
@@ -2315,6 +2585,7 @@ function setSettings(s) {
     (() => { const c = el("input", { type: "color", value: hex(A.rgb), "aria-label": "Color" });
              c.onchange = () => patch({ accent: { rgb: unhex(c.value) } });
              return el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), c); })(),
+    ...[palEditor(A, kv => patch({ accent: kv }), { key: "accent" })].filter(Boolean),
     rangeField("Brightness", A.pct, 0, 100, 1, "%", v => patch({ accent: { pct: v } }), "Global: multiplies each strip's and segment's brightness"),
     rangeField("Speed", A.speed, 1, 10, 1, "", v => patch({ accent: { speed: v } }), "For every effect except solid."));
 
@@ -2358,7 +2629,7 @@ function roleCss(role) {
   return { tail: "#8c1d18", brake: "#e8352b", turn_l: "#ffa41b", turn_r: "#ffa41b",
            tail_turn_l: "linear-gradient(#ffa41b 50%, #8c1d18 50%)", tail_turn_r: "linear-gradient(#ffa41b 50%, #8c1d18 50%)",
            accent: hex(s.accent.rgb), none: "transparent",
-           drl: s.drl ? hex(s.drl.rgb) : "#d9dde1", look: "#3d8bff" }[role] || "transparent";
+           drl: s.drl ? hex(s.drl.rgb) : "#d9dde1", look: "#3d8bff", look2: "#b04bd8" }[role] || "transparent";
 }
 function mapNodes(draft) {
   const total = Math.max(1, draft.px);
@@ -2387,20 +2658,35 @@ const effStrip = i => app.drafts[i] || app.settings.strips[i];
 // Everything one strip draft changes, as `set` patches that each fit one BLE write.
 function stripDraftPatches(draft, i) {
   const core = { out: draft.out, lamp_min_ma: draft.lamp_min_ma | 0, px: draft.px | 0, order: draft.order, cap_ma: draft.cap_ma, pct: clamp(draft.pct | 0, 0, 100) };
-  const lookOut = { mode: draft.look.mode, rgb: draft.look.rgb, speed: draft.look.speed | 0, rev: !!draft.look.rev, master: !!draft.look.master };
+  const cur = app.settings.strips[i] || {}, lookOut = lookOutOf(draft.look, cur.look);
+  const l2 = fw48() && (hasLook2Seg(draft) || !look2Plain(draft.look2) || !look2Plain(cur.look2)) ? [stripWrap(i, { look2: lookOutOf(draft.look2, cur.look2) })] : [];
   // A preset is sent by name (the board fills in the rest); Custom sends every field.
   if (draft.chip !== "custom") core.chip = draft.chip;
   else Object.assign(core, { timing: draft.timing, rgbw: !!draft.rgbw, lpp: draft.lpp | 0, sum: !!draft.sum, px_ma: draft.px_ma | 0 });
-  return [stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...segPatches(i, draft.seg.map(segOut)),
+  return [stripWrap(i, core), stripWrap(i, { turn_style: draft.turn_style, look: lookOut }), ...l2, ...segPatches(i, draft.seg.map(segOut)),
           ...(Array.isArray(draft.geomPts) ? geomPatches(i, draft.geomPts) : []),
           ...(Array.isArray(draft.ordZones) && fw43() ? ordPatches(i, draft.ordZones) : [])];   // zones only to 0.4.3 firmware   // a matrix sends its path after the pixel count and the segments
 }
+// A look as a `set` sends it: the five old keys, plus palette / size / dwell / show when they are not at their defaults (or were not, so a reset clears them).
+function lookOutOf(lk, old) {
+  const o = { mode: lk.mode, rgb: lk.rgb, speed: lk.speed | 0, rev: !!lk.rev, master: !!lk.master };
+  if (fw48()) {
+    const val = (x, k) => k === "pal" ? palOf(x) : k === "size" ? sizeOf(x) : k === "dwell" ? dwellOf(x) : showOf(x);
+    for (const [k, dv] of LOOKX) {
+      const v = val(lk, k), ov = val(old, k);
+      if (JSON.stringify(v) !== JSON.stringify(dv) || JSON.stringify(ov) !== JSON.stringify(dv)) o[k] = k === "pal" ? v.map(c => c.slice()) : v;
+    }
+  }
+  return o;
+}
+const lookKey = x => JSON.stringify([x.mode, x.rgb, x.speed | 0, !!x.rev, !!x.master, palOf(x), sizeOf(x), dwellOf(x), showOf(x)]);
 const effStrips = () => app.settings.strips.map((_, i) => effStrip(i));
 function normStrip(d) {
   d.out = OUT_LABEL[d.out] ? d.out : "pixels"; d.lamp_min_ma = clamp(d.lamp_min_ma | 0, 0, 7000);
   d.chip = d.chip || "custom"; d.timing = d.timing || "800k"; d.rgbw = !!d.rgbw;
   d.lpp = d.lpp || 1; d.sum = !!d.sum; d.px_ma = d.px_ma || 18; d.pct = d.pct == null ? 100 : clamp(rnd(d.pct), 0, 100);
   d.look = { ...LOOK_DEFAULT, ...(d.look || {}) }; d.turn_style = d.turn_style || "global";
+  d.look2 = { ...LOOK2_DEFAULT, ...(d.look2 || {}) };
   d.seg = d.seg.map(canonSeg);
   return d;
 }
@@ -2591,11 +2877,11 @@ function buildStrips() {
       const idleCol = el("input", { type: "color", "aria-label": "Idle color", "data-idle-color": key, value: hex((cur && cur.rgb) || [0, 0, 255]), hidden: !(cur && cur.idle === "color") });
       const setIdle = () => {   // a red pick on a brake / front-pod segment stays in the draft with its note, but goes out as idle off
         const c = unhex(idleCol.value), pct = segPctOf(g), nb = segNbOf(g);
-        ensure(); g.length = 6; const o = segObj(idleSel.value, c, pct, nb); if (o) g.push(o);
+        ensure(); g.length = 6; const o = segObj(idleSel.value, c, pct, nb, segRxFor(g)); if (o) g.push(o);
         idleCol.hidden = idleSel.value !== "color"; upd(); refreshNotes(); refreshLook(); redraw();
       };
       idleSel.onchange = setIdle; idleCol.onchange = setIdle;
-      const setPct = v => { ensure(); const k0 = segIdleOf(g), nb = segNbOf(g); g.length = 6; const o = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, v, nb); if (o) g.push(o); upd(); refreshNotes(); };
+      const setPct = v => { ensure(); const k0 = segIdleOf(g), nb = segNbOf(g), rx = segRxFor(g); g.length = 6; const o = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, v, nb, rx); if (o) g.push(o); upd(); refreshNotes(); };
       const pf = rangeField("Brightness", segPctOf(g), 0, 100, 1, "%", v => { setPct(v); redraw(); });
       const pin = pf.querySelector("input"); pin.setAttribute("data-seg-pct", key); pin.addEventListener("input", () => setPct(+pin.value));
       pf.append(effHint);
@@ -2623,6 +2909,9 @@ function buildStrips() {
             ? "Off: dark when this segment's function is off. Join underglow: shows the underglow effect then. Color: a steady color then (both follow underglow on/off). Strip look: this strip's own effect from \"Bar setup and idle look\" above, running across all its strip-look segments."
             : "Only tail, brake and turn segments have an idle look."),
           pf,
+          ...(fw48() && rxRole(g[2]) ? [el("div", { class: "ph-row", "data-rx-row": key, style: "margin:6px 0" }, el("span", { class: "note" }, "Reacts to "),
+            ...[["Brake", RX.brake], ["Left turn", RX.left], ["Right turn", RX.right]].map(([t, bit]) => el("label", { class: "note" },
+              el("input", { type: "checkbox", checked: !!(segRxOf(g) & bit), "data-rx": `${key}:${bit}`, "aria-label": "Reacts to " + t.toLowerCase(), onchange: ev => { setSegRx(g, ev.target.checked ? segRxOf(g) | bit : segRxOf(g) & ~bit); redraw(); } }), " " + t)))] : []),
           el("div", { class: "pos-grid" }, el("span"), el("span", { class: "pos-head" }, "x " + UNIT.name), el("span", { class: "pos-head" }, "y " + UNIT.name), el("span", { class: "pos-head" }, "z " + UNIT.name)),
           row(0, "First pixel"), row(1, "Last pixel"),
           el("p", { class: "note" }, "x: front 0 → rear. y: left − → right +. z: up. Inches on the bike (the board keeps whole millimeters)."),
@@ -2636,11 +2925,11 @@ function buildStrips() {
       draft.seg.forEach((g, k) => {
         const s0 = el("input", { type: "number", min: 0, max: 799, value: g[0], inputmode: "numeric", "aria-label": "Start" });
         const s1 = el("input", { type: "number", min: 0, max: 800, value: g[1], inputmode: "numeric", "aria-label": "Pixels" });
-        const r = el("select", { "aria-label": "Job" }, ...[...ROLES, ...(fw4() || ROLES_V4.some(x => x[0] === g[2]) ? ROLES_V4 : [])].map(([v, t]) => el("option", { value: v, selected: v === g[2] }, t)));
+        const r = el("select", { "aria-label": "Job" }, ...[...ROLES, ...(fw4() || ROLES_V4.some(x => x[0] === g[2]) ? ROLES_V4 : []), ...(fw48() || g[2] === "look2" ? [ROLE_STR] : [])].map(([v, t]) => el("option", { value: v, selected: v === g[2] }, t)));
         const rv = el("input", { type: "checkbox", checked: !!g[3], "aria-label": "Reverse sweep direction" });
         s0.oninput = () => { g[0] = s0.value | 0; redraw(); };
         s1.oninput = () => { g[1] = s1.value | 0; redraw(); };
-        r.onchange = () => { g[2] = r.value; if (!idleOk(g[2])) { const pct = segPctOf(g); g.length = 6; const ob = segObj("off", null, pct); if (ob) g.push(ob); } else if (!/^tail/.test(g[2]) && segNbOf(g)) { const k0 = segIdleOf(g), pct = segPctOf(g); g.length = 6; const ob = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, pct); if (ob) g.push(ob); } drawRows(); redraw(); };
+        r.onchange = () => { const rx0 = segRxOf(g); g[2] = r.value; if (!idleOk(g[2])) { const pct = segPctOf(g); g.length = 6; const ob = segObj("off", null, pct); if (ob) g.push(ob); } else if (!/^tail/.test(g[2]) && segNbOf(g)) { const k0 = segIdleOf(g), pct = segPctOf(g); g.length = 6; const ob = segObj(k0 ? k0.idle : "off", k0 && k0.rgb, pct); if (ob) g.push(ob); } if (rx0 && rxRole(g[2])) setSegRx(g, rx0); drawRows(); redraw(); };
         rv.onchange = () => { g[3] = rv.checked; redraw(); };
         tb.append(el("tr", {}, el("td", {}, s0), el("td", {}, s1), el("td", {}, r), el("td", {}, rv),
           el("td", {}, el("button", { class: "x", "aria-label": "Remove segment", onclick: () => {
@@ -2683,7 +2972,8 @@ function buildStrips() {
     const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
     const tsField = selectField("Turn animation", [["global", `Same as All light settings (${gName})`], ...TURN_STYLES], draft.turn_style, v => { draft.turn_style = v; redraw(); });
     tsField.querySelector("select").setAttribute("data-strip-turnstyle", i);
-    const lmField = selectField("Idle look effect", modeList(), lk.mode, v => { setModeFire(lk, v); lookChanged(); });
+    const lmField = selectField("Idle look effect", modeGroups(), lk.mode, v => { const was = lk.mode; setModeFire(lk, v); lookChanged(); if (fw48() && (isStrMode(v) || isStrMode(was))) { app.open.add(lookKey); buildStrips(); } });
+    const lookPal = palEditor(lk, kv => { Object.assign(lk, kv); lookChanged(); app.open.add(lookKey); buildStrips(); }, { key: "strips" + i });
     lmField.querySelector("select").setAttribute("data-look-mode", i);
     // bar preset
     const bType = el("select", { "aria-label": "Bar type", "data-bar-type": i },
@@ -2701,8 +2991,10 @@ function buildStrips() {
       const a = rear ? Math.floor((n - mid) / 2) : bFeed.value === "right" ? Math.ceil(n / 2) : Math.floor(n / 2), b = n - mid - a;
       const seg = (st0, c, role, rev) => [st0, c, role, rev, [0, 0, 0], [0, 0, 0], { idle: "look" }];
       // Sequential turns grow outward from the middle: the first half runs reversed (towards pixel 0).
+      const keep = strGrab(draft);   // a light string behind the bar moves with it
       draft.px = n;
       draft.seg = [seg(0, a, first, true), ...(mid ? [seg(a, mid, "tail", false)] : []), seg(a + mid, b, second, false)];
+      const sw = strRestore(draft, keep); if (sw) { toast(sw, true); return; }
       Object.assign(draft.look, { mode: "scanner", rgb: rear ? [255, 0, 0] : [255, 96, 0], speed: 5, rev: false });
       if (draft.turn_style === "global" && app.settings.turn.style === "flash") draft.turn_style = "sweep";
       app.drafts[i] = draft; app.open.add(lookKey);
@@ -2714,7 +3006,7 @@ function buildStrips() {
       el("div", { class: "body" },
         tsField,
         el("p", { class: "note", style: "margin:0 0 8px" }, "Sequential styles grow from each turn segment's start (its end when Rev. is ticked). Any turn signal or the hazards blank the idle look on every turn segment until the signal ends; the look comes straight back after."),
-        lmField,
+        lmField, ...(lookPal ? [lookPal] : []),
         el("div", { class: "field" }, el("span", { class: "lbl" }, "Look color"), lookCol, el("div", { class: "hint" }, "Not used by the two rainbow effects.")),
         rangeField("Look speed", lk.speed, 1, 10, 1, "", v => { lk.speed = v; redraw(); }, "Scanner: one sweep there and back in 1.6 s at 5."),
         switchField("Reverse direction", !!lk.rev, v => { lk.rev = v; redraw(); }),
@@ -2836,7 +3128,7 @@ armed($("rebootBtn"), "Tap again to restart", () => { jobStart("restart"); send(
 armed($("defaultsBtn"), "Tap again to reset everything", () => { send("defaults yes"); send("get"); });
 
 // ---- map tab -----------------------------------------------------------------
-const ROLE_NAME = Object.fromEntries([...ROLES, ...ROLES_V4]);
+const ROLE_NAME = Object.fromEntries([...ROLES, ...ROLES_V4, ROLE_STR]);
 const segLabel = (g, k) => `#${k + 1}: pixels ${g[0]}–${g[0] + Math.max(0, g[1]) - 1}, ${ROLE_NAME[g[2]] || g[2]}`;
 function fillSelect(sel, opts, keep) {
   const cur = keep ? sel.value : null;
@@ -3151,7 +3443,7 @@ function runsFromStrips(strips) {
   const mk = (view, name, st, g) => ({ id: tmp.nextId++, name, view, pts: [], role: g.role, chip: st.chip || "custom", dens: 60, densCustom: false,
                                        count: 0, countEdited: true, depth: 0, idle: g.idle ? g.idle.idle : "off", rgb: (g.idle && g.idle.rgb) || [0, 0, 255], pct: g.pct == null ? 100 : g.pct, next: null, out: 0 });
   strips.forEach((st, i) => {
-    const segs = (st.seg || []).filter(g => g[1] > 0).sort((a, b) => a[0] - b[0]).map(g => ({
+    const segs = (st.seg || []).filter(g => g[1] > 0 && g[2] !== "look2").sort((a, b) => a[0] - b[0]).map(g => ({   // a light string is the Bike tab's: Send keeps it behind the layout
       start: g[0], count: g[1], role: g[2], rev: !!g[3], idle: idleOk(g[2]) ? segIdleOf(g) : null, pct: segPctOf(g),
       p0: isMapped(g) ? segPos(g, 0) : null, p1: isMapped(g) ? segPos(g, 1) : null }));
     const made = []; let cur = null;
@@ -3811,6 +4103,7 @@ function laySend() {
     if (fl.px > 800) { toast(`Output ${o} would have ${fl.px} pixels; the limit is 800`, true); return; }
     if (fl.segs.length > MAX_SEGS) { toast(`Output ${o} would have ${fl.segs.length} segments; the limit is ${MAX_SEGS}`, true); return; }
     const core = { px: fl.px }; if (CHIP_BY[first.chip]) core.chip = first.chip;
+    const keep = strGrab(app.settings.strips[i]);   // a light string behind the chain follows it
     const segs = fl.segs.map(sg => {
       const g = [sg.start, sg.count, sg.run.role, !!sg.run.rev];
       if (sg.p0 && sg.p1) g.push(sg.p0, sg.p1);
@@ -3818,8 +4111,15 @@ function laySend() {
       return segOut(g);
     });
     if (new Set(ch.runs.map(r => r.chip)).size > 1) notes.push(`output ${o} mixes chips, sent as ${first.chip}`);
-    cmds.push(stripWrap(i, core), ...segPatches(i, segs));
-    delete app.drafts[i]; sent.push(`output ${o}: ${fl.px} px, ${segs.length} segments`);
+    let zonePatch = [];
+    if (keep && !fl.segs.some(sg => sg.run.role === "look2")) {
+      const shift = fl.px - keep.s0;
+      if (fl.px + keep.n > BK_MAX_PX || segs.length + keep.segs.length > MAX_SEGS) { toast(`Output ${o}: the light string behind this chain would not fit`, true); return; }
+      core.px = fl.px + keep.n; segs.push(...keep.segs.map(g => { g[0] += shift; return segOut(g); }));
+      if (shift && fw43() && (keep.zones.length || keep.outer.length)) zonePatch = ordPatches(i, [...keep.outer.filter(z => z[0] + z[1] <= fl.px), ...keep.zones.map(z => [z[0] + shift, z[1], z[2]])]);
+    }
+    cmds.push(stripWrap(i, core), ...segPatches(i, segs), ...zonePatch);
+    delete app.drafts[i]; sent.push(`output ${o}: ${core.px} px, ${segs.length} segments`);
   }
   if (!cmds.length) { toast("Nothing to send: give a chain with pixels an output first", true); return; }
   if (skipped.length) notes.push(`${skipped.length} unassigned chain${skipped.length > 1 ? "s" : ""} not sent`);
@@ -4059,7 +4359,7 @@ function budgetUi() {
 // A "light" is one strip output seen as what it is on the bike (front bar, rear bar, underglow
 // run, fork ring, 12 V lamp). The tab only writes strip drafts (app.drafts), the same ones the
 // Strips tab edits, so the firmware and the segment editor see nothing new.
-const BK = { screen: "home", open: -1, wiz: null, temp: {}, quiet: 0 };   // temp[i]: output i holds the wizard's test pixels
+const BK = { screen: "home", open: -1, str: false, note: "", wiz: null, temp: {}, quiet: 0 };   // temp[i]: output i holds the wizard's test pixels
 const BK_TEST_PX = 300, BK_MAX_PX = 800;
 const BK_CAL = BIKES.onyx_rcr.side.cal, BK_IMG = BIKES.onyx_rcr.side.url, BK_W = 1150, BK_H = 644;
 const BK_KIND_KEY = "rcr.bike.kind";
@@ -4084,13 +4384,16 @@ const BK_KINDS = {
   matrix: { name: "Matrix", desc: "Several strips wired as one light", chip: "#8a3ffc", ink: "#ffffff", needs: "0.4.1",
             ends: [], spot: [[900, 300], [900, 300]],
             d: "M5 4v16M10 4v16M15 4v16M20 4v16M3 8h18M3 16h18" },
+  string: { name: "Light string", desc: "Bullet-pixel or fairy-light string with its own effects", chip: "#b04bd8", ink: "#ffffff", needs: "0.4.8", string: true,
+            ends: [], spot: [[610, 150], [610, 150]],
+            d: "M3 7c3 5 6 5 9 0s6-5 9 0M6 12v3M12 12v4M18 12v3M5 17h2M11 18h2M17 17h2" },
   custom: { name: "Custom", desc: "Set the segments yourself", chip: "#1d5fd6", ink: "#ffffff",
             ends: [], spot: [[575, 300], [575, 300]],
             d: "M4 7h10M18 7h2M4 17h2M10 17h10M16 5v4M8 15v4" },
 };
 const BK_STEPS = { lamp: ["wire", "job", "done"], front: ["wire", "end", "center", "done"], rear: ["wire", "end", "center", "done"],
                    glow: ["wire", "end", "side", "done"], ring: ["wire", "end", "side", "done"], custom: ["wire", "end", "done"],
-                   matrix: ["wire", "build", "place", "done"] };
+                   matrix: ["wire", "build", "place", "done"], string: ["wire", "count", "done"] };
 const BK_SIDES = [["left", "Left side"], ["center", "Center"], ["right", "Right side"]];
 const BK_JOBS = OUT_MODES.filter(m => m[0] !== "pixels");
 const bkIcon = (d, size) => `<svg aria-hidden="true" width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
@@ -4100,7 +4403,7 @@ const bkHint = (i, kind) => { const h = bkHints(); if (kind) h[i] = kind; else d
 // What a strip is, read from its segments (plus the wizard's note for the kinds that look alike).
 function bkKind(i, st) {
   if (isLampOut(st)) return "lamp";
-  const all = new Set(st.seg.filter(g => g[1] > 0 && g[2] !== "none").map(g => g[2]));
+  const all = new Set(st.seg.filter(g => g[1] > 0 && g[2] !== "none" && g[2] !== "look2").map(g => g[2]));   // a light string on the output does not count
   const roles = new Set([...all].filter(r => r !== "drl" && r !== "look"));   // DRL and look sections ride along with any light
   const only = (...ok) => roles.size > 0 && [...roles].every(r => ok.includes(r));
   const hint = bkHints()[i];   // the zone editor leaves "front" / "rear" here so a bar with no turn sections is still a bar
@@ -4113,12 +4416,82 @@ function bkKind(i, st) {
   return "custom";
 }
 const bkTempOnly = i => !!BK.temp[i] && !app.drafts[i];           // test pixels of an unfinished wizard: not a light
-function bkLights() {
-  return app.settings.strips.map((_, i) => {
-    const st = normStrip(structuredClone(effStrip(i)));
-    return (isLampOut(st) || st.px > 0) && !bkTempOnly(i) ? { i, st, kind: bkKind(i, st) } : null;
-  }).filter(Boolean);
+// ---- light strings (firmware 0.4.8): a string is an output's look2 segments, always at the END of the output (pixels s0 .. px-1) ----
+const strSegsOf = st => st.seg.filter(g => g[2] === "look2" && g[1] > 0).sort((a, b) => a[0] - b[0]);
+function strRange(st) {
+  const l = strSegsOf(st); if (!l.length) return null;
+  const s0 = Math.min(...l.map(g => g[0])), end = Math.max(...l.map(g => g[0] + g[1]));
+  return { s0, n: end - s0, end };
 }
+const strOrdOnly = st => { const r = strRange(st); return r ? { ...st, px: r.s0, seg: st.seg.filter(g => g[2] !== "look2") } : st; };   // the ordinary light of the output
+const strSegPct = st => { const l = strSegsOf(st); return l.length ? segPctOf(l[0]) : 100; };
+const strPctOf = st => { const r = strRange(st); return r && r.s0 === 0 ? st.pct : strSegPct(st); };   // alone: the strip's brightness; shared: the sections'
+const zonesOf = d => (Array.isArray(d.ordZones) ? d.ordZones : (d.ord || [])).map(z => z.slice());
+// Everything a draft needs to put the string back after something rewrote the ordinary light: {s0, n, segs, zones, outer}, or null when there is none.
+function strGrab(d) {
+  const r = strRange(d); if (!r) return null;
+  return { s0: r.s0, n: r.n, segs: strSegsOf(d).map(g => structuredClone(g)), zones: zonesOf(d).filter(z => z[0] >= r.s0 && z[0] < r.end), outer: zonesOf(d).filter(z => z[0] < r.s0) };
+}
+// d.px / d.seg now describe the new ordinary light: add the string behind it. "" or why it does not fit.
+function strRestore(d, keep) {
+  if (!keep) return "";
+  const base = d.px | 0, shift = base - keep.s0;
+  if (base + keep.n > BK_MAX_PX) return `The light string would not fit: ${base} LEDs plus ${keep.n} is over ${BK_MAX_PX}.`;
+  if (d.seg.filter(g => g[2] !== "look2").length + keep.segs.length > MAX_SEGS) return `The light string would not fit: the output would need more than ${MAX_SEGS} segments.`;
+  d.seg = [...d.seg.filter(g => g[2] !== "look2"), ...keep.segs.map(g => { g[0] += shift; return g; })];
+  d.px = base + keep.n;
+  if (keep.zones.length || (shift && keep.outer.length)) {
+    const own = Array.isArray(d.ordZones) ? d.ordZones.filter(z => z[0] < base) : keep.outer.filter(z => z[0] + z[1] <= base);
+    d.ordZones = [...own, ...keep.zones.map(z => [z[0] + shift, z[1], z[2]])];
+  }
+  return "";
+}
+// The string's reacting sections, as the editor shows them (1-based first LED within the string).
+function strSections(st) {
+  const r = strRange(st); if (!r) return [];
+  return strSegsOf(st).filter(g => segRxOf(g)).map(g => ({ first: g[0] - r.s0 + 1, count: g[1], rx: segRxOf(g), flip: !!g[3] }));
+}
+// Rebuild the string's look2 segments in the draft d from its reacting sections: sorted, gaps filled with plain look2 segments, every one at brightness pct.
+// Returns "" (done) or why it is refused (d is then unchanged).
+function strBuild(d, s0, n, secs, pct) {
+  const list = secs.map(x => ({ ...x })).sort((a, b) => a.first - b.first), segs = [];
+  let at = 0;
+  const mk = (a, c, rx, flip) => { const o = segObj("off", null, pct, false, rx), g = [s0 + a, c, "look2", !!flip]; if (o) g.push(o); segs.push(canonSeg(g)); };
+  for (const [k, x] of list.entries()) {
+    if (!(x.rx & 7)) return `Section ${k + 1} needs at least one of Brake, Left turn or Right turn. Use Remove to delete it.`;
+    if (!(x.first >= 1) || !(x.count >= 1)) return `Section ${k + 1}: the first LED and the LED count start at 1.`;
+    if (x.first - 1 + x.count > n) return `Section ${k + 1} runs past the last LED of the string (${n}).`;
+    if (x.first - 1 < at) return `Section ${k + 1} overlaps the one before it.`;
+    if (x.first - 1 > at) mk(at, x.first - 1 - at, 0, false);
+    mk(x.first - 1, x.count, x.rx & 7, x.flip); at = x.first - 1 + x.count;
+  }
+  if (at < n) mk(at, n - at, 0, false);
+  const ord = d.seg.filter(g => g[2] !== "look2");
+  if (ord.length + segs.length > MAX_SEGS) return `This would need ${ord.length + segs.length} segments; an output holds at most ${MAX_SEGS}.`;
+  d.seg = [...ord, ...segs]; d.px = s0 + n;
+  return "";
+}
+// The string's color-order zone: order "" = the output's own (the zone goes away).
+function strZoneSet(d, s0, n, order) {
+  const z = zonesOf(d).filter(q => !(q[0] >= s0));
+  if (order && order !== d.order) z.push([s0, n, order]);
+  d.ordZones = z;
+}
+function bkLights() {
+  const out = [];
+  app.settings.strips.forEach((_, i) => {
+    if (bkTempOnly(i)) return;
+    const st = normStrip(structuredClone(effStrip(i)));
+    if (isLampOut(st)) { out.push({ i, st, kind: "lamp" }); return; }
+    if (!(st.px > 0)) return;
+    const r = strRange(st), ord = r ? strOrdOnly(st) : st;
+    if (ord.px > 0) out.push({ i, st: ord, kind: bkKind(i, ord) });
+    if (r) out.push({ i, st, kind: "string", str: true });
+  });
+  return out;
+}
+// Outputs a light string can go on: any pixel output (free or lit by an ordinary light) that has no string yet. Lamp outputs are not offered.
+const strOuts = () => fw48() ? app.settings.strips.map((_, i) => i).filter(i => bkTempOnly(i) || (!isLampOut(effStrip(i)) && !strRange(normStrip(structuredClone(effStrip(i)))))) : [];
 const bkFree = () => app.settings.strips.map((_, i) => i).filter(i => bkTempOnly(i) || (!isLampOut(effStrip(i)) && !(effStrip(i).px > 0)));
 function bkSub(L) {
   const K = BK_KINDS[L.kind], n = L.st.px, head = `Output ${L.i + 1} · `;
@@ -4127,6 +4500,7 @@ function bkSub(L) {
     : L.kind === "rear" ? `${n} LEDs · tail, brake, turns`
     : L.kind === "custom" ? `${n} LEDs · ${L.st.seg.length} segment${L.st.seg.length === 1 ? "" : "s"}`
     : L.kind === "matrix" ? `${n} LEDs · strips wired as one light`
+    : L.kind === "string" ? `${strRange(L.st).n} LEDs · ${modeName(L.st.look2.mode)}${strRange(L.st).s0 ? " · after LED " + strRange(L.st).s0 : ""}`
     : `${n} LEDs · ${K.name.toLowerCase()}`;
   return head + body + (app.drafts[L.i] ? " · not sent yet" : "");
 }
@@ -4143,10 +4517,11 @@ function bkMarks(L) {
   return { lines, chip: [clamp(cx, 40, BK_W - 40), clamp(cy - 46, 30, BK_H - 30)] };
 }
 
-function bkGo(screen, open) {
+function bkGo(screen, open, str) {
   if (screen !== "build" && BK.wiz && BK.wiz.ui && BK.wiz.ui.test) mxTestStop(BK.wiz.ui);   // never leave the color-order test lit
+  strTestStop(); BK.note = ""; if (BK.screen === "detail" && finder.active) finderStop();
   if (BK.screen === "end" || BK.screen === "center") finderStop();
-  BK.screen = screen; if (open != null) BK.open = open;
+  BK.screen = screen; if (open != null) { BK.open = open; BK.str = !!str; }
   buildBike(); window.scrollTo(0, 0);
 }
 // Outputs left on the wizard's test pixels go back to unused.
@@ -4157,15 +4532,15 @@ function bkRestoreTemps(except) {
     if (app.link) { BK.quiet += 1; patch(stripWrap(i, { px: 0 })); }
   });
 }
-function bkReset() { BK.screen = "home"; BK.open = -1; BK.wiz = null; BK.temp = {}; BK.quiet = 0; }
+function bkReset() { BK.screen = "home"; BK.open = -1; BK.str = false; BK.note = ""; BK.wiz = null; BK.temp = {}; BK.quiet = 0; }
 
 function buildBike() {
   const box = $("bikeBody"); if (!box) return;
   box.textContent = "";
   if (!app.settings) return;
-  if (BK.screen === "detail" && !bkLights().some(L => L.i === BK.open)) BK.screen = "home";
+  if (BK.screen === "detail" && !bkLights().some(L => L.i === BK.open && !!L.str === !!BK.str)) BK.screen = "home";
   if (BK.screen !== "home" && BK.screen !== "detail" && BK.screen !== "type" && !BK.wiz) BK.screen = "home";
-  ({ home: bkHome, detail: bkDetail, type: bkType, wire: bkWire, end: bkEnd, center: bkCenter, side: bkSide, job: bkJob, done: bkDone, build: bkBuild, place: bkPlace })[BK.screen](box);
+  ({ home: bkHome, detail: bkDetail, type: bkType, wire: bkWire, end: bkEnd, center: bkCenter, side: bkSide, job: bkJob, done: bkDone, build: bkBuild, place: bkPlace, count: bkCount })[BK.screen](box);
   document.querySelector("main").classList.toggle("wide", BK.screen === "build" && app.tab === "bike");   // the matrix builder uses the width of a PC screen
   bkPending();
 }
@@ -4198,16 +4573,16 @@ function bkHome(box) {
   const list = el("div", { class: "panel bike-list" }, el("h3", {}, "Lights on this bike"));
   lights.forEach(L => {
     const K = BK_KINDS[L.kind];
-    const row = el("button", { class: "bike-row", "data-bike-open": L.i, onclick: () => bkGo("detail", L.i) },
+    const row = el("button", { class: "bike-row", [L.str ? "data-bike-open-str" : "data-bike-open"]: L.i, onclick: () => bkGo("detail", L.i, L.str) },
       el("span", { class: "bike-num", "aria-hidden": "true", style: `background:${K.chip};color:${K.ink}` }, String(L.i + 1)),
       el("span", { class: "bike-txt" }, el("b", {}, K.name), el("small", {}, bkSub(L))));
     row.insertAdjacentHTML("beforeend", bkIcon("M9 5l7 7-7 7", 18));
     list.append(row);
   });
   if (!lights.length) list.append(el("p", { class: "note", style: "margin:0;padding:0 14px 14px" }, "No lights set up yet. Tap Add a light."));
-  const add = el("button", { class: "btn primary bike-wide", id: "bikeAdd", disabled: !free.length, onclick: () => bkGo("type") }, "Add a light");
+  const add = el("button", { class: "btn primary bike-wide", id: "bikeAdd", disabled: !free.length && !strOuts().length, onclick: () => bkGo("type") }, "Add a light");
   const note = el("p", { class: "note", style: "margin:8px 2px" },
-    (free.length ? `Free outputs: ${free.map(i => i + 1).join(", ")}.` : "All four outputs are in use. Remove a light to add another.")
+    (free.length ? `Free outputs: ${free.map(i => i + 1).join(", ")}.` : strOuts().length ? "All four outputs are in use. A light string can still share one with another light. Remove a light to add another kind." : "All four outputs are in use. Remove a light to add another.")
     + " Tap a light to change its look, brightness or turn style.");
   const adv = el("details", { class: "sub", open: app.open.has("bike.adv") },
     el("summary", {}, "Advanced ", el("span", { class: "note" }, "segments, photos, tools")),
@@ -4257,7 +4632,8 @@ function applyBarLook(d, val) {
   if (val !== "off") setModeFire(d.look, val);
 }
 function bkDetail(box) {
-  const i = BK.open, L = bkLights().find(x => x.i === i), v = L.st, K = BK_KINDS[L.kind];
+  const i = BK.open, L = bkLights().find(x => x.i === i && !!x.str === !!BK.str), v = L.st, K = BK_KINDS[L.kind];
+  if (L.kind === "string") { bkDetailString(box, L); return; }
   const edit = fn => { fn(draftFor(i)); buildStrips(); buildBike(); };
   bkHead(box, K.name, bkSub(L), () => bkGo("home"));
   const main = el("div", { class: "panel" });
@@ -4267,7 +4643,7 @@ function bkDetail(box) {
     if (K.bar) {
       const idle = v.seg.filter(g => idleOk(g[2]));
       const usesLook = idle.some(g => (segIdleOf(g) || {}).idle === "look");
-      const f = selectField("Look when not signaling", [["off", "Off"], ...modeList()], usesLook ? v.look.mode : "off", val => edit(d => applyBarLook(d, val)));
+      const f = selectField("Look when not signaling", [["off", "Off"], ...modeGroups()], usesLook ? v.look.mode : "off", val => edit(d => applyBarLook(d, val)));
       f.querySelector("select").setAttribute("data-bike-look", i);
       main.append(f);
       if (usesLook) {
@@ -4275,7 +4651,7 @@ function bkDetail(box) {
         col.onchange = () => edit(d => { d.look.rgb = unhex(col.value); });
         const cf = el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col);
         if (lookRed(v.look) && idle.some(g => redBanned(g[2], app.settings))) cf.append(el("div", { class: "hint lay-warn bad", "data-note": "bike-red" }, LOOK_RED_NOTE));
-        main.append(cf, rangeField("Speed", v.look.speed, 1, 10, 1, "", val => edit(d => { d.look.speed = val; })));
+        main.append(...[palEditor(v.look, kv => edit(d => Object.assign(d.look, kv)), { key: "bar" + i })].filter(Boolean), cf, rangeField("Speed", v.look.speed, 1, 10, 1, "", val => edit(d => { d.look.speed = val; })));
       }
       const gName = (TURN_STYLES.find(t => t[0] === app.settings.turn.style) || TURN_STYLES[0])[1].toLowerCase();
       const ts = selectField("Turn signal style", [["global", `Same as All light settings (${gName})`], ...TURN_STYLES], v.turn_style, val => edit(d => { d.turn_style = val; }));
@@ -4283,11 +4659,11 @@ function bkDetail(box) {
       main.append(ts);
     }
     if (L.kind === "matrix") {
-      const f = selectField("Effect", modeList(), v.look.mode, val => edit(d => setModeFire(d.look, val)));
+      const f = selectField("Effect", modeGroups(), v.look.mode, val => edit(d => setModeFire(d.look, val)));
       f.querySelector("select").setAttribute("data-bike-look", i);
       const col = el("input", { type: "color", value: hex(v.look.rgb), "aria-label": "Look color", "data-bike-color": i });
       col.onchange = () => edit(d => { d.look.rgb = unhex(col.value); });
-      main.append(f, el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col),
+      main.append(f, ...[palEditor(v.look, kv => edit(d => Object.assign(d.look, kv)), { key: "mx" + i })].filter(Boolean), el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col),
         rangeField("Speed", v.look.speed, 1, 10, 1, "", val => edit(d => { d.look.speed = val; })));
     }
     main.append(rangeField("Brightness", v.pct, 0, 100, 1, "%", val => edit(d => { d.pct = val; }),
@@ -4305,25 +4681,156 @@ function bkDetail(box) {
     L.kind === "lamp" ? null : el("button", { class: "btn small", onclick: () => showTab("map") }, "Place it on a photo"));
   const rm = el("button", { class: "btn small danger", "data-bike-remove": i }, "Remove this light");
   armed(rm, "Tap again to remove", () => {
+    if (strRange(effStrip(i))) { BK.note = "Remove the light string first"; toast(BK.note, true); const n = document.querySelector("[data-note='bike-rm-string']"); if (n) { n.textContent = BK.note; n.hidden = false; } return; }
     const d = draftFor(i); d.out = "pixels"; d.px = 0; d.seg = [];
     if (L.kind === "matrix") { d.geomPts = []; if (fw43()) d.ordZones = []; }   // the path and the color zones go with it
     bkHint(i, null); buildStrips(); bkGo("home");
     toast(`${K.name} removed from output ${i + 1}. Tap Apply to send it.`);
   });
   more.append(rm);
-  box.append(main, facts);
+  box.append(main, facts, el("p", { class: "lay-warn bad", "data-note": "bike-rm-string", style: "margin:0 2px", hidden: true }));
   if (L.kind === "matrix") box.append(mxDesignPanel(i, v));
   box.append(more);
+}
+
+
+// ---- the Light string detail screen (firmware 0.4.8) ----
+// The color-order test (red, then green) is the matrix builder's: the same question, the same answer table (mxOrderFromSeen).
+function strSetPct(d, v) { if (strRange(d).s0 === 0) d.pct = v; else strSegsOf(d).forEach(g => segSetOpts(g, { pct: v })); }
+function strTestStop() { if (BK.st) { BK.st = null; send("find off"); } }
+function strTestSend(i, r, rgb) { send(`find ${i + 1} ${r.s0} ${r.n} ${rgb.join(" ")}`); }
+function strTestWhy(i) {
+  const st = app.settings.strips[i], r = strRange(st);
+  if (!app.link || !fw43()) return "Connect to a controller with firmware 0.4.3 or newer to test.";
+  if (app.drafts[i] || !r) return "Apply the string first: the test lights it on the controller.";
+  return "";
+}
+function strTestAnswer(i, seen) {
+  const T = BK.st, r = strRange(app.settings.strips[i]); if (!T || !r) return;
+  if (T.step === 1 && seen) { T.s1 = seen; T.step = 2; strTestSend(i, r, [0, 255, 0]); buildBike(); return; }
+  const s1 = T.s1; BK.st = null; send("find off");
+  const got = T.step === 2 ? mxOrderFromSeen(T.O, s1, seen) : null;
+  if (!got) { BK.note = "Could not tell the color order from those answers, so nothing was changed. Try again, or pick the order by hand."; buildBike(); return; }
+  BK.note = `The string uses ${got}.`;
+  const d = draftFor(i), rr = strRange(d), alone = rr.s0 === 0;
+  if (alone) d.order = got; else strZoneSet(d, rr.s0, rr.n, got);
+  buildStrips(); buildBike();
+}
+// A section edit: build the new segment list on a copy; on a refusal leave the draft alone and say why under the editor.
+function strApply(i, mut) {
+  const t = normStrip(structuredClone(effStrip(i))), r = strRange(t); if (!r) return;
+  const secs = strSections(t), pct = r.s0 === 0 ? 100 : strSegPct(t), res = mut(secs, r, t);
+  if (res && res.err) { BK.note = res.err; buildBike(); return; }
+  const n = res && res.n ? res.n : r.n, why = strBuild(t, r.s0, n, res && res.secs ? res.secs : secs, pct);
+  if (why) { BK.note = why; buildBike(); return; }
+  if (res && res.zone) strZoneSet(t, r.s0, n, res.zone);
+  else if (n !== r.n) { const z = zonesOf(t).find(q => q[0] === r.s0); if (z) strZoneSet(t, r.s0, n, z[2]); }
+  BK.note = ""; app.drafts[i] = t; buildStrips(); buildBike();
+}
+function bkFindRun(i, first, count) {
+  if (app.drafts[i]) { BK.note = "Apply the changes first: the finder lights what is on the controller."; buildBike(); return; }
+  const r = strRange(app.settings.strips[i]); if (!r) return;
+  const px = r.s0 + first - 1;
+  clearTimeout(finder.timer); finder.strip = i; finder.n = px; finder.active = true;
+  send(fw43() ? `find ${i + 1} ${px} ${count} 255 255 255` : `find ${i + 1} ${px}`);
+  finderUi();
+}
+function strSectionsPanel(i, v, r) {
+  const secs = strSections(v), box = el("div", { class: "panel bike-card", "data-str-sections": i });
+  box.append(el("h3", {}, "Reacting sections"),
+    el("p", { class: "note" }, "A section can follow the brake light or a turn signal. On a turn it runs a chase of the turn color (flashes with the hazards), on the brake it goes red. It is decoration, not a legal brake light or turn signal."));
+  secs.forEach((x, k) => {
+    const row = el("div", { class: "str-sec", "data-str-sec": k });
+    const set = fields => strApply(i, ss => ({ secs: ss.map((y, j) => j === k ? { ...y, ...fields } : y) }));
+    const bits = [["Brake", RX.brake], ["Left turn", RX.left], ["Right turn", RX.right]].map(([t, bit]) => el("label", { class: "note" },
+      el("input", { type: "checkbox", checked: !!(x.rx & bit), "data-str-rx": `${k}:${bit}`, "aria-label": t, onchange: ev => set({ rx: ev.target.checked ? x.rx | bit : x.rx & ~bit }) }), " " + t));
+    const flip = el("label", { class: "note" }, el("input", { type: "checkbox", checked: x.flip, "data-str-flip": k, "aria-label": "Flip direction", onchange: ev => set({ flip: ev.target.checked }) }), " Flip direction");
+    row.append(el("b", {}, `Section ${k + 1}`),
+      numField("First LED", x.first, 1, r.n, 1, vv => set({ first: vv }), null, `sec${k}-first`),
+      numField("LED count", x.count, 1, r.n, 1, vv => set({ count: vv }), null, `sec${k}-count`),
+      el("div", { class: "ph-row" }, ...bits, flip),
+      el("div", { class: "btns", style: "margin:0" },
+        el("button", { class: "btn small", "data-str-find": k, onclick: () => bkFindRun(i, x.first, x.count) }, "Find"),
+        el("button", { class: "btn small danger", "data-str-secrm": k, onclick: () => strApply(i, ss => ({ secs: ss.filter((_, j) => j !== k) })) }, "Remove")));
+    box.append(row);
+  });
+  if (!secs.length) box.append(el("p", { class: "note", "data-str-nosec": "1" }, "No reacting sections: the whole string shows its effect."));
+  box.append(el("button", { class: "btn", "data-str-add": i, onclick: () => strApply(i, (ss, rr) => {
+    let at = 1; const sorted = ss.slice().sort((a, b) => a.first - b.first), gaps = [];
+    sorted.forEach(x => { if (x.first > at) gaps.push([at, x.first - at]); at = Math.max(at, x.first + x.count); });
+    if (at <= rr.n) gaps.push([at, rr.n - at + 1]);
+    const gap = gaps.sort((a, b) => b[1] - a[1])[0];
+    if (!gap) return { err: "No free LEDs left for another section. Shorten or remove one first." };
+    return { secs: [...ss, { first: gap[0], count: Math.min(10, gap[1]), rx: RX.brake, flip: false }] };
+  }) }, "Add a section"));
+  box.append(el("p", { class: "lay-warn bad", "data-note": "str-sec", style: "margin:0", hidden: !BK.note }, BK.note || ""));
+  return box;
+}
+function bkDetailString(box, L) {
+  const i = L.i, v = L.st, K = BK_KINDS.string, r = strRange(v), alone = r.s0 === 0, lk = v.look2;
+  const edit = fn => { fn(draftFor(i)); buildStrips(); buildBike(); };
+  bkHead(box, K.name, bkSub(L), () => bkGo("home"));
+  const main = el("div", { class: "panel" });
+  const ef = selectField("Effect", modeGroups(), lk.mode, val => edit(d => setModeFire(d.look2, val)));
+  ef.querySelector("select").setAttribute("data-bike-look2", i);
+  main.append(ef);
+  const pe = palEditor(lk, kv => edit(d => Object.assign(d.look2, kv)), { key: "str" + i });
+  if (pe) main.append(pe);
+  if (!isStrMode(lk.mode) || !palOf(lk).length) {
+    const col = el("input", { type: "color", value: hex(lk.rgb), "aria-label": "Color", "data-bike-color2": i });
+    col.onchange = () => edit(d => { d.look2.rgb = unhex(col.value); });
+    main.append(el("div", { class: "field" }, el("span", { class: "lbl" }, "Color"), col));
+  }
+  main.append(rangeField("Speed", lk.speed, 1, 10, 1, "", val => edit(d => { d.look2.speed = val; })),
+    switchField("Reverse direction", !!lk.rev, val => edit(d => { d.look2.rev = val; }), "Runs the effect from the last LED to the first."),
+    rangeField("Brightness", strPctOf(v), 0, 100, 1, "%", val => edit(d => strSetPct(d, val)), alone ? "Multiplied by nothing else: the underglow brightness does not apply." : "Applies to the string only; the other light on this output keeps its own brightness."),
+    switchField("Follows the Underglow switch", !!lk.master, val => edit(d => { d.look2.master = val; }), "Off: lit whenever the key is on. On: the handlebar button or the app switches it with the underglow."),
+    numField("LED count", r.n, 1, BK_MAX_PX - r.s0, 1, val => strApply(i, () => ({ n: val })), `1 to ${BK_MAX_PX - r.s0} on this output.`, "str-count"));
+  // color order: the strip's own when the string is alone, otherwise a zone over the string's LEDs
+  const zone = zonesOf(v).find(z => z[0] <= r.s0 && z[0] + z[1] > r.s0), cur = alone ? v.order : zone ? zone[2] : "";
+  const ordSel = alone ? selectField("Color order", ORDERS.map(o => [o, o]), v.order, val => edit(d => { d.order = val; }))
+                       : selectField("Color order of the string", [["", `Same as the output (${v.order})`], ...ORDERS.map(o => [o, o])], cur, val => edit(d => strZoneSet(d, strRange(d).s0, strRange(d).n, val)));
+  ordSel.querySelector("select").setAttribute("data-bike-order2", i);
+  main.append(ordSel);
+  const why = strTestWhy(i), t = BK.st && BK.st.i === i ? BK.st : null;
+  if (t) {
+    main.append(el("div", { class: "pal-ed" }, el("p", { id: "strAsk", role: "status", style: "margin:0;font-weight:600" }, `The string is lit ${t.step === 1 ? "red" : "green"} on the bike. What color is it?`),
+      el("div", { class: "ct-pills" }, ...[["R", "Red"], ["G", "Green"], ["B", "Blue"], ["N", "Nothing lit"]].map(([k, n]) => el("button", { class: "btn", "data-str-seen": k, onclick: () => strTestAnswer(i, k === "N" ? null : k) }, n)),
+        el("button", { class: "btn", id: "strTestStop", onclick: () => { strTestStop(); buildBike(); } }, "Stop test"))));
+  } else {
+    main.append(el("div", { class: "pal-ed" }, el("button", { class: "btn", id: "strTestBtn", "data-str-test": i, disabled: !!why, onclick: () => {
+      BK.st = { i, step: 1, s1: null, O: mxOrderNow(i, r.s0) }; strTestSend(i, r, [255, 0, 0]); buildBike();
+    } }, "Test the color order"), why ? el("p", { class: "note", style: "margin:0", id: "strTestWhy" }, why) : null));
+  }
+  box.append(main, strSectionsPanel(i, v, r));
+  box.append(el("p", { class: "note", style: "margin:8px 2px" }, `Output ${i + 1} (${STRIP_JACK[i]}) · LEDs ${r.s0 + 1} to ${r.end} · ${(CHIP_BY[v.chip] || {}).label || "custom LED type"}`));
+  const rm = el("button", { class: "btn small danger", "data-bike-remove-str": i }, "Remove the light string");
+  armed(rm, "Tap again to remove", () => {
+    strTestStop();
+    const d = draftFor(i), rr = strRange(d);
+    if (rr.s0 === 0) { d.out = "pixels"; d.px = 0; d.seg = []; d.look2 = { ...LOOK2_DEFAULT }; if (fw43()) d.ordZones = []; bkHint(i, null); }
+    else { d.seg = d.seg.filter(g => g[2] !== "look2"); d.px = rr.s0; d.look2 = { ...LOOK2_DEFAULT }; if (fw43() && zonesOf(d).length) d.ordZones = zonesOf(d).filter(z => z[0] < rr.s0); }
+    buildStrips(); bkGo("home");
+    toast(`Light string removed from output ${i + 1}. Tap Apply to send it.`);
+  });
+  box.append(el("div", { class: "btns" }, rm));
 }
 
 // ---- add a light ----
 function bkType(box) {
   bkHead(box, "Add a light", "What are you adding?", () => bkGo("home"));
   const grid = el("div", { class: "bike-types" });
-  Object.entries(BK_KINDS).forEach(([k, K]) => {
-    const off = !!K.needs && !fw4();   // firmware 0.4.1 paths
+  const noFree = !bkFree().length;
+  Object.entries(BK_KINDS).filter(([k]) => k !== "string" || fw48()).forEach(([k, K]) => {
+    const off = (!!K.needs && !fw4() && !K.string) || (noFree && !K.string);   // firmware 0.4.1 paths; a light string can share an output, everything else needs a free one
     const b = el("button", { class: "bike-type", "data-bike-type": k, disabled: off, onclick: () => {
       const free = bkFree();
+      if (K.string) {
+        const outs = strOuts(); if (!outs.length) { toast("Every output already has a light string or a lamp. Remove one first.", true); return; }
+        const out = free.find(x => outs.includes(x)) ?? outs[0];
+        BK.wiz = { type: k, out, chip: "ws2811_12v", strings: 1, total: 50 };
+        bkGo("wire"); return;
+      }
       if (!free.length) { toast("All four outputs are in use. Remove a light first.", true); return; }
       BK.wiz = { type: k, out: free[0], chip: "ws2815", end: 0, n: 30, test: BK_TEST_PX, px: 0, mid: 0, side: "left", job: "turn_l" };
       if (k === "matrix") Object.assign(BK.wiz, { mx: mxNew(60), ui: null, look: mxDefaultLook() });
@@ -4331,7 +4838,7 @@ function bkType(box) {
     } });
     b.innerHTML = bkIcon(K.d, 28);
     b.append(el("b", {}, K.name), el("small", {}, K.desc));
-    if (off) b.append(el("small", { class: "bike-need" }, `Needs firmware ${K.needs} or newer.`));
+    if (off) b.append(el("small", { class: "bike-need" }, noFree && !K.string ? "Needs a free output." : `Needs firmware ${K.needs} or newer.`));
     grid.append(b);
   });
   box.append(grid);
@@ -4351,7 +4858,36 @@ function bkNext() {
 }
 const bkNextBtn = (label, fn, off) => el("button", { class: "btn primary bike-wide", id: "bikeNext", disabled: !!off, onclick: fn || bkNext }, label || "Next");
 
+function bkWireString(box) {
+  const W = BK.wiz, outs = strOuts(), lights = bkLights();
+  if (!outs.includes(W.out)) W.out = outs[0];
+  bkWizHead(box);
+  const st = normStrip(structuredClone(effStrip(W.out))), shared = st.px > 0 && !bkTempOnly(W.out), host = shared ? lights.find(L => L.i === W.out && !L.str) : null;
+  box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "Which output is it plugged into?"),
+    bkPills([0, 1, 2, 3].map(i => [i, `${i + 1}`, !outs.includes(i)]), W.out, v => { W.out = v; buildBike(); }, "data-bike-out"),
+    el("p", { class: "note" }, `Output ${W.out + 1} is the plug marked ${STRIP_JACK[W.out]} on the board. A string can share an output with another light: its LEDs start after the last LED of that light.`)));
+  if (shared) {
+    box.append(el("p", { class: "note", style: "margin:8px 2px", "data-note": "str-after" },
+      `The string starts after the last LED of ${host ? "the " + BK_KINDS[host.kind].name.toLowerCase() : "the light"} on output ${W.out + 1} (LED ${st.px + 1}) and uses that output's LED type: ${(CHIP_BY[st.chip] || { label: "custom LED type" }).label}.`));
+  } else {
+    const sel = el("select", { "aria-label": "LED type", "data-bike-chip-sel": "1", onchange: () => { W.chip = sel.value; } },
+      ...CHIPS.map(([v, t]) => el("option", { value: v, selected: v === W.chip }, t)));
+    box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "LED type"), sel, el("p", { class: "note" }, "Bullet-pixel Christmas strings are usually WS2811 12 V.")));
+  }
+  box.append(bkNextBtn("Next", () => bkNext()));
+}
+function bkCount(box) {
+  const W = BK.wiz, st = normStrip(structuredClone(effStrip(W.out))), s0 = bkTempOnly(W.out) || !(st.px > 0) ? 0 : st.px, max = Math.max(1, BK_MAX_PX - s0);
+  bkWizHead(box);
+  W.total = clamp(W.total | 0, 1, max);
+  box.append(el("div", { class: "panel bike-card" }, el("h3", {}, "How many LEDs?"),
+    el("p", { class: "note" }, "Count the strings: each one is usually 50 LEDs. You can also type the exact total."),
+    numField("Strings of 50", W.strings, 1, Math.max(1, Math.floor(max / 50)), 1, v => { W.strings = v; W.total = clamp(v * 50, 1, max); buildBike(); }, null, "bike-strings"),
+    numField("LED count", W.total, 1, max, 1, v => { W.total = v; W.strings = Math.max(1, Math.round(v / 50)); buildBike(); }, `1 to ${max} on this output.`, "bike-total")));
+  box.append(bkNextBtn("Next"));
+}
 function bkWire(box) {
+  if (BK.wiz.type === "string") { bkWireString(box); return; }
   const W = BK.wiz, K = BK_KINDS[W.type], free = bkFree(), lights = bkLights();
   if (!free.includes(W.out)) W.out = free[0];
   bkWizHead(box);
@@ -4463,7 +4999,10 @@ function bkSegs(W) {
 function bkDone(box) {
   const W = BK.wiz, K = BK_KINDS[W.type];
   bkWizHead(box);
-  const rows = K.lamp ? [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["Does", OUT_LABEL[W.job]]]
+  const sst = W.type === "string" ? normStrip(structuredClone(effStrip(W.out))) : null, sS0 = sst && sst.px > 0 && !bkTempOnly(W.out) ? sst.px : 0;
+  const rows = K.string ? [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["LED type", (CHIP_BY[sS0 ? sst.chip : W.chip] || { label: "as set" }).label], ["LEDs", String(W.total)],
+                           ["Starts at", sS0 ? `LED ${sS0 + 1}, after the other light` : "LED 1"], ["Starting look", "Steady bulbs, Classic multicolor"]]
+    : K.lamp ? [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["Does", OUT_LABEL[W.job]]]
     : W.type === "matrix" ? mxSummaryRows(W)
     : [["Light", K.name], ["Output", `${W.out + 1} (${STRIP_JACK[W.out]})`], ["LED type", CHIP_BY[W.chip].label], ["LEDs", String(W.px)],
        ...(K.ends.length ? [["Wire at", K.ends[W.end][1]]] : []),
@@ -4471,13 +5010,26 @@ function bkDone(box) {
   box.append(el("div", { class: "panel bike-sum" }, ...rows.map(([k, v]) => el("div", {}, el("span", { class: "note" }, k), el("b", {}, v)))),
     el("p", { class: "note", style: "margin:8px 2px" }, K.lamp ? "Nothing reaches the controller until you tap Apply."
       : W.type === "matrix" ? "It goes on the controller as one light with a default look and the position of every strip. Nothing is final until you tap Apply."
+      : K.string ? "It goes on the controller as a light string with its own look. Nothing is final until you tap Apply."
       : W.type === "custom" ? "It starts as one underglow segment. Split it up in the segment editor. Nothing is final until you tap Apply."
       : "It goes on the bike picture at the usual spot for this kind of light, with a default look. Nothing is final until you tap Apply."),
     bkNextBtn("Add to the bike", bkWizFinish));
 }
 function bkWizFinish() {
   const W = BK.wiz, i = W.out, K = BK_KINDS[W.type];
-  const d = normStrip(structuredClone(app.settings.strips[i]));
+  const d = normStrip(structuredClone(K.string ? effStrip(i) : app.settings.strips[i]));
+  if (K.string) {
+    const s0 = bkTempOnly(i) || !(d.px > 0) ? 0 : d.px, n = clamp(W.total | 0, 1, BK_MAX_PX - s0);
+    if (d.seg.length + 1 > MAX_SEGS) { toast(`Output ${i + 1} already uses ${d.seg.length} segments; a light string needs one more (at most ${MAX_SEGS}).`, true); return; }
+    if (!s0) { d.out = "pixels"; d.chip = W.chip; Object.assign(d, CHIP_BY[W.chip].f); d.seg = []; }
+    d.px = s0 + n; d.seg.push(canonSeg([s0, n, "look2", false]));
+    d.look2 = { ...LOOK2_DEFAULT, pal: palClassic(), size: 1 };
+    app.drafts[i] = d; bkHint(i, s0 ? bkHints()[i] : null);
+    BK.wiz = null; delete BK.temp[i];
+    buildStrips(); bkGo("home");
+    toast(`${K.name} added on output ${i + 1}. Tap Apply to send it.`);
+    return;
+  }
   if (W.type === "matrix") { if (!mxFinish(W, d)) return; }
   else if (K.lamp) { d.out = W.job; d.px = 0; d.seg = []; }
   else {
@@ -4735,7 +5287,7 @@ function mxPreview(M, look, nowMs, ledList) {
   const norm = (v, r) => r[1] > r[0] ? (v - r[0]) / (r[1] - r[0]) : 0.5, ex = gx[1] - gx[0], ey = gy[1] - gy[0];
   const hd = MX_DIR[M.plc.face] || MX_DIR.forward, up = hd[0] - hd[1] > 0 ? 1 : -1;   // does the bike coordinate along the plate's width fall (-1) or rise (+1) to the viewer's right
   const big = Math.max(ex, ey, 1), half = mxPitch(M) / 2, sp = look.speed || 5, rgb = look.rgb || [255, 96, 0];
-  const A = { accent: { on: true, mode: look.mode, rgb, speed: sp, pct: 100 } };
+  const A = { accent: { on: true, mode: look.mode, rgb, speed: sp, pct: 100, pal: look.pal, size: look.size, dwell: look.dwell, show: look.show } };
   return led.map((L, i) => {
     if (FX_NEW.includes(look.mode)) {
       const f = fxPixel(look.mode, rgb, sp, { w: up > 0 ? norm(L.gx, gx) : 1 - norm(L.gx, gx), h: ey > 0 ? 1 - (L.gy - gy[0]) / ey : 0.5,
@@ -4922,7 +5474,7 @@ function bkBuild(box) {
     el("span", {}, "Dashed outline with ring LEDs: a strip on the back face."), el("span", {}, "Orange: not wired in yet."), el("span", {}, "The number on a strip is the count of its first LED."));
   // preview with its own effect pick
   const L = W.look;
-  const eff = selectField("Effect", modeList(), L.mode, v => { setModeFire(L, v); col.value = hex(L.rgb); mxKick(); });
+  const eff = selectField("Effect", modeGroups(), L.mode, v => { setModeFire(L, v); col.value = hex(L.rgb); mxKick(); });
   eff.querySelector("select").id = "mxPrevMode";
   const col = el("input", { type: "color", value: hex(L.rgb), "aria-label": "Color", id: "mxPrevColor" });
   col.onchange = () => { L.rgb = unhex(col.value); mxKick(); };
@@ -5035,7 +5587,7 @@ function bkBuild(box) {
 function mxTestWhy(W) {
   const st = app.settings.strips[W.out];
   if (!app.link || !fw43()) return "Connect to a controller with firmware 0.4.3 to test.";
-  if (app.drafts[W.out] || !st || st.px !== mxTotal(W.mx) || mxCheck(W.mx)) return "Apply the matrix first: the test lights the strip on the controller.";
+  if (app.drafts[W.out] || !st || (strRange(st) ? strRange(st).s0 : st.px) !== mxTotal(W.mx) || mxCheck(W.mx)) return "Apply the matrix first: the test lights the strip on the controller.";
   return "";
 }
 // The order the controller uses for pixel px of strip out right now: its zone there, else the output's order.
@@ -5101,18 +5653,19 @@ function mxSummaryRows(W) {
 }
 // Fill the strip draft d from the finished design. False (with a message) when it cannot be added.
 function mxFinish(W, d) {
-  const M = W.mx, why = mxCheck(M);
+  const M = W.mx, why = mxCheck(M), keep = strGrab(d);   // a light string behind the matrix moves with it
   if (why) { toast(why, true); return false; }
   const total = mxTotal(M);
   d.out = "pixels";
   if (!W.edit) {
     d.chip = W.chip; if (CHIP_BY[W.chip]) Object.assign(d, CHIP_BY[W.chip].f);
     const mode = FX_NEW.includes(W.look.mode) && !fw42() ? "rise" : W.look.mode;
-    d.look = { ...LOOK_DEFAULT, mode, rgb: W.look.rgb.slice(), speed: W.look.speed, rev: false };
+    d.look = { ...LOOK_DEFAULT, mode, rgb: W.look.rgb.slice(), speed: W.look.speed, rev: false, ...(isStrMode(mode) && fw48() ? { pal: palOf(W.look).map(c => c.slice()), size: sizeOf(W.look), dwell: dwellOf(W.look), show: showOf(W.look) } : {}) };
   }
   d.look.master = true;   // the Underglow switch turns the matrix on and off, like an underglow run with its own look
   d.px = total; d.seg = [canonSeg([0, total, "look", false])]; d.geomPts = mxGeom(M);
   if (fw43()) d.ordZones = mxZones(M, d.order);   // per-strip color order: one zone per run of strips that differ from the output's order
+  const sw = strRestore(d, keep); if (sw) { toast(sw, true); return false; }
   mxStore(W.out, M);
   return true;
 }
@@ -5139,7 +5692,7 @@ function mxDesignPanel(i, v) {
 // While the Bike tab holds unsent drafts (app.drafts) the per-light, preset and zone controls here wait for its Apply / Discard.
 const pendingDrafts = () => Object.keys(app.drafts).length > 0;
 const ctlName = t => String(t || "").replace(/[^\x20-\x7e]/g, "?").trim().slice(0, 24);   // preset names: printable ASCII, 24 characters (kPresetNameMax)
-const modeName = m => ((MODES_ALL.find(x => x[0] === m) || [0, m])[1]).split(" (")[0];
+const modeName = m => ((MODES_EVERY.find(x => x[0] === m) || [0, m])[1]).split(" (")[0];
 const SW_BAR = [["Amber", [255, 96, 0]], ["White", [255, 255, 255]], ["Blue", [29, 95, 214]], ["Green", [47, 191, 104]], ["Purple", [138, 63, 252]], ["Red", [255, 0, 0]]];
 const SW_DRL = [["White", [255, 255, 255]], ["Warm white", [255, 217, 160]], ["Amber", [255, 164, 27]], ["Ice blue", [159, 212, 255]]];
 const CT_OFF = "#39414a", CT_TAIL = "#8f2019", CT_BRAKE = "#ff4a3d", CT_TURN = "#ffa41b";
@@ -5169,12 +5722,12 @@ function ctlPatch(obj, key, ms = 0) {
 function ctlStripEdit(i, fn, key, ms = 0) {
   const cur = app.settings.strips[i], before = normStrip(structuredClone(cur)), d = normStrip(structuredClone(cur));
   fn(d);
-  const lk = x => ({ mode: x.mode, rgb: x.rgb, speed: x.speed | 0, rev: !!x.rev, master: !!x.master });
   const sub = {}, objs = [];
-  if (JSON.stringify(lk(d.look)) !== JSON.stringify(lk(before.look))) sub.look = lk(d.look);
+  if (lookKey(d.look) !== lookKey(before.look)) sub.look = lookOutOf(d.look, before.look);
   if (d.pct !== before.pct) sub.pct = clamp(d.pct | 0, 0, 100);
   if (d.turn_style !== before.turn_style) sub.turn_style = d.turn_style;
   if (Object.keys(sub).length) objs.push(stripWrap(i, sub));
+  if (fw48() && lookKey(d.look2) !== lookKey(before.look2)) objs.push(stripWrap(i, { look2: lookOutOf(d.look2, before.look2) }));
   const sa = d.seg.map(segOut), segChanged = JSON.stringify(sa) !== JSON.stringify(before.seg.map(segOut));
   if (segChanged) objs.push(...segPatches(i, sa));
   if (!objs.length) return;
@@ -5279,6 +5832,12 @@ function fillCells(row, cells) {
 function ctlMapPanel() {
   const S = app.settings, box = el("div", { class: "ct-map", id: "ctlMap" });
   bkLights().filter(L => L.kind !== "lamp").forEach(L => {
+    if (L.str) {   // a light string: its own row, painted with the effect it is showing (the preview port of the firmware formulas)
+      const r = strRange(L.st), row = ctlCellRow(r.n, ctlStrColors(L.st).map(c => ({ bg: ctlRgb(c), sh: "none", turn: false })));
+      row.dataset.strOut = L.i;
+      box.append(el("div", { style: "display:flex;flex-direction:column;gap:3px" }, el("span", { class: "cap" }, `Light string · ${r.n} LEDs`), row));
+      return;
+    }
     box.append(el("div", { style: "display:flex;flex-direction:column;gap:3px" },
       el("span", { class: "cap" }, `${BK_KINDS[L.kind].name} · ${L.st.px} LEDs`), ctlCellRow(L.st.px, ctlCells(L.st.px, L.st.look, L.st.seg))));
   });
@@ -5289,6 +5848,14 @@ function ctlMapPanel() {
   return box;
 }
 
+const ctlRgb = c => Math.max(...c) > 12 ? `rgb(${c.join(",")})` : CT_OFF;
+// What every LED of a light string shows now: the demo renderer's pixels (look2 effect, reacting sections), from the live brake / turn state.
+function ctlStrColors(st) {
+  const S = app.settings, r = strRange(st), bnd = posBounds(S.strips), now = performance.now(), cols = Array.from({ length: r.n }, () => [0, 0, 0]);
+  const live = app.status || { v: 1, head: "off", brk: 0, l: 0, r: 0, blk: 0 };
+  strSegsOf(st).forEach(g => { for (let k = 0; k < g[1]; k++) cols[g[0] - r.s0 + k] = segPixel(S, g, k, g[1], live, bnd, now, 1, st.pct, st).c; });
+  return cols;
+}
 // -- quick toggles --
 const ctlTogOn = id => { const s = app.status || {}, S = app.settings; return id === "haz" ? !!s.hz : id === "glow" ? !!s.acc : id === "pods" ? !!s.aux : !!(S.drl && S.drl.on); };
 const CT_TOGS = [["haz", "Hazards", "Flashing"], ["glow", "Underglow", "On"], ["drl", "DRL", "On"], ["pods", "Pod lights", "On"]];
@@ -5315,6 +5882,11 @@ function ctlPaint() {
     const b = $("ctlTog-" + id); if (!b) return;
     const on = ctlTogOn(id);
     b.setAttribute("aria-pressed", String(on)); $("ctlTogTxt-" + id).textContent = on ? onTxt : "Off";
+  });
+  document.querySelectorAll("#ctlMap .ct-cells[data-str-out]").forEach(row => {   // light strings animate
+    const st = app.settings.strips[+row.dataset.strOut]; if (!st || !strRange(st)) return;
+    const cols = ctlStrColors(st), cells = row.children;
+    for (let k = 0; k < cells.length && k < cols.length; k++) cells[k].style.background = ctlRgb(cols[k]);
   });
   document.querySelectorAll("#ctlMap .ct-cells span[data-turn]").forEach(c => c.classList.toggle("off", !!s.hz && !s.blk));   // hazards blink the turn sections
 }
@@ -5352,6 +5924,28 @@ function ctlPills(options, value, dis, attr, onPick) {
   } }, label)));
   return row;
 }
+// The effect pills of a Control card. From 0.4.8 the row ends in a "More…" menu with every effect that is not a pill:
+// a string light shows the string effects as pills and the rest under More…, every other light the reverse.
+function ctlModePills(value, dis, attr, onPick, o = {}) {
+  const trim = ([v, t]) => [v, t.split(" (")[0]], base = modeBase().map(trim), strs = MODES_STR.map(trim);
+  const first = o.off ? [["off", "Off"]] : [];
+  if (!fw48()) return ctlPills([...first, ...base], value, dis, attr, onPick);
+  const pills = o.str ? strs : base, row = ctlPills([...first, ...pills], value, dis, attr, onPick);
+  const groups = o.str ? [["Effects", MODES.map(trim)], ["Patterns", MODES_NEW.map(trim)]] : [["Light strings", strs]];
+  const inMore = groups.some(g => g[1].some(m => m[0] === value));
+  const sel = el("select", { class: "ct-more", "aria-label": "More effects", "data-ct-more": o.key == null ? "1" : o.key, disabled: dis, "aria-pressed": String(inMore),
+    onchange: () => { if (sel.value) onPick(sel.value); } },
+    el("option", { value: "" }, "More…"), ...groups.map(([g, list]) => el("optgroup", { label: g }, ...list.map(([v, t]) => el("option", { value: v, selected: v === value }, t)))));
+  if (!inMore) sel.value = "";
+  row.append(sel);
+  return row;
+}
+// The palette editor of a Control card: which = "look" | "look2" (the strip's key that holds the look).
+const ctlRebuildFor = (a, b) => { if (fw48() && (isStrMode(a) || isStrMode(b))) buildControl(); };   // the palette editor comes and goes with a string effect
+function ctlPalEd(i, lk, dis, which) {
+  const ed = palEditor(lk, kv => { ctlStripEdit(i, d => Object.assign(d[which], kv), which + "pal" + i); buildControl(); }, { key: which + i, dis });
+  return ed ? [ed] : [];
+}
 function ctlBrightness(L, dis, hint) {
   const i = L.i;
   return [ctlRange({ label: "Brightness", value: L.st.pct, min: 0, max: 100, unit: " %", dis, key: "pct" + i, attr: "data-ct-pct",
@@ -5361,20 +5955,33 @@ const barUsesLook = st => st.seg.some(g => (idleOk(g[2]) && (segIdleOf(g) || {})
 const glowOwn = st => st.seg.some(g => g[2] === "look");
 function ctlLightSub(L) {
   const st = L.st;
+  if (L.kind === "string") return `${strRange(st).n} LEDs · ${modeName(st.look2.mode)} · ${strPctOf(st)} %`;
   if (L.kind === "lamp") return "12 V " + (OUT_SHORT[st.out] || "lamp");
   if (BK_KINDS[L.kind].bar) return `${st.px} LEDs · look ${barUsesLook(st) ? modeName(st.look.mode) : "off"} · ${st.pct} %`;
   if (L.kind === "matrix") return `${st.px} LEDs · ${modeName(st.look.mode)} · ${st.pct} %`;
   if (L.kind === "custom") return `${st.px} LEDs · ${st.seg.length} segment${st.seg.length === 1 ? "" : "s"} · ${st.pct} %`;
   return `${st.px} LEDs · ${glowOwn(st) ? "own look: " + modeName(st.look.mode) : "with underglow"} · ${st.pct} %`;
 }
+// A light string: its string effects as pills (the others under More…), the palette, speed and brightness.
+function ctlStringBody(L, body, dis) {
+  const i = L.i, st = L.st, lk = st.look2;
+  body.append(el("h4", {}, "Effect"),
+    ctlModePills(lk.mode, dis, "data-ct-look", v => { ctlStripEdit(i, d => { setModeFire(d.look2, v); }, "l2" + i); ctlRebuildFor(v, lk.mode); }, { str: true, key: "s" + i }),
+    ...ctlPalEd(i, lk, dis, "look2"),
+    ctlRange({ label: "Speed", value: lk.speed, min: 1, max: 10, dis, key: "spd2" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look2.speed = v; }, "spd2" + i, ms) }),
+    ctlRange({ label: "Brightness", value: strPctOf(st), min: 0, max: 100, unit: " %", dis, key: "pct2" + i, attr: "data-ct-pct", set: (v, ms) => ctlStripEdit(i, d => strSetPct(d, v), "pct2" + i, ms) }),
+    el("p", { class: "note", style: "margin:0" }, lk.master ? "This string follows the Underglow switch." : "This string is lit whenever the key is on."));
+}
 function ctlLightBody(L, body, dis) {
   const i = L.i, st = L.st, K = BK_KINDS[L.kind];
+  if (L.kind === "string") { ctlStringBody(L, body, dis); return; }
   if (L.kind === "lamp") { body.append(el("p", { class: "note", style: "margin:0" }, `This output switches a plain 12 V lamp: ${OUT_LABEL[st.out] || st.out}. Change what it does on the Bike tab.`)); return; }
   if (K.bar) {
     const uses = barUsesLook(st);
     body.append(el("h4", {}, "This light's own look when it's not signaling"),
-      ctlPills([["off", "Off"], ...modeList().map(([v, t]) => [v, t.split(" (")[0]])], uses ? st.look.mode : "off", dis, "data-ct-look", v => ctlStripEdit(i, d => applyBarLook(d, v), "look" + i)));
+      ctlModePills(uses ? st.look.mode : "off", dis, "data-ct-look", v => { ctlStripEdit(i, d => applyBarLook(d, v), "look" + i); ctlRebuildFor(v, st.look.mode); }, { off: true, key: i }));
     if (uses) {
+      body.append(...ctlPalEd(i, st.look, dis, "look"));
       body.append(ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }));
       if (lookRed(st.look) && st.seg.some(g => idleOk(g[2]) && redBanned(g[2], app.settings))) body.append(el("p", { class: "lay-warn bad", "data-note": "ct-red" }, LOOK_RED_NOTE));
       body.append(ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }));
@@ -5398,7 +6005,8 @@ function ctlLightBody(L, body, dis) {
     }));
   }
   if (own) {
-    body.append(ctlPills(modeList().map(([v, t]) => [v, t.split(" (")[0]]), st.look.mode, dis, "data-ct-look", v => ctlStripEdit(i, d => { setModeFire(d.look, v); }, "look" + i)),
+    body.append(ctlModePills(st.look.mode, dis, "data-ct-look", v => { ctlStripEdit(i, d => { setModeFire(d.look, v); }, "look" + i); ctlRebuildFor(v, st.look.mode); }, { key: i }),
+      ...ctlPalEd(i, st.look, dis, "look"),
       ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }),
       ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }),
       ...ctlBrightness(L, dis, "This look follows the Underglow switch. The global underglow brightness does not apply."));
@@ -5407,11 +6015,11 @@ function ctlLightBody(L, body, dis) {
   }
 }
 function ctlLightCard(L, dis) {
-  const key = "ct." + L.i, K = BK_KINDS[L.kind], open = app.open.has(key);
-  const head = el("button", { class: "ct-light-head", "aria-expanded": String(open), "data-ct-open": L.i },
+  const ck = (L.str ? "s" : "") + L.i, key = "ct." + ck, K = BK_KINDS[L.kind], open = app.open.has(key);
+  const head = el("button", { class: "ct-light-head", "aria-expanded": String(open), "data-ct-open": ck },
     el("span", { class: "sw", "aria-hidden": "true", style: `background:${K.chip}` }),
     el("span", { class: "bike-txt" }, el("b", {}, K.name), el("small", {}, ctlLightSub(L))));
-  const body = el("div", { class: "ct-light-body ct-body", hidden: !open, "data-ct-card": L.i });
+  const body = el("div", { class: "ct-light-body ct-body", hidden: !open, "data-ct-card": ck });
   ctlLightBody(L, body, dis);
   head.onclick = () => { const o = body.hidden; body.hidden = !o; head.setAttribute("aria-expanded", String(o)); o ? app.open.add(key) : app.open.delete(key); mxKick(); };
   return el("div", { class: "ct-light" }, head, body);
@@ -5420,7 +6028,8 @@ function ctlLightCard(L, dis) {
 function ctlMatrixBody(L, body, dis) {
   const i = L.i, st = L.st;
   body.append(el("h4", {}, "Look"),
-    ctlPills(modeList().map(([v, t]) => [v, t.split(" (")[0]]), st.look.mode, dis, "data-ct-look", v => ctlStripEdit(i, d => { setModeFire(d.look, v); }, "look" + i)),
+    ctlModePills(st.look.mode, dis, "data-ct-look", v => { ctlStripEdit(i, d => { setModeFire(d.look, v); }, "look" + i); ctlRebuildFor(v, st.look.mode); }, { key: i }),
+    ...ctlPalEd(i, st.look, dis, "look"),
     ctlColor(st.look.rgb, SW_BAR, dis, "look" + i, c => { ctlStripEdit(i, d => { d.look.rgb = c.slice(); }, "lookc" + i); buildControl(); }),
     ctlRange({ label: "Speed", value: st.look.speed, min: 1, max: 10, dis, key: "spd" + i, attr: "data-ct-speed", set: (v, ms) => ctlStripEdit(i, d => { d.look.speed = v; }, "spd" + i, ms) }),
     ...ctlBrightness(L, dis, "This look follows the Underglow switch. The global underglow brightness does not apply."));
@@ -5503,7 +6112,7 @@ function zoneGenRear(N, feed, t, b, idle, pct, pos) {
 const zKey = g => `${g[0]}+${g[1]}:${g[2]}:${(segIdleOf(g) || {}).idle || "off"}:${segNbOf(g) ? 1 : 0}:${segPctOf(g)}`;
 // Read the sliders back from the bike's segments; match = false when the segments are not what the generator would write.
 function zoneParse(i, kind) {
-  const st = app.settings.strips[i], N = st.px, front = kind === "front", half = Math.floor(N / 2);
+  const st = strOrdOnly(app.settings.strips[i]), N = st.px, front = kind === "front", half = Math.floor(N / 2);
   const segs = st.seg.filter(g => g[1] > 0).sort((a, b) => a[0] - b[0]);
   const T = front ? ["turn_l", "turn_r"] : ["tail_turn_l", "tail_turn_r"], mem = CT.mem[i] || {};
   const f0 = segs[0] && segs[0][0] === 0 && T.includes(segs[0][2]) ? segs[0] : null;
@@ -5553,6 +6162,9 @@ function ctlWarnPaint() {
   b.hidden = !fw; b.textContent = fw ? "Controller warning: " + fw : "";
 }
 function ctlZoneSend(i, kind, segs, feed) {
+  const str = strSegsOf(app.settings.strips[i]);   // the string behind the bar keeps its segments
+  if (segs.length + str.length > MAX_SEGS) { toast(`The bar and the light string would need ${segs.length + str.length} segments; an output holds ${MAX_SEGS}.`, true); return; }
+  segs = [...segs, ...str];
   bkHint(i, kind);
   const f = zFeeds(); f[i] = feed; store.set(ZFEED, JSON.stringify(f));
   ctlQueue("zone" + i, [...segPatches(i, segs.map(segOut)).map(o => "set " + JSON.stringify(o)), "get"], 0);
