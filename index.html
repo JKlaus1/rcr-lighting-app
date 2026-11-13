@@ -318,6 +318,18 @@ canvas.lay { display: block; width: 100%; height: auto; border: 1px solid var(--
   padding: 10px 14px; border-radius: var(--radius-ctl); font-size: 14px; z-index: 9; display: none;
 }
 .toast.show { display: block; }
+/* restart / firmware update progress: stays up across the Bluetooth drop until it ends */
+.job { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 8;
+  width: min(520px, calc(100% - 32px)); background: var(--panel); color: var(--ink); border: 2px solid var(--accent, #3d8bff);
+  border-radius: var(--radius-panel); padding: 12px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.35); font-size: 14px; }
+.job.ok { border-color: #2fa84f; } .job.bad { border-color: var(--warn); }
+.job h3 { margin: 0 0 6px; font-size: 15px; }
+.job ol { margin: 6px 0 0; padding-left: 20px; } .job li { margin: 3px 0; color: var(--muted); }
+.job li.done { color: var(--ink); } .job li.done::marker { content: "✓  "; color: #2fa84f; }
+.job li.now { color: var(--ink); font-weight: 600; } .job li.fail { color: var(--warn); font-weight: 600; }
+.job .cred { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; margin: 8px 0; font: 600 15px/1.4 ui-monospace, monospace; }
+.job .cred span:nth-child(odd) { font-family: inherit; font-weight: 400; color: var(--muted); }
+.job .btns { margin-top: 8px; }
 .toast.warn { background: var(--warn); color: #1b1300; }
 @media (prefers-reduced-motion: reduce) { .switch::after { transition: none; } }
 /* bike tab */
@@ -698,6 +710,7 @@ main.wide { max-width: 1280px; }
   </div>
 </nav>
 <div class="toast" id="toast" role="status"></div>
+<div class="job" id="job" role="status" aria-live="polite" hidden></div>
 
 <script>
 "use strict";
@@ -986,6 +999,7 @@ const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m 
 const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);   // the demo is playing firmware older than 0.4.1
 const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
 const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
+const demoNoOta = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 5]) < 0);   // older than 0.4.5: old ota / reboot replies
 const demoNoTurnRgb = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 4]) < 0);   // older than 0.4.4: turn signals fixed amber
 const modeOk = m => MODES.some(x => x[0] === m) || (FX_NEW.includes(m) && !demoNoFx());
 
@@ -1426,7 +1440,7 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 4]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 5]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
     if (demoNoTurnRgb()) delete this.s.turn.rgb;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
@@ -1570,8 +1584,16 @@ class DemoLink {
         break;
       case "bonds": this.out("BLE 1 bond: aa:bb:cc:dd:ee:ff (slots: 3)"); break;
       case "save": this.out("saved"); break;
-      case "ota": this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break;
-      case "reboot": this.out("rebooting"); break;
+      case "ota":
+        if (demoNoOta()) { this.out("OTA access point \"RCR-Lighting-DEMO\" starting: join it and open http://192.168.4.1"); break; }
+        this.out("OTA starting: Wi-Fi \"RCR-Lighting-DEMO\", password demo1234, page http://192.168.4.1");
+        this.out("Bluetooth turns off in about 2 s (not enough memory for both) and stays off until the controller restarts: after the update, or 15 min with no update once the lights are off.");
+        if (DemoLink.sim) DemoLink.sim("ota", this);
+        break;
+      case "reboot":
+        this.out(demoNoOta() ? "rebooting" : `restarting: firmware ${(DemoLink.cur || []).join(".")}, up 120 s; back in about 5 s`);
+        if (DemoLink.sim) DemoLink.sim("reboot", this);
+        break;
       case "defaults": if (args === "yes") { this.s = structuredClone(DEFAULTS); this.pend = [null, null, null, null]; this.out("settings reset to defaults"); } else this.out("type `defaults yes` to reset every setting"); break;
       case "help": this.out("status, sense, info, get, set {json}, preset NAME" + (this.old ? "" : "|list|save N [name]|N|next|del N|get N") + ", hazard on|off" + (this.old ? "" : "|toggle") + ", aux on|off, accent on|off|next, find STRIP PIXEL|off, out CH on|off|auto, fill N R G B|off, bench off, cal CH AMPS, counters [reset], bonds, save, defaults yes, ota, reboot, pair"); break;
       default: this.out(`unknown command '${cmd}' (try help)`);
@@ -1653,7 +1675,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.4";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.5";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -1712,7 +1734,8 @@ const handlers = {
         if ("ch" in j && "en" in j) { setStatus(j); return; }
       } catch (e) { /* fall through to the log */ }
     }
-    if (/^RCR Lighting/.test(line)) { $("infoText").textContent = line; setFw(line); }
+    if (/^RCR Lighting/.test(line)) { $("infoText").textContent = line; setFw(line); jobInfo(line); }
+    jobLine(line);
     ctlReply(line);
     const ota = /^OTA access point "([^"]+)", password (\S+)/.exec(line);
     if (ota) $("otaInfo").textContent = `${ota[1]} / ${ota[2]}`;
@@ -1723,7 +1746,9 @@ const handlers = {
     finder.active = false; app.testPrev = null;
     setLink("Disconnected", false);
     $("linkBtn").textContent = "Reconnect"; $("linkBtn").hidden = false;
+    const expected = jobDrop();
     if (app.demo || app.userClosed) return;
+    if (expected) { recon.quick = 0; scheduleReconnect(0); return; }   // restart / update: not a pairing refusal
     // A link the controller cuts within 20 s of coming up is a refusal (not paired, pairing
     // closed), not a radio drop: retrying would only make the phone ask to pair again and again.
     recon.quick = Date.now() - (app.attachedAt || 0) < 20000 ? recon.quick + 1 : 0;
@@ -1786,6 +1811,88 @@ function log(text, mine) {
   L.append(el("div", { class: mine ? "me" : null }, (mine ? "> " : "") + text));
   while (L.childNodes.length > 400) L.firstChild.remove();
   L.scrollTop = L.scrollHeight;
+}
+
+// ---- restart / firmware update progress ---------------------------------------------------
+// One card that walks through what the controller is doing: the command was sent, the controller
+// confirmed it, the Bluetooth link dropped (expected), it came back and on which firmware. Firmware
+// 0.4.5+ confirms both commands in words; older firmware is handled from the link and `info` alone.
+const job = { kind: null, step: 0, t0: 0, fwBefore: null, wifi: null, dropped: false, timer: 0, end: null, why: "" };
+const JOB_STEPS = {
+  restart: ["Restart sent", "Controller confirmed: restarting", "Link dropped while it restarts (expected)", "Reconnected"],
+  ota: ["Update request sent", "Controller confirmed: update Wi-Fi starting", "Bluetooth off, update Wi-Fi on (link drop expected)",
+        "Join the Wi-Fi and upload the -ota.bin file", "Controller back"],
+};
+function jobStart(kind) {
+  clearTimeout(job.timer);
+  Object.assign(job, { kind, step: 1, t0: Date.now(), fwBefore: app.fw ? app.fw.raw : null, wifi: null, dropped: false, end: null, why: "" });
+  // No reply in 6 s: the command did not reach the controller (or it refused without a reason we know).
+  job.timer = setTimeout(() => { if (job.kind === kind && job.step === 1 && !job.end) jobEnd("bad", "No answer from the controller in 6 s. Check the link and try again."); }, 6000);
+  jobPaint();
+}
+function jobEnd(how, why) { job.end = how; job.why = why || ""; clearTimeout(job.timer); jobPaint(); }
+function jobClose() { clearTimeout(job.timer); job.kind = null; jobPaint(); }
+function jobPaint() {
+  const box = $("job");
+  if (!job.kind) { box.hidden = true; box.textContent = ""; return; }
+  box.hidden = false; box.className = "job" + (job.end === "ok" ? " ok" : job.end === "bad" ? " bad" : "");
+  const title = job.kind === "ota" ? "Firmware update" : "Restart";
+  const steps = JOB_STEPS[job.kind];
+  const ol = el("ol", {}, ...steps.map((t, i) => {
+    const n = i + 1;
+    const cls = job.end === "bad" && n === job.step ? "fail" : n < job.step || (job.end === "ok" && n <= job.step) ? "done" : n === job.step ? "now" : null;
+    return el("li", { class: cls }, t);
+  }));
+  const kids = [el("h3", {}, title + (job.end === "ok" ? ": done" : job.end === "bad" ? ": stopped" : "…")), ol];
+  if (job.kind === "ota" && job.wifi && !job.end) {
+    kids.push(el("div", { class: "cred" }, el("span", {}, "Wi-Fi"), el("b", {}, job.wifi.ssid), el("span", {}, "Password"), el("b", {}, job.wifi.pass),
+      el("span", {}, "Page"), el("b", {}, job.wifi.url)));
+    kids.push(el("p", { class: "note", style: "margin:4px 0 0" }, job.wifi.old
+      ? "This firmware (before 0.4.5) can't keep Bluetooth and the update Wi-Fi up together: the Wi-Fi may not appear at all. If it doesn't, update over USB once."
+      : "Bluetooth stays off until the controller restarts. Upload the file ending in -ota.bin (not -factory.bin); the page says when it is done and the controller restarts by itself. "
+        + "Nothing to upload? It closes after 15 min and restarts once the lights are off."));
+  }
+  if (job.why) kids.push(el("p", { class: "note", style: "margin:6px 0 0;color:var(--ink)" }, job.why));
+  if (job.end || job.step >= 3) kids.push(el("div", { class: "btns" }, el("button", { class: "btn small", type: "button", id: "jobClose", onclick: jobClose }, job.end ? "Close" : "Hide")));
+  box.textContent = ""; box.append(...kids);
+}
+function jobLine(line) {   // replies from the controller
+  if (!job.kind || job.end) return;
+  let m;
+  if (job.kind === "restart" && /^(restarting|rebooting)\b/.test(line)) {
+    job.step = Math.max(job.step, 3); clearTimeout(job.timer);
+    // The link should drop within a couple of seconds; if it doesn't, say so.
+    job.timer = setTimeout(() => { if (job.kind === "restart" && !job.dropped && !job.end) jobEnd("bad", "The controller said it was restarting, but the link never dropped. Check `info` uptime on the Console tab."); }, 8000);
+  } else if (job.kind === "ota" && (m = /^OTA (?:starting|already running): Wi-Fi "([^"]+)", password (\S+), page (\S+)/.exec(line))) {
+    job.wifi = { ssid: m[1], pass: m[2], url: m[3], old: false }; job.step = Math.max(job.step, 3); clearTimeout(job.timer);
+  } else if (job.kind === "ota" && (m = /^OTA access point "([^"]+)" starting/.exec(line))) {   // 0.4.4 and older
+    const pw = (/\/ (\S+)$/.exec($("otaInfo").textContent) || [])[1] || "(see Setup)";
+    job.wifi = { ssid: m[1], pass: pw, url: "http://192.168.4.1", old: true }; job.step = Math.max(job.step, 3); clearTimeout(job.timer);
+  } else if (/^(ota|reboot): switch the lights off first/.test(line)) {
+    jobEnd("bad", "Refused: switch the lights off first (no brake or turn signal), then try again.");
+    return;
+  } else return;
+  jobPaint();
+}
+function jobDrop() {   // the Bluetooth link went away
+  if (!job.kind || job.end) return false;
+  job.dropped = true;
+  if (job.kind === "restart") job.step = Math.max(job.step, 3);
+  else job.step = Math.max(job.step, 4);
+  clearTimeout(job.timer);
+  // A restart is back in ~5 s; give it 40 s. The update waits as long as the person needs.
+  if (job.kind === "restart") job.timer = setTimeout(() => { if (job.kind === "restart" && !job.end) jobEnd("bad", "Not back after 40 s. Is the key on? Tap Reconnect."); }, 40000);
+  jobPaint();
+  return true;
+}
+function jobInfo(line) {   // the `info` line after a reconnect says what is running now
+  if (!job.kind || job.end || !job.dropped) return;
+  const v = (/firmware (\d+\.\d+\.\d+)/.exec(line) || [])[1];
+  if (!v) return;
+  job.step = JOB_STEPS[job.kind].length;
+  if (job.kind === "restart") jobEnd("ok", `Running firmware ${v}.`);
+  else if (job.fwBefore && v !== job.fwBefore) jobEnd("ok", `Updated: firmware ${job.fwBefore} → ${v}.`);
+  else jobEnd("bad", `Back on the same firmware ${v}: no update was applied (closed without an upload, or the upload failed).`);
 }
 
 let toastTimer = 0;
@@ -2112,7 +2219,8 @@ function setStatus(s) {
     for (const [cls, msg, key] of alerts) al.append(el("div", { class: "banner " + cls, "data-alert": key || null }, msg));
   }
   app.setupWarn = setup;
-  $("liveFoot").textContent = s.ota ? "Firmware update access point is on." : "";
+  $("liveFoot").textContent = s.ota ? (["", "Firmware update: turning Bluetooth off…", "Firmware update Wi-Fi is on.", "Firmware update: uploading…",
+    "Firmware update: restarting…", "Firmware update Wi-Fi FAILED to start.", "Firmware update Wi-Fi closed: restarts once the lights are off."][s.ota] || "Firmware update access point is on.") : "";
   $("pairHint").textContent = s.pair ? "Pairing is open: pair the new phone now." : "Lets a new phone pair during the next 2 minutes.";
   // quick toggles
   $("qHaz").setAttribute("aria-pressed", !!s.hz);
@@ -2703,8 +2811,8 @@ function armed(btn, prompt, action) {
     }
   };
 }
-armed($("otaBtn"), "Tap again to start the update access point", () => send("ota"));
-armed($("rebootBtn"), "Tap again to restart", () => send("reboot"));
+armed($("otaBtn"), "Tap again to start the update access point", () => { jobStart("ota"); send("ota"); });
+armed($("rebootBtn"), "Tap again to restart", () => { jobStart("restart"); send("reboot"); });
 armed($("defaultsBtn"), "Tap again to reset everything", () => { send("defaults yes"); send("get"); });
 
 // ---- map tab -----------------------------------------------------------------
