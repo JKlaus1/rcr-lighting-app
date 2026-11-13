@@ -1000,6 +1000,7 @@ const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m 
 const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);   // the demo is playing firmware older than 0.4.1
 const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
 const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
+const demoNoDrlJoin = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 7]) < 0);   // older than 0.4.7: a DRL section stays dark with the DRL off
 const demoOtaOpen = () => !(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 6]) < 0);   // 0.4.6+: open update Wi-Fi by default
 const demoNoOta = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 5]) < 0);   // older than 0.4.5: old ota / reboot replies
 const demoNoTurnRgb = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 4]) < 0);   // older than 0.4.4: turn signals fixed amber
@@ -1386,6 +1387,15 @@ function segPixel(s, g, k, n, st, bnd, now, scale, spct, strip) {
     const span = lookSpan(strip) || { lo: g[0], len: n }, rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
     return { c: accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct } }, p, span.len, pos(), bnd, now, scale, pct), acc: true };
   }
+  // firmware 0.4.7: a DRL section joins the strip's look while the DRL is switched off (when the strip has a look)
+  if (role === "drl" && st.v && s.drl && !s.drl.on && lookSpan(strip) && !demoNoDrlJoin()) {
+    const lk = { ...LOOK_DEFAULT, ...((strip && strip.look) || {}) }, lp = decoPct(100, spct, segPctOf(g));
+    if (!(s.accent.on || !lk.master) || !lp) return { c: [0, 0, 0], acc: false };
+    const span = lookSpan(strip), rel = g[0] + k - span.lo, p = lk.rev ? span.len - 1 - rel : rel;
+    let c = accentPix({ accent: { on: true, mode: lk.mode, rgb: lk.rgb, speed: lk.speed, pct: lp } }, p, span.len, pos(), bnd, now, scale, lp);
+    if (!s.front_red && isRedHue(c)) c = [0, 0, 0];
+    return { c, acc: true };
+  }
   const idl = idleOk(role) && segIdleOf(g);
   if (idl && segFree(s, role, st)) {
     // only turn-role segments drop their idle look while any signal or the hazards flash; front pods never show a red hue
@@ -1442,7 +1452,7 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 6]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 7]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
     if (demoNoTurnRgb()) delete this.s.turn.rgb;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
@@ -1678,7 +1688,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.6";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.7";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -1713,6 +1723,7 @@ function ctlReset() {
 const fw4 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 1]) >= 0);
 // 0.4.2 adds the rain, fire, sparkle, plasma, rings, bounce and diag effects. Their names are never sent to older firmware.
 const fw43 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 3]) >= 0);   // 0.4.3: colour-order zones (ordi / nord) and find with a count and a colour
+const fw47 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 7]) >= 0);   // 0.4.7: a DRL section joins the strip look while the DRL is off
 const fw42 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 2]) >= 0);
 const modeList = () => fw42() ? MODES_ALL : MODES;
 function setFw(line) {
@@ -5245,7 +5256,10 @@ function ctlCells(px, look, segs) {
       case "tail_turn_l": case "tail_turn_r": c = { bg: turnC, sh: `inset 0 -7px 0 ${nb ? CT_TAIL : CT_BRAKE}`, turn: true }; break;
       case "tail": c = { bg: nb ? CT_TAIL : CT_BRAKE, sh: "none", turn: false }; break;   // a tail without nb brightens on brake
       case "brake": c = { bg: CT_BRAKE, sh: "none", turn: false }; break;
-      case "drl": c = { bg: drlC, sh: "none", turn: false }; break;
+      case "drl": {   // 0.4.7+: shows the strip's look while the DRL is off (when the strip has one): look underline
+        const joins = fw47() && segs.some(x => (segIdleOf(x) || {}).idle === "look");
+        c = { bg: drlC, sh: joins ? `inset 0 8px 0 ${lookC}` : "none", turn: false }; break;
+      }
       case "look": c = { bg: lookC, sh: "none", turn: false }; break;
       case "accent": c = { bg: accC, sh: "none", turn: false }; break;
       default: continue;
@@ -5574,6 +5588,7 @@ function ctlZonePanel(L, dis) {
     panel.append(tsl,
       el("h4", { style: "margin:0;font:600 15px/1.2 var(--sans)" }, "The middle section is"),
       ctlPills([["look", "Bar's look"], ["drl", "DRL"], ["off", "Off"]], cur.mid, dis, "data-ct-mid", v => { cur.mid = v; move(); commit(); }), midNote,
+      ...(fw47() ? [el("p", { class: "note", style: "margin:0" }, "DRL: when the DRL is switched off, the middle joins the bar's look (with turn sections on the bar's look).")] : []),
       el("h4", { style: "margin:0;font:600 15px/1.2 var(--sans)" }, "Turn sections when not signaling"),
       ctlPills([["look", "Bar's look"], ["drl", "DRL"], ["dark", "Dark"]], cur.sw, dis, "data-ct-sw", v => { cur.sw = v; move(); commit(); }));
   } else {
