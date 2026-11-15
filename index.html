@@ -653,8 +653,16 @@ main.wide { max-width: 1280px; }
         </select>
       </div>
       <table class="grid" id="headGrid"></table>
+      <div id="lampPctWrap" hidden>
+        <div class="field"><span class="lbl">Brightness in each position (%)</span></div>
+        <table class="grid" id="lampPctGrid"></table>
+        <div id="lampPwmField"></div>
+        <div class="field"><div class="hint">Below 100 % the output is switched on and off fast (PWM) to dim the light. Lamps with their own driver (Baja pods) may only dim smoothly down to about 20 %; check on the bench first.</div></div>
+      </div>
     </div>
     <p class="note">Ticks set which outputs light in each switch position. Two feeds: separate low and high beam wires. Baja LP6 DOT: the high-beam wire lights the whole lamp, so low and high are never on together; pods with high.</p>
+    <h2 id="strobeH" hidden>Strobe</h2>
+    <div class="panel" id="strobePanel" hidden></div>
     <h2>Lamp-out warning</h2>
     <div class="panel" id="lampMinPanel"></div>
     <h2>Switch inputs</h2>
@@ -904,9 +912,22 @@ const MIRROR_ROLE = { turn_l: "turn_r", turn_r: "turn_l", tail_turn_l: "tail_tur
 const SIDE_OF = { turn_l: "right", turn_r: "left", tail_turn_l: "right", tail_turn_r: "left" };  // side we copy FROM
 const ACTIONS = [["none", "Nothing"], ["accent_toggle", "Underglow on/off"], ["accent_next", "Next underglow effect"],
                  ["hazard", "Hazards on/off"], ["aux_toggle", "Pods on/off"]];
-const actionsFor = () => fw4() ? [...ACTIONS, ["preset_next", "Next preset"]] : ACTIONS;
+const actionsFor = () => fw4() ? [...ACTIONS, ["preset_next", "Next preset"], ...(fw49() ? [["strobe_toggle", "Strobe on/off"]] : [])] : ACTIONS;
 const LAMPS = [["low", "Low beam feed"], ["high", "High beam feed"], ["aux", "Pods"], ["drl", "DRL"]];
 const HEAD_STATES = [["O", "Off"], ["R", "Running"], ["L", "Low"], ["H", "High"]];
+const LAMP_PIN = { low: "J6 pin 5", high: "J6 pin 6", aux: "J6 pin 7", drl: "J6 pin 8" };
+// 0.4.9 lamp strobe: same pattern maths as firmware strobeLit() (core/lamps.cpp).
+const STROBE_PATS = [["together", "All together"], ["alternate", "Alternate A / B (wig-wag)"], ["double", "Double flash, A then B"]];
+const STROBE_GRPS = [["0", "Not in the strobe"], ["1", "Group A"], ["2", "Group B"]];
+function strobeLit(pat, hz, grp, t) {
+  if (grp < 1 || grp > 2) return false;
+  const T = Math.floor(1000 / Math.max(1, hz)), half = Math.floor(T / 2), ph = Math.floor(t) % T;
+  if (pat === "together") return ph < half;
+  const mine = grp === 1 ? ph < half : ph >= half;
+  if (pat !== "double" || !mine || half < 4) return mine;
+  const q = ph % half;
+  return q < Math.floor(half / 4) || (q >= Math.floor(half / 2) && q < Math.floor(3 * half / 4));
+}
 const PRESETS = {  // same tables as firmware applyHeadPreset()
   two_feed:      { low: "L",  high: "H", aux: "",  drl: "RLH" },
   two_feed_both: { low: "LH", high: "H", aux: "",  drl: "RLH" },
@@ -1039,6 +1060,9 @@ const DEFAULTS = {"head":{"preset":"two_feed","low":"L","high":"H","aux":"","drl
   DEFAULTS.drl = { on: true, rgb: [255, 255, 255], pct: 80 };   // firmware 0.4.1 (the demo drops it again when it plays 0.3.18)
   DEFAULTS.turn.rgb = [255, 96, 0];   // firmware 0.4.4: adjustable turn signal color (the demo drops it for older firmware)
   DEFAULTS.preset = -1;
+  DEFAULTS.lamp_pct = { low: [100, 100, 100, 100], high: [100, 100, 100, 100], aux: [100, 100, 100, 100], drl: [100, 100, 100, 100] };   // firmware 0.4.9
+  DEFAULTS.lamp_pwm_hz = 200;
+  DEFAULTS.strobe = { pat: "alternate", hz: 4, pct: 100, grp: { low: 0, high: 0, aux: 0, drl: 0 } };
 }
 function cmpVer(a, b) { for (let i = 0; i < 3; i++) if ((a[i] | 0) !== (b[i] | 0)) return (a[i] | 0) - (b[i] | 0); return 0; }
 const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m ? [+m[1], +m[2], +m[3]] : null; };
@@ -1046,7 +1070,8 @@ const demoOld = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 1]) < 0);  
 const demoNoFx = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 2]) < 0);   // older than 0.4.2: no rain, fire, ... effects
 const demoNoOrd = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 3]) < 0);   // older than 0.4.3: no colour-order zones, no long find
 const demoNoDrlJoin = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 7]) < 0);   // older than 0.4.7: a DRL section stays dark with the DRL off
-const demoNo48 = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 8]) < 0);   // older than 0.4.8: no palettes, light-string effects, look2, rx
+const demoNo48 = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 8]) < 0);
+const demoNo49 = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 9]) < 0);   // older than 0.4.9: no lamp_pct / lamp_pwm_hz / strobe   // older than 0.4.8: no palettes, light-string effects, look2, rx
 const demoOtaOpen = () => !(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 6]) < 0);   // 0.4.6+: open update Wi-Fi by default
 const demoNoOta = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 5]) < 0);   // older than 0.4.5: old ota / reboot replies
 const demoNoTurnRgb = () => !!(DemoLink.cur && cmpVer(DemoLink.cur, [0, 4, 4]) < 0);   // older than 0.4.4: turn signals fixed amber
@@ -1487,6 +1512,18 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
       if (v.preset && PRESETS[v.preset]) Object.assign(s.head, PRESETS[v.preset]);
       for (const l of ["low","high","aux","drl"]) if (l in v) s.head[l] = sortMask(v[l]);
       s.head.preset = detectPreset(s.head);
+    } else if ((k === "lamp_pct" || k === "lamp_pwm_hz" || k === "strobe") && demoNo49()) {
+      notes.push(`${k}: unknown key`);
+    } else if (k === "lamp_pct") {
+      for (const [l, a] of Object.entries(v || {})) {
+        if (!(l in s.lamp_pct)) { notes.push(`lamp_pct.${l}: unknown key`); continue; }
+        if (Array.isArray(a)) { if (a.length !== 4) notes.push(`lamp_pct.${l}: expected [off, running, low, high]`); else a.forEach((x, h) => { if (x != null) s.lamp_pct[l][h] = Number(x) | 0; }); }
+        else s.lamp_pct[l] = [0, 1, 2, 3].map(() => Number(a) | 0);
+      }
+    } else if (k === "strobe") {
+      const { grp, ...rest } = v || {};
+      Object.assign(s.strobe, rest);
+      if (grp) for (const [l, g] of Object.entries(grp)) { if (l in s.strobe.grp) s.strobe.grp[l] = Number(g) | 0; else notes.push(`strobe.grp.${l}: unknown key`); }
     } else if (k === "ota_pass") {
       /* write-only */
     } else if (k === "drl" && !s.drl) {
@@ -1510,6 +1547,13 @@ function applyPatch(s, p, pend = [null, null, null, null]) {
   s.tail_pct = clamp(Math.min(s.tail_pct, Math.floor(s.brake_pct / 3)), 5, 33);
   s.marker_pct = clamp(s.marker_pct, 0, 50); s.boot_red_pct = clamp(s.boot_red_pct, 10, 60);
   s.in_hold_ms = clamp(s.in_hold_ms | 0, 0, 2000);
+  if (s.lamp_pct) for (const l of Object.keys(s.lamp_pct)) s.lamp_pct[l] = s.lamp_pct[l].map(x => clamp(x | 0, 5, 100));
+  if (s.lamp_pwm_hz != null) s.lamp_pwm_hz = clamp(s.lamp_pwm_hz | 0, 100, 1000);
+  if (s.strobe) {
+    if (!STROBE_PATS.some(p => p[0] === s.strobe.pat)) s.strobe.pat = "alternate";
+    s.strobe.hz = clamp(s.strobe.hz | 0, 1, 10); s.strobe.pct = clamp(s.strobe.pct | 0, 5, 100);
+    for (const l of Object.keys(s.strobe.grp)) s.strobe.grp[l] = clamp(s.strobe.grp[l] | 0, 0, 2);
+  }
   if (s.drl) s.drl.pct = clamp(s.drl.pct | 0, 5, 100);
   s.button.long_ms = clamp(s.button.long_ms | 0, 300, 3000); s.button.gap_ms = clamp(s.button.gap_ms | 0, 150, 800);
   for (const st of s.strips) {
@@ -1672,9 +1716,11 @@ class DemoLink {
     this.edges = [0, 0, 0, 0, 0, 0, 0, 0]; this.dip = [0, 0, 0, 0]; this.dipms = [0, 0, 0, 0];   // v0.3.12 diagnostics counters
     this.bn = 0; this.bev = null; this.bevAt = 0;
     // Which firmware the demo plays: ?demofw=0.3.18 on the page address, or DemoLink.fw set before the demo starts.
-    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 8]; this.old = demoOld();
+    this.fw = DemoLink.fw; DemoLink.cur = parseVer(this.fw) || [0, 4, 9]; this.old = demoOld();
     this.slots = Array(8).fill(null); this.pre = -1; this.dirty = false;
     if (demoNoTurnRgb()) delete this.s.turn.rgb;
+    if (demoNo49()) { delete this.s.lamp_pct; delete this.s.lamp_pwm_hz; delete this.s.strobe; }
+    this.strobe = false;
     if (this.old) { delete this.s.drl; delete this.s.preset; }
     else {   // two saved looks out of the box: "Street" is the bike as it stands, "Show" adds a rainbow and lit turn bars
       this.slots[0] = this.snap("Street");
@@ -1741,6 +1787,7 @@ class DemoLink {
     else if (a === "accent_next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
     else if (a === "hazard") this.hazLatch = !this.hazLatch;
     else if (a === "aux_toggle") this.aux = !this.aux;
+    else if (a === "strobe_toggle" && !demoNo49()) this.strobe = !this.strobe;
     else if (a === "preset_next" && !this.old) this.out(this.presetCmd("next"));
   }
   async open() { this.timer = setInterval(() => this.h.onLive(JSON.stringify(this.status())), 250); }
@@ -1801,6 +1848,10 @@ class DemoLink {
         if (args === "toggle" && !this.old) this.hazLatch = !this.hazLatch; else if (onoff >= 0) this.hazLatch = !!onoff;
         this.out("hazard " + (this.hazLatch ? "on" : "off")); break;
       case "aux": if (onoff >= 0) this.aux = !!onoff; this.out("aux " + (this.aux ? "on" : "off")); break;
+      case "strobe":
+        if (demoNo49()) { this.out("unknown command: strobe"); break; }
+        if (args === "toggle") this.strobe = !this.strobe; else if (onoff >= 0) this.strobe = !!onoff;
+        this.out("strobe " + (this.strobe ? "on" : "off")); break;
       case "accent":
         if (args === "next") { const i = MODES.findIndex(m => m[0] === this.s.accent.mode); this.s.accent.mode = MODES[(i + 1) % MODES.length][0]; this.s.accent.on = true; }
         else if (onoff >= 0) this.s.accent.on = !!onoff;
@@ -1847,8 +1898,14 @@ class DemoLink {
     const hb = { off: "O", running: "R", low: "L", high: "H" }[head];
     const en = ["low","high","aux","drl"].map(l => s.head[l].includes(hb) ? 1 : 0);
     if (this.aux && head !== "off") en[2] = 1;
+    const hi = { off: 0, running: 1, low: 2, high: 3 }[head];
+    const duty = ["low","high","aux","drl"].map(l => s.lamp_pct ? s.lamp_pct[l][hi] * 10 : 1000);
+    if (s.strobe && this.strobe) ["low","high","aux","drl"].forEach((l, i) => {
+      const g = s.strobe.grp[l]; if (!g) return;
+      en[i] = strobeLit(s.strobe.pat, s.strobe.hz, g, now) ? 1 : 0; duty[i] = -s.strobe.pct * 10;
+    });
     const force = this.force || {};
-    ["low","high","aux","drl"].forEach((l, i) => { if (l in force) en[i] = force[l]; });
+    ["low","high","aux","drl"].forEach((l, i) => { if (l in force) { en[i] = force[l]; duty[i] = 1000; } });
     const st = { v: 1, head, brk: !!b(0), l: L || hz, r: R || hz, blk };
     // strips: 1 mA per pixel idle + px_ma x brightness for lit pixels (channels add up when `sum`)
     if (this.find && now > this.find.until) this.find = null;
@@ -1885,7 +1942,7 @@ class DemoLink {
     en.push(...lit.map(v => v ? 1 : 0));
     const lampA = [3.2, 3.0, 4.1, 0.6];
     const a = [];
-    for (let i = 0; i < 4; i++) a.push(en[i] ? lampA[i] + (Math.random() - 0.5) * 0.06 : 0);
+    for (let i = 0; i < 4; i++) a.push(en[i] ? lampA[i] * Math.abs(duty[i]) / 1000 + (Math.random() - 0.5) * 0.06 : 0);
     for (let i = 0; i < 4; i++) a.push(en[4 + i] ? (isLampOut(s.strips[i]) ? 1.75 : sma[i] / 1000) : 0);
     a.push(0.8, 0);
     const ch = a.map((v, i) => {
@@ -1899,6 +1956,7 @@ class DemoLink {
     if (this.sim.save_err) warn.push("settings could not be saved (storage full?): changes are lost at key-off");
     return { t: Math.round(now), v: 1, in: this.inputs, raw: this.inputs, head, brk: st.brk ? 1 : 0,
              l: st.l ? 1 : 0, r: st.r ? 1 : 0, hz: hz ? 1 : 0, blk: blk ? 1 : 0, aux: this.aux ? 1 : 0,
+             ...(demoNo49() ? {} : { sb: this.strobe ? 1 : 0, duty: duty.map((d, i) => en[i] ? d : 0) }),
              en, rt: [0,0,0,0,0,0,0,0], lk: "........", ch: ch.join(""), a: a.map(v => Math.round(v * 100) / 100),
              sma, tot, bud, ssc: [100,100,100,100], acc: s.accent.on ? 1 : 0, bench: this.find || Object.keys(this.force || {}).length || (this.fillc || []).some(Boolean) ? 1 : 0, ovr: 0, ble: 1,
              pair: this.pairUntil > now ? 1 : 0, ota: 0,
@@ -1910,7 +1968,7 @@ class DemoLink {
   }
 }
 
-DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.8";
+DemoLink.fw = (() => { try { return new URLSearchParams(location.search).get("demofw"); } catch (e) { return null; } })() || "0.4.9";
 DemoLink.cur = null;
 
 // ---------------------------------------------------------------------------
@@ -1946,7 +2004,8 @@ const fw4 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 1]) >= 0);
 // 0.4.2 adds the rain, fire, sparkle, plasma, rings, bounce and diag effects. Their names are never sent to older firmware.
 const fw43 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 3]) >= 0);   // 0.4.3: colour-order zones (ordi / nord) and find with a count and a colour
 const fw47 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 7]) >= 0);   // 0.4.7: a DRL section joins the strip look while the DRL is off
-const fw48 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 8]) >= 0);   // 0.4.8: palettes, light-string effects, look2 / light-string sections, reacting sections
+const fw48 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 8]) >= 0);
+const fw49 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 9]) >= 0);   // 0.4.9: lamp brightness (PWM) per switch position, lamp strobe   // 0.4.8: palettes, light-string effects, look2 / light-string sections, reacting sections
 const fw42 = () => !!(app.fw && cmpVer(app.fw.n, [0, 4, 2]) >= 0);
 const modeBase = () => fw42() ? MODES_ALL : MODES;   // the effects that were there before 0.4.8
 const modeList = () => fw48() ? MODES_EVERY : modeBase();
@@ -2470,6 +2529,7 @@ function setStatus(s) {
   // quick toggles
   $("qHaz").setAttribute("aria-pressed", !!s.hz);
   $("qPods").setAttribute("aria-pressed", !!s.aux);
+  { const sbb = $("strobeNowBtn"); if (sbb) { const on = !!s.sb; sbb.setAttribute("aria-pressed", String(on)); sbb.classList.toggle("primary", on); sbb.textContent = on ? "Strobe is on: tap to stop" : "Strobe now"; } }
   paintMaps();
   ctlStatus(s);
 }
@@ -3034,6 +3094,42 @@ function buildStrips() {
 }
 
 // ---- setup -----------------------------------------------------------------
+// 0.4.9: brightness of each lamp output in each switch position (PWM), and the lamp strobe.
+function lampPctUi(s) {
+  const on = fw49() && !!s.lamp_pct;
+  $("lampPctWrap").hidden = !on;
+  if (!on) return;
+  const g = $("lampPctGrid"); g.textContent = "";
+  g.append(el("tr", {}, el("th", {}, "Output"), ...HEAD_STATES.map(h => el("th", {}, h[1]))));
+  LAMPS.forEach(([lamp, label]) => {
+    g.append(el("tr", {}, el("td", {}, label, el("small", { class: "hint", style: "display:block" }, LAMP_PIN[lamp])), ...HEAD_STATES.map(([c, name], h) => {
+      const lit = s.head[lamp].includes(c);
+      const n = el("input", { type: "number", min: 5, max: 100, step: 5, value: s.lamp_pct[lamp][h], inputmode: "numeric", style: "width:4.2em" + (lit ? "" : ";opacity:.45"),
+        "aria-label": `${label} brightness in ${name}`, "data-lamp-pct": `${lamp}.${h}` });
+      n.onchange = () => { const v = clamp(Number(n.value) | 0, 5, 100); n.value = v; const a = [null, null, null, null]; a[h] = v; patch({ lamp_pct: { [lamp]: a } }); };
+      return el("td", {}, n);
+    })));
+  });
+  const f = $("lampPwmField"); f.textContent = "";
+  f.append(numField("PWM frequency (Hz)", s.lamp_pwm_hz || 200, 100, 1000, 50, v => patch({ lamp_pwm_hz: v }),
+    "All four lamp outputs. 200 Hz suits most lamp drivers; try 100 or 500 if a lamp flickers or won't dim evenly.", "lamp_pwm_hz"));
+}
+function strobeUi(s) {
+  const on = fw49() && !!s.strobe;
+  $("strobeH").hidden = $("strobePanel").hidden = !on;
+  if (!on) return;
+  const sb = s.strobe, P = $("strobePanel"); P.textContent = "";
+  const live = !!(app.status && app.status.sb);
+  P.append(
+    el("div", { class: "field" }, el("button", { class: "btn" + (live ? " primary" : ""), id: "strobeNowBtn", "aria-pressed": String(live), onclick: () => send("strobe toggle") }, live ? "Strobe is on: tap to stop" : "Strobe now"),
+      el("div", { class: "hint" }, "Runs until you stop it or the key goes off; never saved as on. Also on the Control tab and as a button action.")),
+    selectField("Pattern", STROBE_PATS, sb.pat, v => patch({ strobe: { pat: v } })),
+    numField("Speed (cycles per second)", sb.hz, 1, 10, 1, v => patch({ strobe: { hz: v } }), "One cycle = A's flash then B's.", "strobe_hz"),
+    numField("Flash brightness (%)", sb.pct, 5, 100, 5, v => patch({ strobe: { pct: v } }), null, "strobe_pct"),
+    ...LAMPS.map(([lamp, label]) => selectField(`${label} (${LAMP_PIN[lamp]})`, STROBE_GRPS, String(sb.grp[lamp] | 0), v => patch({ strobe: { grp: { [lamp]: Number(v) } } }))),
+    el("div", { class: "field" }, el("div", { class: "hint" }, "While the strobe runs, the outputs in a group flash in the pattern and ignore the switch; the others keep following it. Check on the bench how fast your lamps can flash: drivers with a soft start may come on late or dim at high speeds.")));
+}
+
 function buildSetup() {
   const s = app.settings;
   $("preset").value = s.head.preset;
@@ -3051,6 +3147,8 @@ function buildSetup() {
       return el("td", {}, box);
     })));
   });
+  lampPctUi(s);
+  strobeUi(s);
   const lm = $("lampMinPanel"); lm.textContent = "";
   LAMPS.forEach(([lamp, label]) => {
     const n = el("input", { type: "number", min: 0, max: 20000, step: 50, value: s.lamp_min_ma[lamp], inputmode: "numeric", "aria-label": label + " minimum mA" });
@@ -5699,7 +5797,8 @@ const CT_OFF = "#39414a", CT_TAIL = "#8f2019", CT_BRAKE = "#ff4a3d", CT_TURN = "
 const ctTurn = () => { const t = app.settings && app.settings.turn; return t && Array.isArray(t.rgb) ? hex(t.rgb) : CT_TURN; };   // the rider's turn color (0.4.4+)
 const CT_ICON = { haz: "M12 4L3 20h18zM12 10v5M12 17.5v.5", glow: "M3 8h18M6 13v3M12 13v5M18 13v3",
   drl: "M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2",
-  pods: "M4 12a8 8 0 0 1 8-8v16a8 8 0 0 1-8-8M15 8h5M15 12h6M15 16h5" };
+  pods: "M4 12a8 8 0 0 1 8-8v16a8 8 0 0 1-8-8M15 8h5M15 12h6M15 16h5",
+  strobe: "M13 2L4 14h7l-1 8l9-12h-7z" };
 
 // -- sending --
 // lines go out together, after `ms` of quiet for slider drags (the newest value of the same control wins), at once otherwise.
@@ -5857,18 +5956,20 @@ function ctlStrColors(st) {
   return cols;
 }
 // -- quick toggles --
-const ctlTogOn = id => { const s = app.status || {}, S = app.settings; return id === "haz" ? !!s.hz : id === "glow" ? !!s.acc : id === "pods" ? !!s.aux : !!(S.drl && S.drl.on); };
-const CT_TOGS = [["haz", "Hazards", "Flashing"], ["glow", "Underglow", "On"], ["drl", "DRL", "On"], ["pods", "Pod lights", "On"]];
+const ctlTogOn = id => { const s = app.status || {}, S = app.settings; return id === "haz" ? !!s.hz : id === "glow" ? !!s.acc : id === "pods" ? !!s.aux : id === "strobe" ? !!s.sb : !!(S.drl && S.drl.on); };
+const strobeSet = () => !!(fw49() && app.settings && app.settings.strobe && Object.values(app.settings.strobe.grp).some(g => g > 0));
+const CT_TOGS = [["haz", "Hazards", "Flashing"], ["glow", "Underglow", "On"], ["drl", "DRL", "On"], ["pods", "Pod lights", "On"], ["strobe", "Strobe", "Flashing"]];
 function ctlToggle(id) {
   const st = app.status || {};
   if (id === "haz") send(fw4() ? "hazard toggle" : "hazard " + (st.hz ? "off" : "on"));
   else if (id === "glow") send("accent " + (st.acc ? "off" : "on"));       // runtime, like the handlebar button
   else if (id === "pods") send("aux " + (st.aux ? "off" : "on"));
+  else if (id === "strobe") send("strobe toggle");
   else if (id === "drl" && fw4()) { ctlPatch({ drl: { on: !ctlTogOn("drl") } }, "drlon"); ctlPaint(); }
 }
 function ctlToggles() {
   const g = el("div", { class: "big-toggles", id: "ctlToggles" });
-  CT_TOGS.filter(t => t[0] !== "drl" || fw4()).forEach(([id, label]) => {
+  CT_TOGS.filter(t => (t[0] !== "drl" || fw4()) && (t[0] !== "strobe" || strobeSet())).forEach(([id, label]) => {
     const b = el("button", { class: "big ct-tog " + (id === "pods" ? "pods" : id), id: "ctlTog-" + id, "aria-pressed": "false", onclick: () => ctlToggle(id) });
     b.innerHTML = bkIcon(CT_ICON[id], 26);
     b.append(el("span", {}, el("span", {}, label), el("small", { id: "ctlTogTxt-" + id }, "Off")));
