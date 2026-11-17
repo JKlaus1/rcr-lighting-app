@@ -4,7 +4,14 @@
 import { S, op } from "./store.js";
 import { el, slider, numRow, selectRow, toggleRow, seg, note } from "./ui.js";
 
-export const LAMPS = [["low", "Low beam feed", "J6 pin 5"], ["high", "High beam feed", "J6 pin 6"], ["aux", "Pods", "J6 pin 7"], ["drl", "DRL", "J6 pin 8"]];
+// The four lamp outputs: key, the name the board gives it, where it is on the board and what it carries, and the
+// short form of that for a table cell.
+// The name shown in the app is the rider's own (settings.lamp_label, controller firmware 0.5.2) when there is one.
+export const LAMPS = [["low", "Low output", "LOW · J6 pin 5 · 15 A", "LOW · pin 5"], ["high", "High output", "HIGH · J6 pin 6 · 15 A", "HIGH · pin 6"],
+  ["aux", "Aux output", "AUX · J6 pin 7 · 7.5 A", "AUX · pin 7"], ["drl", "DRL output", "DRL · J6 pin 8 · 7.5 A", "DRL · pin 8"]];
+export const lampLabel = (lamp, s = S.settings) => (s && s.lamp_label && s.lamp_label[lamp]) || (LAMPS.find(l => l[0] === lamp) || [lamp, lamp])[1];
+// The outputs the extra switch lights (head.extra; left out of the settings while it is the AUX output alone).
+export const extraSet = head => (head && Array.isArray(head.extra) ? head.extra : ["aux"]);
 export const HEAD_STATES = [["O", "Off"], ["R", "Running"], ["L", "Low"], ["H", "High"]];
 // Same tables as the firmware's applyHeadPreset().
 export const HEAD_PRESETS = {

@@ -358,7 +358,9 @@ export class DemoLink {
     this.ctl.render(now - this.t0, scene, true);
     const hb = { off: "O", running: "R", low: "L", high: "H" }[head];
     const en = ["low", "high", "aux", "drl"].map(l => st.head[l].includes(hb) ? 1 : 0);
-    if (this.aux && head !== "off") en[2] = 1;
+    // the extra switch lights the outputs in head.extra (the AUX output alone unless the settings say otherwise)
+    const extra = Array.isArray(st.head.extra) ? st.head.extra : ["aux"];
+    if (this.aux && head !== "off") ["low", "high", "aux", "drl"].forEach((l, i) => { if (extra.includes(l)) en[i] = 1; });
     ["low", "high", "aux", "drl"].forEach((l, i) => { if (l in this.force) en[i] = this.force[l]; });
     const sma = st.strips.map((x, i) => x.out === "pixels" ? this.ctl.estMa(i) : 0);
     const lit = st.strips.map((x, i) => ("s" + (i + 1)) in this.force ? !!this.force["s" + (i + 1)]
@@ -381,6 +383,7 @@ export class DemoLink {
       pre: this.pre, prem: this.pre >= 0 && this.dirty ? 1 : 0, btn: b(5), bn: this.bn };
     if (!this.old) o.all = (this.allRam != null ? this.allRam : !!st.accent.all) ? 1 : 0;
     if (this.tx) o.tx = 1;
+    if (this.r32) o.r32 = 1;   // a board with R32 fitted (tests set it; the demo has no board)
     if (warn) o.warn = warn;
     return o;
   }

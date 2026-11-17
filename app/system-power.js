@@ -4,12 +4,13 @@ import { S, op, send, refresh } from "./store.js";
 import { el, button, panel, note, selectRow, numRow, toast } from "./ui.js";
 import { loadOf, isLampOut, lightsOf } from "./lights.js";
 import { JACKS, OUT_MODES } from "./fxdata.js";
-import { newPage, hint, stripPatch, amps } from "./system-kit.js";
+import { newPage, hint, stripPatch, amps, LAMPS, lampLabel } from "./system-kit.js";
 
-export const CAL_CHANNELS = [["low", "Low beam"], ["high", "High beam"], ["aux", "Pods"], ["drl", "DRL"], ["s1", "Strip 1 (J3)"], ["s2", "Strip 2 (J4)"],
-  ["s3", "Strip 3 (J5)"], ["s4", "Strip 4 (J15)"], ["acc1", "Accessory 1"], ["acc2", "Accessory 2"]];
-const OUT_TEST = [["low", "Low beam", "J6 pin 5"], ["high", "High beam", "J6 pin 6"], ["aux", "Pods", "J6 pin 7"], ["drl", "DRL", "J6 pin 8"],
-  ["s1", "Output 1", "J3"], ["s2", "Output 2", "J4"], ["s3", "Output 3", "J5"], ["s4", "Output 4", "J15"]];
+// The four lamp outputs go by the rider's names (system-kit lampLabel), read when the page is built.
+const STRIP_CHANNELS = [["s1", "Strip 1 (J3)"], ["s2", "Strip 2 (J4)"], ["s3", "Strip 3 (J5)"], ["s4", "Strip 4 (J15)"], ["acc1", "Accessory 1"], ["acc2", "Accessory 2"]];
+const lampPin = where => where.split(" · ")[1];   // "LOW · J6 pin 5 · 15 A" -> "J6 pin 5"
+export const calChannels = () => [...LAMPS.map(([k, , where]) => [k, `${lampLabel(k)} (${lampPin(where)})`]), ...STRIP_CHANNELS];
+const outTest = () => [...LAMPS.map(([k, , where]) => [k, lampLabel(k), lampPin(where)]), ["s1", "Output 1", "J3"], ["s2", "Output 2", "J4"], ["s3", "Output 3", "J5"], ["s4", "Output 4", "J15"]];
 
 // The one-line load statement for an output (also used by the tests).
 export function loadLine(strip) {
@@ -51,7 +52,7 @@ export function buildPower(host) {
 
   // ---- shared budgets ---------------------------------------------------------------------------------------------
   const budgetNote = note("");
-  P.onUpdate(() => { const b = S.settings.budget; budgetNote.textContent = `Shared by all four outputs. The headlight, pods and DRL take about 15 A when lit; the converter gives ${(b.conv_ma / 1000).toFixed(0)} A.`; });
+  P.onUpdate(() => { const b = S.settings.budget; budgetNote.textContent = `Shared by the four LED outputs. The Low or High budget also applies while Extra lights are on. What the lights on the lamp plug draw is measured and comes off the converter's ${(b.conv_ma / 1000).toFixed(0)} A as well.`; });
   const budget = panel("Shared current budget",
     P.slider("Headlight Low or High", s => s.budget.lit_ma / 1000, { min: 2, max: 28, step: 0.5, unit: "A", id: "sys-budget-lit" },
       v => ({ budget: { lit_ma: Math.round(v * 1000), dark_ma: Math.max(S.settings.budget.dark_ma, Math.round(v * 1000)) } })),
@@ -61,7 +62,7 @@ export function buildPower(host) {
     el("div", { class: "field" }, budgetNote));
 
   // ---- calibration ------------------------------------------------------------------------------------------------
-  const calCh = selectRow("Channel", CAL_CHANNELS, "low", () => {}, { id: "sys-cal-ch" });
+  const calCh = selectRow("Channel", calChannels(), "low", () => {}, { id: "sys-cal-ch" });
   const calAmps = numRow("Clamp meter reading", "", { min: 0.3, max: 40, step: 0.01, unit: "A", id: "sys-cal-amps" });
   const calBtn = button("Calibrate", { id: "sys-cal-go", onClick: () => {
     const a = Number(calAmps.input.value);
@@ -74,7 +75,7 @@ export function buildPower(host) {
   // ---- output test ---------------------------------------------------------------------------------------------------
   let touched = false;
   const run = cmds => { touched = true; cmds.forEach(c => send(c)); };
-  const testRows = OUT_TEST.map(([key, name, pin]) => {
+  const testRows = outTest().map(([key, name, pin]) => {
     const n = /^s(\d)$/.exec(key);
     const b = (label, cmds) => button(label, { small: true, data: { out: key + ":" + label.toLowerCase() }, onClick: () => run(cmds) });
     return el("div", { class: "field sys-test" }, el("span", { class: "lbl" }, el("b", {}, name), el("span", {}, pin)),

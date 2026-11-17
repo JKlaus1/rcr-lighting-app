@@ -5,6 +5,7 @@ import { S, on, send, demoLink } from "./store.js";
 import { el, clear, button, seg, panel, note, toast } from "./ui.js";
 import { OUT_MODES } from "./fxdata.js";
 import { isLampOut } from "./lights.js";
+import { LAMPS, lampLabel, extraSet } from "./system-kit.js";
 
 export const INPUTS = [   // bit order = firmware rcr::In
   { key: "brake", name: "Brake", where: "tail red", sw: "#d8322a" },
@@ -17,9 +18,11 @@ export const INPUTS = [   // bit order = firmware rcr::In
   { key: "spare", name: "Tail running", where: "tail white", sw: "#f4f6f8" },
 ];
 // status.en index -> enable line; status.ch / status.a index -> sense channel
+// The first four are the lamp outputs: their names are the rider's (senseName), these are the board's.
+export const senseName = i => (i < LAMPS.length ? lampLabel(LAMPS[i][0]) : SENSE[i].name);
 export const SENSE = [
-  { name: "Low beam", where: "J6 pin 5", rating: 15 }, { name: "High beam", where: "J6 pin 6", rating: 15 },
-  { name: "Pods", where: "J6 pin 7", rating: 7.5 }, { name: "DRL", where: "J6 pin 8", rating: 7.5 },
+  { name: "Low output", where: "J6 pin 5", rating: 15 }, { name: "High output", where: "J6 pin 6", rating: 15 },
+  { name: "Aux output", where: "J6 pin 7", rating: 7.5 }, { name: "DRL output", where: "J6 pin 8", rating: 7.5 },
   { name: "Output 1", where: "J3", rating: 7.5, en: 4, strip: 0 }, { name: "Output 2", where: "J4", rating: 7.5, en: 5, strip: 1 },
   { name: "Output 3", where: "J5", rating: 7.5, en: 6, strip: 2 }, { name: "Output 4", where: "J15", rating: 7.5, en: 7, strip: 3 },
   { name: "Accessory 1", where: "J10 pin 3", rating: 7.5 }, { name: "Accessory 2", where: "J10 pin 4", rating: 7.5 },
@@ -67,9 +70,12 @@ export function buildDiag(host) {
 function buildLive(host) {
   const alerts = el("div", { id: "sys-alerts" });
   const headVal = el("span", { class: "val", id: "sys-head" }, "–"), podsVal = el("span", { class: "val", id: "sys-pods" }, "–");
+  // the extra switch (Extra lights on Ride, a button action): which outputs it lights, by the rider's names
+  const podsWhat = el("small", { id: "sys-pods-what" });
+  const extraText = () => { const x = extraSet(S.settings && S.settings.head); return x.length ? "lights " + x.map(l => lampLabel(l)).join(", ") : "lights no output"; };
   const headPanel = panel("Headlight switch",
     el("div", { class: "row" }, el("span", { class: "txt" }, el("b", {}, "Switch position"), el("small", {}, "from the headlight wires")), headVal),
-    el("div", { class: "row" }, el("span", { class: "txt" }, el("b", {}, "Pods"), el("small", {}, "J6 pin 7")), podsVal));
+    el("div", { class: "row" }, el("span", { class: "txt" }, el("b", {}, "Extra switch"), podsWhat), podsVal));
 
   const demo = demoLink();
   const wires = INPUTS.map((inp, bit) => {
@@ -82,8 +88,8 @@ function buildLive(host) {
   const wiresPanel = el("div", { class: "panel wires", id: "sys-wires" }, wires.map(x => x.w));
 
   const outs = SENSE.map((c, i) => {
-    const amps = el("div", { class: "amps" }, "–"), state = el("div", { class: "state" }), bar = el("i");
-    return { c, amps, state, bar, li: el("li", { id: "sys-out-" + i }, el("div", {}, el("div", { class: "name" }, c.name), el("div", { class: "where" }, c.where)),
+    const amps = el("div", { class: "amps" }, "–"), state = el("div", { class: "state" }), bar = el("i"), name = el("div", { class: "name" }, senseName(i));
+    return { c, amps, state, bar, name, li: el("li", { id: "sys-out-" + i }, el("div", {}, name, el("div", { class: "where" }, c.where)),
       el("div", {}, amps, state), el("div", { class: "bar" }, bar)) };
   });
   const tot = { amps: el("div", { class: "amps" }, "–"), state: el("div", { class: "state" }), bar: el("i"), where: el("div", { class: "where" }, "shared budget") };
@@ -97,7 +103,7 @@ function buildLive(host) {
     el("h2", { class: "section-title" }, "Bike inputs"), wiresPanel,
     el("div", { class: "btns" }, button("Counter details", { id: "sys-cnt-show", onClick: () => { send("counters"); host.parentNode.dispatchEvent(new Event("sys:console")); } }),
       button("Reset counters", { id: "sys-cnt-reset", onClick: () => { lastBn = null; events.length = 0; send("counters reset"); } })),
-    note("Changes = how often an input switched since key-on or the last reset. Cut-outs = a lamp's current dropping out while its output was on (low and high beam are checked every millisecond). A lamp that cuts out with no input changes is the lamp or its supply; an input that changes with nobody at the switch is a signal line dropping out."),
+    note("Changes = how often an input switched since key-on or the last reset. Cut-outs = a lamp's current dropping out while its output was on (the LOW and HIGH outputs are checked every millisecond). A lamp that cuts out with no input changes is the lamp or its supply; an input that changes with nobody at the switch is a signal line dropping out."),
     el("h2", { class: "section-title" }, "Outputs"), rows, dimNote,
     el("h2", { class: "section-title" }, "Button events"), el("div", { class: "panel pad" }, evList), foot);
 
@@ -121,6 +127,7 @@ function buildLive(host) {
   function paint(s) {
     if (!s) return;
     headVal.textContent = HEAD_NAME[s.head] || "–"; podsVal.textContent = s.aux ? "On" : "Off";
+    { const t = extraText(); if (podsWhat.textContent !== t) podsWhat.textContent = t; }
     wires.forEach(({ w, note: n, inp, bit }) => {
       const on_ = !!((s.in >> bit) & 1);
       w.classList.toggle("on", on_); if (w.tagName === "BUTTON") w.setAttribute("aria-pressed", String(on_));
@@ -132,7 +139,8 @@ function buildLive(host) {
     }
     paintEvents();
     const list = [];
-    outs.forEach(({ c, amps, state, bar }, i) => {
+    outs.forEach(({ c, amps, state, bar, name }, i) => {
+      if (name.textContent !== senseName(i)) name.textContent = senseName(i);   // a lamp output renamed since the page was built
       const code = (s.ch || "")[i] || ".", [label, cls] = STATE[code] || ["?", ""];
       const a = (s.a || [])[i] || 0;
       let rating = c.rating, extra = "";
@@ -148,10 +156,10 @@ function buildLive(host) {
       state.textContent = (locked ? "fault, gave up retrying" : label + (retries && code === "F" ? `, retry ${retries}` : "") + extra) + dipTxt;
       state.className = "state " + (locked ? "bad" : dips && cls === "ok" ? "warn" : cls);
       bar.style.width = Math.min(100, a / rating * 100) + "%"; bar.classList.toggle("lit", code === "o");
-      if (dips && code === "o") list.push(["warn", `${c.name}: current cut out ${dips}× (longest ${(s.dipms || [])[i] | 0} ms): lamp or supply flicker`]);
-      if (code === "F" || locked) list.push(["bad", `${c.name}: ${locked ? "faulted and switched off" : "fault (short, overload or overheating), retrying"}`]);
-      else if (code === "O") list.push(["warn", `${c.name}: no current. Lamp out or unplugged?`]);
-      else if (code === "X") list.push(["bad", `${c.name}: output is live while switched off`]);
+      if (dips && code === "o") list.push(["warn", `${senseName(i)}: current cut out ${dips}× (longest ${(s.dipms || [])[i] | 0} ms): lamp or supply flicker`]);
+      if (code === "F" || locked) list.push(["bad", `${senseName(i)}: ${locked ? "faulted and switched off" : "fault (short, overload or overheating), retrying"}`]);
+      else if (code === "O") list.push(["warn", `${senseName(i)}: no current. Lamp out or unplugged?`]);
+      else if (code === "X") list.push(["bad", `${senseName(i)}: output is live while switched off`]);
     });
     // The budget works on the board's model of what the commanded LEDs should draw (`tot`); the measured sum sits beside it
     // so an unplugged strip does not look like 3 A of load.
@@ -171,7 +179,7 @@ function buildLive(host) {
     if (s.save_err) list.unshift(["bad", "Settings are not being saved. Storage full? Changes are lost at key-off."]);
     if (s.board_mismatch) list.unshift(["bad", "Wrong firmware for this board: the outputs are off. Flash the other image."]);
     if (s.strips_err) list.unshift(["bad", "The LED outputs failed to start."]);
-    if (s.v === 0) list.unshift(["warn", "Inputs not settled yet: low beam and rear red held on."]);
+    if (s.v === 0) list.unshift(["warn", "Inputs not settled yet: the LOW output and rear red held on."]);
     if (s.bench) list.unshift(["warn", "Bench override active (output test, finder or USB console)."]);
     clear(alerts);
     for (const [cls, msg] of list) alerts.append(el("div", { class: "banner " + cls }, msg));

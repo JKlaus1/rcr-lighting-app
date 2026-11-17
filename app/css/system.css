@@ -17,12 +17,16 @@
 .sys-grid th:first-child, .sys-grid td:first-child { text-align: left; padding-left: 14px; }
 .sys-grid td { padding: 3px 4px; text-align: center; border-top: 1px solid var(--line); }
 .sys-grid td:first-child { font-size: 14px; font-weight: 600; min-width: 84px; line-height: 1.2; }
-.sys-grid td small { display: block; font-weight: 400; }
+.sys-grid td small { display: block; font-weight: 400; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .sys-grid input[type=checkbox] { width: 26px; height: 26px; accent-color: var(--ink); margin: 9px; }
 .sys-grid input[type=number] { width: 3.5em; min-width: 0; min-height: 44px; text-align: center; padding: 0 2px; }
 .sys-grid td { padding: 3px 2px; }
 .sys-grid input.dim { opacity: .45; }
 .sys-scroll { overflow-x: auto; }
+/* Headlight pods: a name for each output. The plug stays on the left, the rider's name is typed on the right. */
+.sys-lamp-name .lbl { flex: none; }
+.sys-lamp-name input[type=text] { flex: 1; min-width: 0; max-width: 12em; }
+.sys-lamp-name input:disabled { opacity: .5; }
 .sys-color { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .sys-color input[type=color] { width: 64px; height: 44px; padding: 2px; border: 1.5px solid var(--edge); border-radius: var(--radius-ctl); background: var(--field); }
 .sys-inline { display: flex; gap: 8px; align-items: center; margin-top: 6px; }

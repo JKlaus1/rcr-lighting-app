@@ -452,7 +452,9 @@ export function stripPatches(i, before, after) {
 
 // The same for a whole settings object (Backup › Restore). `preset` and a redacted password are never sent.
 const SKIP = ["strips", "preset"];
-const OBJ_DEFAULTS = { accent: { ...LOOK_EXTRA_DEFAULTS, span: "light", rev: false, pitch: 50, all: false } };
+const OBJ_DEFAULTS = { accent: { ...LOOK_EXTRA_DEFAULTS, span: "light", rev: false, pitch: 50, all: false }, head: { extra: ["aux"] } };
+// whole top-level keys the controller leaves out while they are at their default (0.5.2: the names of the lamp outputs)
+const TOP_DEFAULTS = { lamp_label: { low: "", high: "", aux: "", drl: "" } };
 function objDiff(b, a, defaults) {
   if (!isObj(a) || !isObj(b)) return jeq(a, b) ? undefined : clone(a);
   const d = {};
@@ -478,6 +480,7 @@ export function settingsPatches(before, after) {
     const v = objDiff((before || {})[k], after[k], OBJ_DEFAULTS[k]);
     if (v !== undefined) top[k] = v;
   }
+  for (const [k, d] of Object.entries(TOP_DEFAULTS)) if (after && !(k in after) && before && k in before && !jeq(before[k], d)) top[k] = clone(d);
   if (Object.keys(top).length) out.push(...splitPatch(top));
   ((after && after.strips) || []).forEach((st, i) => out.push(...stripPatches(i, before && before.strips && before.strips[i], st)));
   return out;

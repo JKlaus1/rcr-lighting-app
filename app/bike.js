@@ -3,6 +3,7 @@ import { S, on, op, setSim } from "./store.js";
 import { el, clear, button, armed, chips, panel, note, icon } from "./ui.js";
 import { lightsOf, usedOf, loadOf, isLampOut, canAdd, LIMITS, refEq } from "./lights.js";
 import { JACKS, OUT_MODES } from "./fxdata.js";
+import { LAMPS, lampLabel } from "./system-kit.js";
 import { startAddLight, addingOn } from "./wizard.js";
 import { openLight, currentLight, onLightChange } from "./sheet.js";
 import { nav, bikeView } from "./main.js";
@@ -15,6 +16,10 @@ export function loadLine(strip) {
   if (!ld.over) return { text: `Up to ${amps(ld.fullMa)} A at full white, inside the ${amps(ld.capMa)} A cap.`, over: false };
   return { text: `Full white on everything here would be ${amps(ld.fullMa)} A. The ${amps(ld.capMa)} A cap dims decoration to fit; brake and turn never dim.`, over: true };
 }
+// The lamp plug's line: the rider's names for its four outputs once any is named (System › Headlight pods).
+const lampPlugText = () => (LAMPS.some(l => ((S.settings && S.settings.lamp_label) || {})[l[0]])
+  ? LAMPS.map(l => lampLabel(l[0])).join(", ") + ": switch positions, dimming and strobe are in System"
+  : "Four outputs for headlights and pods: name them and choose their switch positions in System");
 // What the LED total of an output is: the end of the last light (a finder may have grown px for a while).
 export const usedLeds = strip => (lightsOf(strip).length ? usedOf(strip) : strip.px | 0);
 const preV05 = strip => !isLampOut(strip) && !lightsOf(strip).length && ((strip.px | 0) > 0 || (strip.seg || []).length > 0);
@@ -89,7 +94,7 @@ export function mountBike(panelEl) {
       outs.append(el("div", { class: "bk-out", id: `bikeOut-${out}`, "data-out": out }, kids));
     });
     outs.append(el("button", { type: "button", class: "row", id: "bikeLampPlug", onclick: () => nav.go("system", { page: "pods" }) },
-      el("span", { class: "txt" }, el("b", {}, "Lamp plug · J6"), el("small", {}, "Low, High, Aux and DRL feeds: set up the headlight pods in System")),
+      el("span", { class: "txt" }, el("b", {}, "Lamp plug · J6"), el("small", { id: "bikeLampPlugText" }, lampPlugText())),
       el("span", { class: "chev" }, icon("chevron"))));
   }
   paint();

@@ -130,7 +130,7 @@ export const TURN_STYLES = [["global", "Same as the bike"], ["flash", "Flash"], 
 // "drain" came with controller firmware 0.5.1: an older controller is not offered it. fw051 = fwAtLeast(0, 5, 1).
 export const turnStyles = (fw051, withGlobal = true) => TURN_STYLES.filter(t => (withGlobal || t[0] !== "global") && (fw051 || t[0] !== "drain"));
 export const BTN_ACTIONS = [["none", "Nothing"], ["accent_toggle", "Accent lights on/off"], ["accent_next", "Next bike effect"],
-  ["hazard", "Hazards on/off"], ["aux_toggle", "Pods on/off"], ["preset_next", "Next look"], ["strobe_toggle", "Strobe on/off"],
+  ["hazard", "Hazards on/off"], ["aux_toggle", "Extra lights on/off"], ["preset_next", "Next look"], ["strobe_toggle", "Strobe on/off"],
   ["accent_all", "Bike effect on every light"]];
 export const OUT_MODES = [["pixels", "LED lights"], ["turn_l", "12 V lamp: left turn"], ["turn_r", "12 V lamp: right turn"],
   ["brake", "12 V lamp: brake"], ["running", "12 V lamp: running"], ["always", "12 V lamp: always on"]];

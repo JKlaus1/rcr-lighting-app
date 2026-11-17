@@ -6,6 +6,7 @@ import { S, on, op, send, mirror } from "./store.js";
 import { el, clear, button, seg, row, note, slider, selectRow, numRow, toggleRow, armed, icon, ledStrip, sheet, clamp, toIn, toMm } from "./ui.js";
 import { allLights } from "./lights.js";
 import { effectName, SPANS } from "./fxdata.js";
+import { extraSet } from "./system-kit.js";
 import { openLight, openBikeEffect } from "./sheet.js";
 import { nav } from "./main.js";
 import { fxEditor, attachBikePreview } from "./fx.js";
@@ -41,7 +42,8 @@ const TOGGLES = [
   { id: "ride-hazard", label: "Hazards", on: () => !!(S.status && S.status.hz), text: v => (v ? "Flashing" : "Off"), flip: () => send("hazard toggle") },
   { id: "ride-accent", label: "Accent lights", on: acc, text: v => (v ? "On" : "Off"), flip: v => op.accent({ on: !v }) },
   { id: "ride-drl", label: "DRL", on: () => !!(S.settings && S.settings.drl && S.settings.drl.on), text: v => (v ? "On" : "Off"), flip: v => op.drl({ on: !v }) },
-  { id: "ride-pods", label: "Pods", on: () => !!(S.status && S.status.aux), text: v => (v ? "On" : "Off"), flip: v => send(v ? "aux off" : "aux on") },
+  // the extra switch: lights the outputs ticked for it on System › Headlight pods, in every position but Off
+  { id: "ride-pods", label: "Extra lights", show: () => extraSet(S.settings && S.settings.head).length > 0, on: () => !!(S.status && S.status.aux), text: v => (v ? "On" : "Off"), flip: v => send(v ? "aux off" : "aux on") },
   { id: "ride-strobe", label: "Strobe", show: strobeSet, on: () => !!(S.status && S.status.sb), text: v => (v ? "On" : "Off"), flip: () => send("strobe toggle") },
 ];
 
