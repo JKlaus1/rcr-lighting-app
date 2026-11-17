@@ -1,0 +1,72 @@
+/* Ride screen, the effect editor, and the Look and Sections tabs of the light sheet (owner: RIDE). Tokens come from base.css. */
+
+/* ---- Ride ---------------------------------------------------------------------------------------- */
+.ride, .ride-content, .look-tab, .look-dyn, .sec-tab, .sec-edit, .bike-effect { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ride-content[hidden] { display: none; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.section-head .note { font-size: 13px; text-align: right; }
+.section-title { font: 700 17px/1.2 var(--cond); text-transform: uppercase; letter-spacing: .6px; color: var(--muted); }
+.looks { display: flex; flex-direction: column; gap: 8px; }
+.looks > .row { border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--panel); }
+.namebox { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.namebox input.text { flex: 1 1 10em; max-width: none; }
+.bike-card .row { border-top: 0; }
+.bike-card .seg { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+.bike-card .seg button { min-height: 46px; background: var(--panel); }
+.bike-card .seg button[aria-pressed="true"] { background: var(--ink); }
+.lights-card .row:first-of-type { border-top: 0; }
+.lights-card .row .ledstrip { width: 72px; }
+.lights-card > .note { padding: 12px 14px; }
+.manage-row input.text { flex: 1; min-width: 0; max-width: none; }
+.manage-row .btn + .btn { margin-left: 4px; }
+
+/* ---- the effect editor ----------------------------------------------------------------------------- */
+.fx { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.fx .label { margin-top: 2px; }
+.fx-preview .ledstrip { height: 18px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.swatch { width: 46px; height: 46px; border-radius: 50%; border: 3px solid transparent; background: none; padding: 3px; }
+.swatch > span { display: block; width: 100%; height: 100%; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 18%, transparent); }
+.swatch[aria-pressed="true"] { border-color: var(--ink); }
+.swatch-input { width: 46px; height: 46px; padding: 3px; border: 1.5px dashed var(--muted); border-radius: 50%; background: none; cursor: pointer; }
+.swatch-input::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch-input::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.swatch-input::-moz-color-swatch { border: 0; border-radius: 50%; }
+.fx .field input[type=range] { height: 38px; }
+.fx .field, .fx .toggle { border-top: 0; padding-left: 0; padding-right: 0; }
+.fx .toggle { min-height: 52px; }
+.fx .field.inline { min-height: 52px; }
+.pal-list { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pal-one { display: inline-flex; align-items: center; gap: 2px; }
+.pal-one input[type=color] { width: 44px; height: 44px; padding: 2px; border: 1.5px solid var(--edge); border-radius: var(--radius-ctl); background: var(--field); }
+.btn.x { min-height: 44px; min-width: 36px; padding: 0 8px; font-size: 18px; }
+.pal-show { display: grid; grid-template-columns: repeat(auto-fill, minmax(9.5em, 1fr)); gap: 2px 10px; }
+.show-one { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; }
+.show-one input { width: 20px; height: 20px; accent-color: var(--ink); }
+.fx-show, .fx-pal { display: flex; flex-direction: column; gap: 10px; }
+
+/* ---- the Look tab ---------------------------------------------------------------------------------- */
+.look-rest { display: flex; flex-direction: column; gap: 8px; }
+.look-line { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.look-dyn > .panel.pad { padding-bottom: 6px; }
+
+/* ---- the Sections tab ------------------------------------------------------------------------------ */
+.secbar { position: relative; height: 56px; margin: 4px 0 2px; touch-action: none; }
+.secbtn { position: absolute; top: 0; bottom: 0; min-width: 0; padding: 0; border: 3px solid transparent; border-radius: var(--radius-ctl);
+  color: #0f1317; font-weight: 700; font-size: 13px; overflow: hidden; white-space: nowrap; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25); }
+.secbtn[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--ink); z-index: 1; }
+.secbtn.tight .cnt { visibility: hidden; }
+.sechandle { position: absolute; top: -4px; bottom: -4px; width: 28px; margin-left: -14px; padding: 0; border: 0; background: none; z-index: 2; cursor: ew-resize; touch-action: none; }
+.sechandle .grip { position: absolute; left: 50%; top: 50%; width: 10px; height: 34px; margin: -17px 0 0 -5px; border-radius: 5px;
+  background: var(--page); border: 2px solid var(--ink); }
+.sechandle.active .grip, .sechandle:focus-visible .grip { background: var(--ink); }
+.split-ctl { display: flex; align-items: center; gap: 10px; }
+.split-ctl .btn { min-width: 52px; font-size: 20px; padding: 0 12px; }
+.split-ctl .split-at { flex: 1; text-align: center; font-weight: 600; font-size: 14px; color: var(--muted); }
+#sec-templates { margin-bottom: 2px; }
+.seccard { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.seccard-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.seccard-head b { font: 700 19px/1.2 var(--cond); }
+.seccard-head span { font-size: 13px; color: var(--muted); }
+.seccard .toggle { border-top: 0; padding-left: 0; padding-right: 0; }
+.sec-read { display: flex; flex-direction: column; gap: 12px; }

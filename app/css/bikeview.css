@@ -1,0 +1,70 @@
+/* bikeview: the bike view (VIEW). The stage is always dark in both themes: LEDs are drawn as light. */
+.bv { position: relative; height: max(260px, 42vh); border-radius: var(--radius-panel); overflow: hidden; border: 1px solid #2f3741;
+  background: radial-gradient(ellipse 85% 75% at 50% 42%, #27303b 0%, #161b21 55%, #0b0e11 100%); color: #e4e8ec;
+  -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+.bv.bv-tall { height: max(260px, 75vh); }
+@media (min-width: 1100px) {
+  .bv, .bv.bv-tall { height: calc(100vh - var(--hdr) - 28px); min-height: 360px; }
+  .bv #bvExpand { display: none; }
+}
+/* phone: while a placing tool runs the stage takes the whole screen below the header, above the light sheet */
+@media (max-width: 1099.98px) {
+  #stage.bv-placing { position: fixed; left: 0; right: 0; bottom: 0; top: calc(var(--hdr) + env(safe-area-inset-top)); z-index: 28; background: #0b0e11; }
+  #stage.bv-placing .bv { height: 100%; border-radius: 0; border: 0; }
+  #stage.bv-placing #bvExpand { display: none; }
+}
+
+.bv-host { position: absolute; inset: 0; }
+.bv-host canvas { display: block; position: absolute; left: 0; top: 0; touch-action: none; outline: none; }
+.bv-over, .bv-labels, .bv-handles { position: absolute; inset: 0; pointer-events: none; }
+.bv-over { width: 100%; height: 100%; }
+
+/* view buttons, top right: the foundation's small ghost buttons, recolored for the dark stage */
+.bv-views { position: absolute; top: 8px; right: 8px; display: flex; gap: 4px; padding: 3px; border-radius: 9px; background: rgba(10, 13, 16, 0.62); z-index: 2; }
+.bv-views-3d { display: flex; gap: 4px; }
+.bv[data-kind="flat"] .bv-views-3d, .bv[data-kind="loading"] .bv-views-3d { display: none; }
+.bv .bv-views .btn { min-height: 40px; padding: 0 9px; font-size: 13px; color: #c3cad1; border-color: transparent; border-width: 1px; border-radius: 7px; }
+.bv .bv-views .btn:hover { color: #fff; border-color: rgba(228, 232, 236, 0.3); }
+.bv .bv-views .btn[aria-pressed="true"] { background: #e4e8ec; color: #0f1317; border-color: #e4e8ec; }
+@media (min-width: 1100px) { .bv .bv-views .btn { min-height: 34px; padding: 0 11px; } }
+@media (max-width: 380px) { .bv .bv-views .btn { padding: 0 6px; } }
+
+.bv-note { position: absolute; left: 12px; top: 14px; font-size: 12px; color: #97a2ac; pointer-events: none; z-index: 1; max-width: 45%; }
+.bv[data-kind="loading"] .bv-note { left: 50%; top: 50%; transform: translate(-50%, -50%); font-size: 14px; max-width: none; }
+.bv-readout { position: absolute; left: 50%; top: 62px; transform: translateX(-50%); background: rgba(10, 13, 16, 0.88); color: #fff; border: 1px solid #ffa41b;
+  padding: 6px 10px; border-radius: 6px; font: 600 13px/1.2 var(--sans); white-space: nowrap; pointer-events: none; z-index: 3; }
+
+/* edit mode: names next to the lights */
+.bv-label { position: absolute; left: 0; top: 0; padding: 2px 7px; border-radius: 5px; background: rgba(10, 13, 16, 0.74); color: #e4e8ec;
+  font: 600 12px/18px var(--sans); white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis; border: 1px solid rgba(228, 232, 236, 0.18); }
+.bv-label.sel { border-color: #ffa41b; color: #ffd08a; }
+.bv[data-mode="ride"] .bv-labels { display: none; }
+
+/* handles: 26 px to see, 44 px to touch */
+.bv-handle { position: absolute; left: 0; top: 0; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid #ffa41b; background: rgba(15, 19, 23, 0.72);
+  color: #ffa41b; font: 700 12px/1 var(--sans); display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: none; cursor: grab; z-index: 2; }
+.bv-handle::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
+.bv-handle.move { border-style: dashed; background: rgba(255, 164, 27, 0.18); }
+.bv-handle.move::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ffa41b; }
+.bv-handle.drag { cursor: grabbing; background: #ffa41b; color: #1b1300; }
+
+/* the dock: lights that are not placed yet */
+.bv-dock { position: absolute; left: 0; right: 0; bottom: 0; padding: 14px 8px 8px; background: linear-gradient(rgba(8, 10, 13, 0), rgba(8, 10, 13, 0.9) 34%); z-index: 2; }
+.bv-dock-ttl { font: 700 11px/1 var(--cond); letter-spacing: .6px; text-transform: uppercase; color: #97a2ac; margin: 0 2px 5px; }
+.bv-dock-list { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding-bottom: 2px; }
+.bv-dock-item { flex: none; min-height: 44px; min-width: 96px; max-width: 160px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 4px;
+  padding: 5px 10px; border-radius: 6px; border: 1px solid #3a434e; background: rgba(26, 32, 39, 0.92); color: #e4e8ec; font: 600 13px/1.1 var(--sans); text-align: left; }
+.bv-dock-item span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bv-dock-item .ledstrip { width: 100%; height: 8px; border-color: #3a434e; }
+.bv-dock-item:hover { border-color: #97a2ac; }
+
+/* a placing tool's bar: a normal panel (theme colors) along the stage's bottom */
+.bv-toolslot { position: absolute; left: 0; right: 0; bottom: 0; z-index: 4; }
+.bv-tool { background: var(--panel); color: var(--ink); border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 8px; max-height: 60%; overflow-y: auto; }
+.bv-tool-msg { margin: 0; font: 600 15px/1.3 var(--sans); }
+.bv-tool-opts { display: flex; flex-direction: column; gap: 6px; }
+.bv-tool-opts .field { padding: 0 2px; border-top: 0; }
+.bv-tool-btns { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.bv-tool-btns .btn { padding: 0 6px; }
+.bv.placing .bv-views { top: 8px; }

@@ -1,0 +1,80 @@
+/* The Bike tab, Add a light, and the Placement and Wiring tabs of the light sheet (BIKE). Tokens and controls come from base.css. */
+
+/* ---- Bike: outputs ---- */
+.bike-root { display: flex; flex-direction: column; gap: 12px; }
+.bk-add { padding: 0; }
+.bk-add .btn { width: 100%; min-height: 50px; font-size: 17px; }
+.bk-out { border-top: 1px solid var(--line); padding: 10px 14px 12px; display: flex; flex-direction: column; gap: 8px; }
+.bk-out:first-child { border-top: 0; }
+.bk-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.bk-head .t { font-weight: 600; font-size: 16px; }
+.bk-head .u { font-size: 13px; color: var(--muted); white-space: nowrap; }
+.bk-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--muted); }
+.bk-chip { min-height: 44px; border-radius: var(--radius-ctl); border: 1.5px solid var(--edge); background: var(--field); color: var(--ink);
+  padding: 4px 10px; display: flex; flex-direction: column; justify-content: center; text-align: left; max-width: 100%; }
+.bk-chip .n { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bk-chip .s { font-size: 12px; color: var(--muted); }
+span.bk-chip { cursor: default; }
+.bk-chip[aria-current="true"] { background: var(--ink); color: var(--page); border-color: var(--ink); }
+.bk-chip[aria-current="true"] .s { color: var(--pressed-sub); }
+.bk-plus { width: 44px; height: 44px; border-radius: var(--radius-ctl); border: 1.5px dashed var(--muted); background: none; color: var(--ink); display: flex; align-items: center; justify-content: center; }
+.bk-load { font-size: 13px; color: var(--muted); }
+.bk-load.over { color: var(--warn); font-weight: 600; }
+.bk-lamp { display: flex; flex-direction: column; gap: 8px; }
+.bk-lampt { font-size: 15px; font-weight: 600; }
+.bk-pre { display: flex; flex-direction: column; gap: 8px; }
+.bk-pre .note { color: var(--warn); }
+#bikeLampPlug { border-top: 1px solid var(--line); }
+
+/* ---- Add a light ---- */
+.wz-h { font: 700 20px/1.2 var(--cond); }
+.wz-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wz-tile { min-height: 96px; gap: 4px; justify-content: flex-start; padding: 10px 12px; }
+.wz-tile small { line-height: 1.25; }
+.wz-tile .icon { margin-bottom: 2px; }
+.wz-outs { display: flex; flex-direction: column; gap: 8px; }
+.wz-out { min-height: 76px; gap: 3px; width: 100%; }
+.wz-out .r1 { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.wz-out .r1 b { font: 700 18px/1.1 var(--cond); }
+.wz-out .r2 { font-size: 14px; overflow-wrap: anywhere; }
+.wz-out small.why { color: var(--warn); font-weight: 600; }
+.wz-out[aria-pressed="true"] small.why { color: inherit; }
+.wz-out:disabled { opacity: 1; background: var(--field); color: var(--muted); border-style: dashed; }
+.wz-card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius-panel); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.wz-card .field { padding-left: 0; padding-right: 0; border-top: 0; }
+.wz-col { display: flex; flex-direction: column; gap: 12px; }
+.wz-big { font: 700 26px/1.1 var(--cond); }
+.wz-find .field { padding: 0; border-top: 0; }
+.wz-find .btns.two .btn { min-height: 46px; }
+.wz-foot { display: flex; gap: 8px; flex: none; }
+.wz-foot .btn.primary { flex: 1; min-height: 50px; font-size: 17px; }
+.wz-col > .btn.primary { min-height: 50px; font-size: 17px; }
+.wz-sum { min-height: 46px; display: flex; justify-content: space-between; gap: 12px; align-items: center; border-top: 1px solid var(--line); }
+.wz-sum:first-child { border-top: 0; }
+.wz-sum .k { font-size: 14px; color: var(--muted); }
+.wz-sum .v { font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.wz-name input { max-width: 12em; }
+
+/* ---- Wiring tab ---- */
+.wr-root, .pl-root { display: flex; flex-direction: column; gap: 14px; }
+.wr-sec { display: flex; flex-direction: column; gap: 8px; }
+.wr-sec .field.inline { padding: 0; border-top: 0; min-height: 48px; }
+.wr-sec .field .lbl small { display: block; font-size: 12px; }
+.wr-sec input[type=number] { width: 7em; background: var(--field); border: 1.5px solid var(--edge); border-radius: var(--radius-ctl); padding: 6px 10px; min-height: 44px; color: var(--ink); }
+.wr-test { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1.5px solid var(--edge); border-radius: var(--radius-panel); background: var(--panel); }
+
+/* ---- Placement tab ---- */
+.pl-pt { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); align-items: end; }
+.pl-pt .pl-led { grid-column: 1 / -1; font: 700 16px/1.2 var(--cond); }
+.pl-pt .btn { grid-column: 1 / -1; justify-self: start; min-height: 44px; }
+.pl-f { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); min-width: 0; }
+.pl-f input { width: 100%; min-width: 0; background: var(--field); border: 1.5px solid var(--edge); border-radius: var(--radius-ctl); padding: 6px 8px; min-height: 44px; color: var(--ink); font-size: 15px; }
+.pl-add { display: flex; gap: 10px; align-items: end; }
+.pl-add .pl-f { flex: 1; max-width: 12em; }
+.pl-none { margin: 0; font: 700 20px/1.2 var(--cond); color: var(--muted); }
+.pl-busy { margin: 0; font: 700 20px/1.2 var(--cond); }
+.pl-mirror { display: flex; flex-direction: column; gap: 6px; }
+.pl-mirror .field { padding: 0; border-top: 0; }
+.pl-den { padding: 0; border-top: 0; }
+.pl-shape { margin: 0; font-weight: 600; }
+@media (max-width: 340px) { .pl-pt { grid-template-columns: 1fr; } }
