@@ -83,3 +83,42 @@ span.bk-chip { cursor: default; }
 .pl-all > summary { cursor: pointer; padding: 12px; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); font-weight: 600; }
 .pl-all[open] > summary { margin-bottom: 8px; }
 .pl-all > .pl-pt { margin-bottom: 8px; }
+
+/* ---- a light's shape by its dimensions (barshape.js): the builder and the picture on the Placement tab ---- */
+.bs { gap: 14px; }
+.bs-top { display: flex; flex-direction: column; gap: 6px; position: sticky; top: -14px; z-index: 2; background: var(--page); padding: 14px 0 6px; margin-top: -14px; }
+.bs-pic { border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--panel); min-height: 96px; display: grid; place-items: center; padding: 4px; }
+.bs-svg { display: block; width: 100%; height: auto; max-height: min(36vh, 320px); }
+.bs-band { fill: none; stroke: var(--edge); stroke-linecap: round; stroke-linejoin: round; }
+.bs-band.sel { stroke: var(--blue); }
+.bs-joint { fill: var(--panel); stroke: var(--muted); stroke-width: .6; vector-effect: non-scaling-stroke; }
+.bs-led { fill: var(--ink); }
+.bs-led.first { fill: var(--green); stroke: var(--ink); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.bs-led.last { fill: var(--amber); stroke: var(--ink); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.bs-num { font-family: var(--cond); font-weight: 700; fill: var(--ink); }
+.bs-dim { font-family: var(--sans); font-weight: 600; fill: var(--muted); }
+.bs-dim.sel { fill: var(--blue); }
+.bs-edge { font-family: var(--cond); font-weight: 700; fill: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.bs-status { margin: 0; font: 700 17px/1.25 var(--cond); }
+.bs-status.bad { color: var(--bad); }
+.bs-pad { display: flex; flex-direction: column; gap: 10px; }
+.bs-rows { display: flex; flex-direction: column; gap: 8px; }
+.bs-row .bs-head { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.bs-row .bs-head b { font: 700 16px/1.2 var(--cond); }
+.bs-row .bs-head .note { flex: 1; min-width: 0; font-size: 13px; }
+.bs-row .bs-head .btn { flex: none; padding: 0 8px; }
+.bs-n { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 1.5px solid var(--edge); background: var(--panel); color: var(--ink); font-weight: 700; font-size: 14px; padding: 0; }
+.bs-n[aria-pressed="true"] { background: var(--blue); border-color: var(--blue); color: #fff; }
+.bs-row .seg button { min-height: 44px; font-size: 14px; }
+.bs-marks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.bs-count { padding: 0; border-top: 0; min-height: 48px; }
+.bs-count input { width: 7em; }
+.bs-add, .bs-fits, .bs-end { display: flex; flex-wrap: wrap; gap: 8px; }
+.bs-fits:empty { display: none; }
+.bs-end { padding-bottom: 8px; }
+.bs-end .btn.primary { flex: 1; }
+/* on the Placement tab */
+.pl-bar-pic { border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); min-height: 80px; display: grid; place-items: center; padding: 4px; }
+.pl-bar-pic .bs-svg { max-height: 240px; }
+.pl-bar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+@media (max-width: 340px) { .bs-marks { grid-template-columns: 1fr; } }

@@ -1,12 +1,13 @@
 // The light sheet's Placement tab (spec 3.3): where the light sits on the bike (path points in inches), the placing tool,
-// mirroring, LED spacing, and for a matrix its shape and frame.
+// mirroring, LED spacing, for a matrix its shape and frame, and for a strip its shape by size (barshape.js).
 // Bike axes in mm: x back from the front axle, y left (-) / right (+), z up from the ground.
 import { S, op } from "./store.js";
-import { el, clear, button, armed, chips, seg, selectRow, note, toIn, toMm, fmtIn, perFoot, clamp } from "./ui.js";
+import { el, clear, button, armed, chips, seg, selectRow, note, toast, toIn, toMm, fmtIn, perFoot, clamp } from "./ui.js";
 import { lightsOf, allLights, geomOf, ptsRoom, LIMITS } from "./lights.js";
 import { seams } from "./wizard.js";
 import { bikeView } from "./main.js";
 import { openLight } from "./sheet.js";
+import * as BAR from "./barshape.js";
 
 const rd = (v, d = 0) => { const m = 10 ** d; return Math.round(v * m) / m; };
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -63,8 +64,9 @@ export function renderPlacement(body, ref) {
     }
     if (list.length) box.append(note("Inches. Back is measured from the front axle, left is negative and right positive, height from the ground."));
     // A drawn string can have dozens of points: past 8 the rows fold away behind one line, so the buttons below stay in reach.
+    // Under a shape drawn by size the points are its output, not what is edited: they fold away as well.
     let rows = box;
-    if (list.length > 8) {
+    if (list.length > 8 || (list.length && barLive())) {
       rows = el("details", { class: "pl-all", id: "plAll" }, el("summary", {}, `${list.length} points along the light. Show them`));
       rows.open = listOpen;
       rows.addEventListener("toggle", () => { listOpen = rows.open; });
@@ -78,7 +80,7 @@ export function renderPlacement(body, ref) {
     });
     const room = ptsRoom(strip(), ref.k);
     if (list.length && list.length >= room) box.append(note(room >= L.n ? "Every LED has a point." : `This output's ${LIMITS.pts} path points are all in use (its lights share them).`));
-    if (list.length < room) {
+    if (list.length < room && !(list.length && barLive())) {   // a point added by hand would take the light off its drawn shape
       const used = new Set(list.map(p => p.px));
       const first = [0, L.n - 1, Math.floor(L.n / 2)].find(v => !used.has(v) && v >= 0 && v < L.n);
       const inp = el("input", { type: "number", min: 1, max: L.n, step: 1, value: first == null ? "" : first + 1, id: "plAddLed", inputMode: "numeric", "aria-label": "LED number" });
@@ -171,6 +173,96 @@ export function renderPlacement(body, ref) {
     return el("div", { class: "wr-sec" }, ...kids);
   }
 
+  // ---- a strip: its shape by size (barshape.js) ----
+  // The drawn shape is kept on this device. It counts as what the bike has only while the light's path points still
+  // sit on it: a light placed another way since, or resized, shows the shape as a suggestion to use again.
+  const barKey = () => BAR.barKey(light(), ref);
+  function barLive() {
+    const L = light(); if (!L || L.kind === "matrix") return false;
+    const saved = BAR.loadBar(barKey());
+    return !!saved && BAR.matches(saved.design, L.n, saved.frame, pts());
+  }
+  // Lays the LEDs out on the shape and sends the path points. Returns "" or why it could not.
+  function applyBar(design, frame) {
+    const L = light();
+    BAR.saveBar(barKey(), { design, frame });
+    if (L.n < 2) return "A shape needs a light of at least 2 LEDs.";
+    const list = BAR.designPoints(design, L.n, frame, ptsRoom(strip(), ref.k));
+    if (list.length < 2) return `This output's ${LIMITS.pts} path points are all in use (its lights share them). The shape is saved but not on the bike.`;
+    setPts(list);
+    return "";
+  }
+  function editBar(design) {
+    const key = barKey(), L = light();
+    const back = () => { if (root.isConnected) redraw(); else if (S.settings && light()) openLight({ out: ref.out, k: ref.k }, "placement"); };
+    const was = BAR.loadBar(key);
+    // An edited shape stays where it was put. A first shape takes the spot the light is placed at now, or, for a light
+    // that is not placed yet, a usual spot for its kind (the fork for a front bar, the tail for a rear one).
+    const usual = { front: [95, 603], rear: [1404, 719] }[L.kind] || [700, 600];
+    const spot = pts().length ? BAR.spotFor(pts()) : { x: usual[0], y: 0, z: usual[1], plane: "flat", first: "right" };
+    BAR.openBarShape({ name: L.name || "this light", n: L.n, maxLeds: LIMITS.px - ((strip().px | 0) - L.n), den: L.den, design: design || undefined,
+      frame: was ? was.frame : undefined, spot,
+      onDone: (d, count, rot) => {
+        if (S.settings && light()) {
+          const saved = BAR.loadBar(key), frame = BAR.normFrame({ ...(saved ? saved.frame : spot), rot });
+          if (count >= 2 && count !== light().n) op.light.resize(ref.out, ref.k, count);
+          const why = applyBar(d, frame);
+          if (why) toast(why, "warn");
+        }
+        back();
+      },
+      onCancel: back });
+  }
+  function barBox() {
+    const L = light(), saved = BAR.loadBar(barKey()), list = pts();
+    const box = el("div", { class: "wr-sec", id: "plBar" }, el("div", { class: "label" }, "Shape"));
+    if (!saved) {
+      box.append(note("Draw the light by its real sizes: straight runs and bends, and where the first and last LED sit. Every LED then lands where it really is, so an effect travels along a curved bar instead of meeting all of it at once. The drawing is kept on this phone or PC; the bike keeps where the LEDs are."),
+        button("Draw the shape by size", { id: "plBarNew", onClick: () => editBar(null) }));
+      return box;
+    }
+    const { design, frame } = saved, live = BAR.matches(design, L.n, frame, list), P = BAR.PLANES[frame.plane], T = BAR.turned(design, L.n, frame);
+    const side = BAR.sideOf(design, L.n, frame);   // where the first LED is now, and how far off square the shape is turned
+    const forget = button("Forget the shape", { kind: "ghost", id: "plBarForget" });
+    armed(forget, "Tap again: the light stays where it is", () => { BAR.clearBar(barKey()); status = ""; draw(); });
+    box.append(el("div", { class: "pl-bar-pic", id: "plBarPic" }, BAR.picture(T, { edges: P.edges, title: `${L.name || "The light"}, ${P.seen.toLowerCase()}` })),
+      el("p", { class: "pl-shape", id: "plBarInfo" }, `${P.seen} · ${design.pieces.length} ${design.pieces.length === 1 ? "piece" : "pieces"}, ${BAR.sized(T.len, "in")} long` + (live ? ` · ${list.length} path points` : "")));
+    const use = (d, f) => { status = applyBar(d, f); draw(); };
+    if (!live) {
+      box.append(note(list.length ? "The light was placed another way after this shape was drawn, or its LED count changed. The picture shows the shape, not what the bike has now." : "This shape is not on the bike.", "warn"),
+        el("div", { class: "pl-bar-row" }, button("Use the shape", { kind: "primary", id: "plBarUse", onClick: () => use(design, frame) }),
+          button("Edit shape", { id: "plBarEdit", onClick: () => editBar(design) }), forget));
+      return box;
+    }
+    const set = patch => use(design, BAR.normFrame({ ...frame, ...patch }));
+    const inches = (label, key, id) => {
+      const inp = el("input", { type: "number", step: 0.1, value: toIn(frame[key]), id, inputMode: "decimal", "aria-label": label });
+      inp.addEventListener("change", () => { const v = Number(inp.value); if (inp.value !== "" && Number.isFinite(v)) set({ [key]: toMm(v) }); else inp.value = toIn(frame[key]); });
+      return el("label", { class: "pl-f" }, el("span", {}, label), inp);
+    };
+    const degrees = (label, value, id, lim, onSet) => {
+      const inp = el("input", { type: "number", step: 1, min: -lim, max: lim, value, id, inputMode: "decimal", "aria-label": label });
+      inp.addEventListener("change", () => { const v = Number(inp.value); if (inp.value !== "" && Number.isFinite(v)) onSet(clamp(v, -lim, lim)); else inp.value = value; });
+      return el("label", { class: "pl-f" }, el("span", {}, label), inp);
+    };
+    const rotTo = (plane, first, turn, d = design) => BAR.rotFor(d, L.n, plane, first, turn);
+    // another plane keeps the first LED's side when the plane has it, and the fine turn
+    const toPlane = v => set({ plane: v, rot: rotTo(v, BAR.PLANES[v].firsts.some(q => q[0] === side.first) ? side.first : BAR.PLANES[v].firsts[0][0], side.turn) });
+    box.append(el("div", { class: "pl-bar-row" }, button("Edit shape", { id: "plBarEdit", onClick: () => editBar(design) })),
+      el("div", { class: "label" }, "Where its middle is"),
+      el("div", { class: "pl-pt" }, inches("Back from the front axle (in)", "x", "plBx"), inches("Left (−) / right (+) (in)", "y", "plBy"), inches("Height (in)", "z", "plBz")),
+      el("div", { class: "label" }, "How it lies"),
+      seg(Object.entries(BAR.PLANES).map(([k, q]) => [k, q.name]), frame.plane, toPlane, { id: "plBarPlane" }).el,
+      el("div", { class: "label" }, "The first LED is at the"),
+      seg(P.firsts.map(q => [q[0], q[1]]), side.first, v => set({ rot: rotTo(frame.plane, v, 0) }), { id: "plBarFirst" }).el,
+      el("div", { class: "pl-pt" }, degrees("Fine turn (degrees)", side.turn, "plBarTurn", 44, v => set({ rot: rotTo(frame.plane, side.first, v) })),
+        degrees(P.lean, frame.lean, "plBarLean", 89, v => set({ lean: v }))),
+      el("div", { class: "pl-bar-row" }, button("Mirror it", { id: "plBarMirror", title: "Turns the shape over, so its bends go the other way",
+        onClick: () => { const m = BAR.mirrored(design); use(m, BAR.normFrame({ ...frame, rot: rotTo(frame.plane, side.first, side.turn, m) })); } }), forget),
+      note("The middle is the center of the whole shape. The side buttons turn it by quarters; the fine turn is how far the line from the first LED to the last is off square, up to 44°. Mirror turns the shape over: its bends go the other way and the first LED stays on its side."));
+    return box;
+  }
+
   // ---- a matrix: its shape and its frame ----
   function matrixBox() {
     const L = light(), saved = mx().loadShape(L.id), design = saved && saved.design;
@@ -231,12 +323,25 @@ export function renderPlacement(body, ref) {
   }
 
   function draw() { redraw(); }
+  // The tab is rebuilt as a whole. Whoever is using it must not notice: the sheet stays scrolled where it was, and the
+  // focus goes back to the control it was on when that control is still there.
   function redraw() {
+    const sc = root.closest(".sheet-body"), top = sc ? sc.scrollTop : 0;
+    const act = document.activeElement, id = act && root.contains(act) ? act.id : "";
     clear(root);
     if (!S.settings || !light()) return;
     const L = light();
-    root.append(pointsBox(), actionsBox(), denBox());
+    // A strip's shape box sits above the placing buttons once a shape is drawn, below them as an offer until then.
+    const strip1 = L.kind !== "matrix", drawn = strip1 && !!BAR.loadBar(barKey());
+    root.append(pointsBox());
+    if (drawn) root.append(barBox());
+    root.append(actionsBox());
+    if (strip1 && !drawn) root.append(barBox());
+    root.append(denBox());
     if (L.kind === "matrix") root.append(matrixBox());
+    if (sc) sc.scrollTop = top;
+    const again = id ? document.getElementById(id) : null;
+    if (again && root.contains(again) && !again.disabled) again.focus({ preventScroll: true });
   }
   draw();
   return {
