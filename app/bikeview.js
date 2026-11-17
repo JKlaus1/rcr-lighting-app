@@ -521,7 +521,7 @@ function mount(stageEl, { onPick, onMove } = {}) {
   // turn signal starts on the bike's right. null = the sections do not say.
   function firstSideOf(L) {
     const st = S.settings && S.settings.strips[L.out];
-    const first = st ? sectionsOf(st, L.k).sections[0] : null, role = first ? first.role : "";
+    const first = st ? sectionsOf(st, L.k).sections.find(x => x.role !== "none") : null, role = first ? first.role : "";
     return /turn_r$/.test(role) ? "right" : /turn_l$/.test(role) ? "left" : null;
   }
 

@@ -1,9 +1,9 @@
 // The light sheet's Look tab (spec 3.3): what the light shows at rest, its own look, brightness, and the switches.
 // Everything is live through op.light.patch; slider drags and color drags are coalesced by key.
-import { S, on, op, mirror } from "./store.js";
+import { S, on, op, mirror, fwAtLeast } from "./store.js";
 import { el, clear, seg, slider, toggleRow, selectRow, panel, note, button, ledStrip } from "./ui.js";
 import { lightsOf, sectionsOf } from "./lights.js";
-import { RESTS, TURN_STYLES, TURN_ROLES } from "./fxdata.js";
+import { RESTS, turnStyles, TURN_ROLES } from "./fxdata.js";
 import { fxEditor } from "./fx.js";
 import { openBikeEffect } from "./sheet.js";
 
@@ -60,7 +60,7 @@ export function renderLook(body, ref) {
     solo = toggleRow("Keeps its look when the bike effect runs on every light", !!L.solo, v => patch({ solo: v }), { id: "look-solo" });
     kids.push(solo.el);
     if (hasTurn(ref)) {
-      ts = selectRow("Turn signal style", TURN_STYLES, L.ts, v => patch({ ts: v }), { id: "look-ts" });
+      ts = selectRow("Turn signal style", turnStyles(fwAtLeast(0, 5, 1)), L.ts, v => patch({ ts: v }), { id: "look-ts" });
       kids.push(ts.el);
     }
     dyn.append(panel(null, ...kids));

@@ -2,7 +2,7 @@
 // and DemoLink, a controller simulated on the firmware core itself.
 // Every link: open(), openRemembered(ms, signal), send(line) -> Promise, reconnect(), close(), name();
 // it calls h.onOut(line) for replies, h.onLive(line) for status lines, h.onDrop() when the link goes away.
-import { createController } from "./core.js";
+import { createController, coreVersion } from "./core.js";
 import * as L from "./lights.js";
 import { kindDefaults, paletteOf, EFFECTS } from "./fxdata.js";
 
@@ -145,12 +145,13 @@ function DEMO_STRING(n) {
 }
 
 export class DemoLink {
-  // opts.fw: the firmware version the demo plays ("0.5.0"; ?demofw=0.4.9 on the page address shows the update state)
+  // opts.fw: the firmware version the demo plays (the app's own core version; ?demofw=0.4.9 on the page address shows
+  // the update state, ?demofw=0.5.0 a controller one release behind)
   constructor(h, { fw } = {}) {
     this.h = h;
     let q = null;
     try { q = new URLSearchParams(location.search).get("demofw"); } catch (e) { /* no location */ }
-    this.fw = fw || q || "0.5.0";
+    this.fw = fw || q || coreVersion();
     this.old = verLt(parseVer(this.fw) || [0, 5, 0], [0, 5, 0]);
     this.ctl = createController();
     buildDemoBike(this.ctl);

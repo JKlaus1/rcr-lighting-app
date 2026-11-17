@@ -97,6 +97,7 @@ export function renderWiring(body, ref) {
       if (v !== L.n) op.light.resize(ref.out, ref.k, v);
     });
     const kids = [el("label", { class: "field inline" }, el("span", { class: "lbl" }, el("b", {}, "LED count")), inp),
+      note("Count every LED on the wire, lit or not. LEDs you don't want lit get a Dark section on the Sections tab; an LED the controller is not told about can light up on its own.", null),
       last ? button("Find the last LED", { id: "wrFind", onClick: startFind })
         : note("Later lights shift when this one gets longer or shorter: their LED numbers change, and so does the position of everything after it in the chain. Type the count, then check the others with Find it.", "warn")];
     return el("div", { class: "wr-sec" }, ...kids);

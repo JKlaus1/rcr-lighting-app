@@ -113,6 +113,7 @@ export const ROLES = [
   { key: "tail_turn_l", name: "Tail + turn L", color: "#ffa41b" },
   { key: "tail_turn_r", name: "Tail + turn R", color: "#ffa41b" },
   { key: "drl", name: "DRL", color: "#f2f4f6" },
+  { key: "none", name: "Dark", color: "#1b1f25" },   // LEDs the controller keeps off (lights.js DARK)
 ];
 export const ROLE_BY = Object.fromEntries(ROLES.map(r => [r.key, r]));
 export const TAIL_ROLES = ["tail", "tail_turn_l", "tail_turn_r"];
@@ -125,7 +126,9 @@ export const RX_BITS = { brake: 1, left: 2, right: 4 };
 export const SPANS = [["light", "Each light on its own"], ["x", "Front to rear"], ["y", "Left to right"], ["z", "Bottom to top"], ["wire", "Along the wiring"]];
 export const RESTS = [["bike", "Bike effect"], ["own", "Its own look"], ["off", "Off"]];
 // "global" is a light's or an output's "same as the bike"; the bike-wide `turn.style` takes the other four.
-export const TURN_STYLES = [["global", "Same as the bike"], ["flash", "Flash"], ["sweep", "Sequential fill"], ["comet", "Comet"], ["wipe", "Wipe"]];
+export const TURN_STYLES = [["global", "Same as the bike"], ["flash", "Flash"], ["sweep", "Sequential fill"], ["drain", "Sequential empty"], ["comet", "Comet"], ["wipe", "Wipe"]];
+// "drain" came with controller firmware 0.5.1: an older controller is not offered it. fw051 = fwAtLeast(0, 5, 1).
+export const turnStyles = (fw051, withGlobal = true) => TURN_STYLES.filter(t => (withGlobal || t[0] !== "global") && (fw051 || t[0] !== "drain"));
 export const BTN_ACTIONS = [["none", "Nothing"], ["accent_toggle", "Accent lights on/off"], ["accent_next", "Next bike effect"],
   ["hazard", "Hazards on/off"], ["aux_toggle", "Pods on/off"], ["preset_next", "Next look"], ["strobe_toggle", "Strobe on/off"],
   ["accent_all", "Bike effect on every light"]];

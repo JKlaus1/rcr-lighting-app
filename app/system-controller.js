@@ -161,8 +161,13 @@ export function buildController(host) {
     pairHint.textContent = st.pair ? "Pairing is open: pair the new phone now." : "Lets a new phone pair during the next 2 minutes.";
     pairBtn.setAttribute("aria-pressed", String(!!st.pair));
     const oldFw = !!(S.fw && (S.fw.n[0] === 0 && S.fw.n[1] < 5));
-    old.hidden = !oldFw;
-    old.textContent = oldFw ? `This controller runs ${S.fw.text}. The app needs 0.5.0 or newer: start the firmware update here, join the Wi-Fi it shows and upload the 0.5.0 -ota.bin file.` : "";
+    // Not too old, but older than the firmware core this app carries: everything it has works, what is newer is not offered.
+    const core = coreVersion().split(".").map(Number);
+    const behind = !!(S.fw && !oldFw && (S.fw.n[0] - core[0] || S.fw.n[1] - core[1] || S.fw.n[2] - core[2]) < 0);
+    old.hidden = !(oldFw || behind);
+    old.className = oldFw ? "note warn" : "note";
+    old.textContent = oldFw ? `This controller runs ${S.fw.text}. The app needs 0.5.0 or newer: start the firmware update here, join the Wi-Fi it shows and upload the 0.5.0 -ota.bin file.`
+      : behind ? `This controller runs ${S.fw.text} and this app is made for ${coreVersion()}. Everything the controller has works. What came with ${coreVersion()} shows up once it is updated: start the firmware update here and upload the ${coreVersion()} -ota.bin file.` : "";
     if (document.activeElement !== nameIn && S.settings) nameIn.value = S.settings.ble_name;
   };
   paint(); jobPaint();

@@ -123,25 +123,42 @@ export function fxEditor(container, { get, set, kind = "light", preview, rev = t
 
   const FULL = (1 << SHOW_EFFECTS.length) - 1;
   const showOn = (mask, n) => !mask || ((mask >> n) & 1);
+  // The row is rebuilt whenever a color was added or removed. The tapped button is inside the row and holds the focus
+  // at that moment, so the focus goes back to the control in the same place afterwards.
   function paintPalette() {
-    const pal = cur.pal;
+    const pal = cur.pal, act = document.activeElement;
+    const had = act && palList.contains(act) ? (act.dataset.palAdd ? "add" : act.dataset.palRm != null ? "rm" : "") : "";
+    const hadAt = had === "rm" ? Number(act.dataset.palRm) : 0;
     clear(palList);
     pal.forEach((c, k) => {
       const inp = el("input", { type: "color", value: hex(c), "aria-label": `Bulb color ${k + 1}`, "data-pal-sw": k });
-      let last = hex(c);
+      inp.dataset.last = hex(c);   // the value the controller holds, so a pick back to it is still sent after another change
       const send = key => {
-        if (inp.value === last) return;
-        last = inp.value;
+        if (inp.value === inp.dataset.last) return;
+        inp.dataset.last = inp.value;
         set({ pal: look().pal.map((q, j) => j === k ? unhex(inp.value) : q.slice()) }, key ? { key: "pal", ms: 150 } : undefined);
       };
       inp.addEventListener("input", () => send(true));
       inp.addEventListener("change", () => send(false));
+      inp.addEventListener("blur", () => { const q = cur.pal[k]; if (q) inp.value = inp.dataset.last = hex(q); });
       const rm = el("button", { type: "button", class: "btn small x", "aria-label": `Remove bulb color ${k + 1}`, "data-pal-rm": k,
         onclick: () => set({ pal: look().pal.filter((_, j) => j !== k).map(q => q.slice()) }) }, "×");
       palList.append(el("span", { class: "pal-one" }, inp, rm));
     });
     if (pal.length < PAL_MAX) palList.append(button("Add color", { small: true, data: { palAdd: "1" },
       onClick: () => { const p = look().pal; set({ pal: [...p.map(q => q.slice()), p.length ? p[p.length - 1].slice() : [255, 255, 255]] }); } }));
+    if (had) {
+      const rms = palList.querySelectorAll("[data-pal-rm]"), add = palList.querySelector("[data-pal-add]");
+      const to = had === "add" ? (add || rms[rms.length - 1]) : (rms[Math.min(hadAt, rms.length - 1)] || add);
+      if (to) to.focus({ preventScroll: true });
+    }
+  }
+  // The same number of colors with other values: set the swatches in place. A color being picked in the browser's own
+  // dialog keeps its element, and the swatch in use is left alone until the focus leaves it.
+  function syncPalette() {
+    palList.querySelectorAll("[data-pal-sw]").forEach((inp, k) => {
+      if (inp !== document.activeElement && cur.pal[k]) inp.value = inp.dataset.last = hex(cur.pal[k]);
+    });
   }
   function paintShow() {
     clear(showList);
@@ -182,8 +199,10 @@ export function fxEditor(container, { get, set, kind = "light", preview, rev = t
     lastRgb = hex(cur.rgb);
     palPresets.set(PALETTES.find(p => same(p.colors, cur.pal))?.key || "");
     const sig = JSON.stringify(cur.pal);
-    // a color being picked in a native dialog keeps its element: only rebuild what no one is using
-    if (sig !== palSig && !(palSig && palList.contains(document.activeElement))) { palSig = sig; paintPalette(); }
+    if (sig !== palSig) {
+      if (palSig !== null && palList.querySelectorAll("[data-pal-sw]").length === cur.pal.length) syncPalette(); else paintPalette();
+      palSig = sig;
+    }
     const ssig = String(cur.show);
     if (ssig !== showSig || first) { showSig = ssig; paintShow(); }
     sizeRow.set(cur.size); dwellRow.set(cur.dwell);

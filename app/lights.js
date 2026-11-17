@@ -157,28 +157,48 @@ function fromBlocks(strip, blocks) {
 const lightBlock = (blocks, k) => blocks.find(b => b.light && b.light.k === k);
 
 // ---- sections ----------------------------------------------------------------------------------------
+// A Dark section (role "none") is a run of LEDs the controller keeps off: LEDs that are hidden, or that should not light.
+// The firmware draws nothing on LEDs that are in no segment, so a Dark section is written as no segment at all (it
+// takes none of the output's 16), and every gap between a light's segments reads back as one Dark section.
+export const DARK = "none";
+const darkSection = n => ({ n, role: DARK, rest: "light", rx: 0, nb: false, rev: false });
+export const isDark = sec => !!sec && sec.role === DARK;
+// Neighboring Dark sections are one section. Returns the merged list and where section `sel` ended up in it.
+export function mergeDark(sections, sel = 0) {
+  const out = [];
+  let at = sel;
+  sections.forEach((sec, i) => {
+    const prev = out[out.length - 1];
+    if (isDark(sec) && isDark(prev)) { prev.n += sec.n | 0; if (i <= sel) at--; } else out.push({ ...sec });
+  });
+  return { sections: out, sel: Math.max(0, Math.min(out.length - 1, at)) };
+}
 export function sectionsOf(strip, k) {
   const b = lightBlock(toBlocks(strip), k);
   if (!b) return { clean: false, sections: [] };
-  const segs = b.segs.slice().sort((x, y) => x[0] - y[0]);
-  let clean = segs.length > 0, at = 0;
-  const sections = segs.map(g => {
+  const segs = b.segs.filter(g => g[2] !== DARK && (g[1] | 0) > 0).sort((x, y) => x[0] - y[0]);
+  let clean = true, at = 0;
+  const sections = [];
+  for (const g of segs) {
     const n = normSeg(g);
+    if (n.s > at) sections.push({ ...darkSection(n.s - at), at });
     const sec = { n: n.n, role: n.role, rest: REST_OF_IDLE[n.idle] || "dark", rx: n.rx, nb: n.nb, rev: n.rev };
     if (n.role === "look" || n.role === "drl") sec.rest = "light";
-    const ok = n.s === at && APP_ROLES.includes(n.role) && n.pct === 100 && !n.p && n.idle in REST_OF_IDLE && (n.role !== "drl" || n.idle === "off");
+    const ok = n.s >= at && APP_ROLES.includes(n.role) && n.pct === 100 && !n.p && n.idle in REST_OF_IDLE && (n.role !== "drl" || n.idle === "off");
     if (!ok) clean = false;
-    at = n.s + n.n;
-    return { ...sec, at: n.s };
-  });
-  if (at !== b.n) clean = false;
+    at = Math.max(at, n.s + n.n);
+    sections.push({ ...sec, at: n.s });
+  }
+  if (at < b.n) sections.push({ ...darkSection(b.n - at), at });
+  if (at > b.n) clean = false;
   return { clean, sections: clean ? sections.map(({ at, ...s }) => s) : sections };
 }
 export function withSections(strip, k, sections) {
   const blocks = toBlocks(strip), b = lightBlock(blocks, k);
   if (!b) return clone(strip);
   let at = 0;
-  b.segs = sections.map(sec => { const g = segOfSection(at, sec); at += sec.n | 0; return g; });
+  b.segs = [];
+  for (const sec of sections) { if (!isDark(sec)) b.segs.push(segOfSection(at, sec)); at += sec.n | 0; }
   return fromBlocks(strip, blocks);
 }
 // Layout templates (spec 3.3): front bar turn · DRL · turn (variant "turns": two turn halves, "look": all look),
@@ -227,7 +247,7 @@ export function addLight(strip, light, sections, { order, geom } = {}) {
   else if (chip) { if (chip.key === st.chip) L.chip = "same"; else if (!L.ma && chip.px_ma !== st.px_ma) L.ma = chip.px_ma; }
   const b = { light: L, entry: lightEntry({ ...L, s: 0 }, false), n, segs: [], pts: [], ord: [], panel: null };
   let at = 0;
-  b.segs = (sections && sections.length ? sections : templateSections(L.kind, n)).map(sec => { const g = segOfSection(at, sec); at += sec.n | 0; return g; });
+  for (const sec of (sections && sections.length ? sections : templateSections(L.kind, n))) { if (!isDark(sec)) b.segs.push(segOfSection(at, sec)); at += sec.n | 0; }
   b.pts = geomPts(geom, n);
   if (Array.isArray(order)) b.ord = order.filter(z => z[2] !== st.order).map(z => [z[0] | 0, z[1] | 0, z[2]]);
   else if (order && order !== st.order) b.ord = [[0, n, order]];
@@ -322,11 +342,21 @@ export function canAdd(strip, { chip, n, sections } = {}) {
   return { ok: true, why: "" };
 }
 // fullMa: every LED at full white at its own light's current (else the output's px_ma), plus 1 mA idle per LED.
+// Everything at full white. LEDs in a Dark section never light: they count with their standby milliamp only.
 export function loadOf(strip) {
   if (isLampOut(strip)) return { leds: 0, fullMa: 0, capMa: strip.cap_ma | 0, over: false };
   const px = strip.px | 0, L = lightsOf(strip);
+  const dark = new Uint8Array(px);
+  for (const l of L) {
+    let at = l.s;
+    for (const sec of sectionsOf(strip, l.k).sections) {
+      const from = sec.at != null ? l.s + sec.at : at;
+      if (isDark(sec)) dark.fill(1, Math.min(px, from), Math.min(px, from + sec.n));
+      at = from + sec.n;
+    }
+  }
   let ma = 0;
-  for (let p = 0; p < px; p++) { const l = L.find(l => p >= l.s && p < l.s + l.n); ma += (l && l.ma ? l.ma : strip.px_ma) + 1; }
+  for (let p = 0; p < px; p++) { const l = L.find(l => p >= l.s && p < l.s + l.n); ma += (dark[p] ? 0 : (l && l.ma ? l.ma : strip.px_ma)) + 1; }
   return { leds: px, fullMa: ma, capMa: strip.cap_ma | 0, over: ma > (strip.cap_ma | 0) };
 }
 

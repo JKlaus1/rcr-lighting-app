@@ -1,9 +1,10 @@
 // The light sheet's Sections tab (spec 3.3): the light's LEDs, first to last, as one bar of sections.
-// A section is a run of LEDs with a job (look only, a turn signal, brake, tail, DRL). Sections always cover the light
-// exactly, in order. Every edit goes live through op.light.setSections, coalesced by key while a split is dragged.
+// A section is a run of LEDs with a job (look only, a turn signal, brake, tail, DRL), or Dark: LEDs that stay off.
+// Sections always cover the light exactly, in order. Every edit goes live through op.light.setSections, coalesced by
+// key while a split is dragged.
 import { S, op, send } from "./store.js";
 import { el, clear, button, chips, seg, toggleRow, note } from "./ui.js";
-import { lightsOf, sectionsOf, withSections, templateSections, LIMITS } from "./lights.js";
+import { lightsOf, sectionsOf, withSections, templateSections, mergeDark, isDark, LIMITS } from "./lights.js";
 import { ROLES, ROLE_BY, TAIL_ROLES, TURN_ROLES, SIGNAL_ROLES, SECTION_RESTS, RX_BITS } from "./fxdata.js";
 
 const FIND_MS = 3000;
@@ -30,14 +31,18 @@ export function renderSections(body, ref) {
   // ---- sending -----------------------------------------------------------------------------------
   const msg = el("p", { class: "note bad", id: "sec-msg", hidden: true }), msgRead = el("p", { class: "note bad", hidden: true });
   const say = t => { for (const m of [msg, msgRead]) { m.textContent = t || ""; m.hidden = !t; } };
-  // Returns false (and sends nothing) when the output could not hold the result.
+  // Returns false (and sends nothing) when the output could not hold the result. Dark sections that end up side by
+  // side become one, and the selection follows the section it was on.
   function commit(secs, { live = true } = {}) {
     const c = cur(); if (!c) return false;
+    const m = mergeDark(secs, sel);
+    secs = m.sections;
     if (withSections(c.st, ref.k, secs).seg.length > LIMITS.segs) {
       say(`An output holds at most ${LIMITS.segs} sections across all its lights. Merge two sections first.`);
       return false;
     }
     say("");
+    sel = m.sel;
     op.light.setSections(ref.out, ref.k, secs, live ? { key: "sec" + (c.L.id || `${ref.out}.${ref.k}`), ms: 250 } : undefined);
     return true;
   }
@@ -87,7 +92,8 @@ export function renderSections(body, ref) {
     secs.forEach((s, i) => {
       const b = bar.children[i * 2], role = ROLE_BY[s.role];
       b.style.left = (at / total * 100) + "%"; b.style.width = (s.n / total * 100) + "%";
-      b.style.background = role ? role.color : "var(--edge)";
+      b.style.backgroundColor = role ? role.color : "var(--edge)";   // the color only: a Dark section's hatch is the class's background image
+      b.classList.toggle("dark", isDark(s));
       b.setAttribute("aria-pressed", String(i === sel));
       b.setAttribute("aria-label", `${roleName(s.role)}, ${s.n} LEDs`);
       b.title = `${roleName(s.role)}: LEDs ${at + 1} to ${at + s.n}`;
@@ -163,8 +169,9 @@ export function renderSections(body, ref) {
     const s = c.sections[sel], start = startOf(c.sections, sel);
     const kids = [el("div", { class: "seccard-head" }, el("b", {}, roleName(s.role)), el("span", {}, `LEDs ${start + 1} to ${start + s.n} of this light`))];
     kids.push(el("div", { class: "label" }, "What it does"),
-      chips(ROLES.map(r => [r.key, r.name]), s.role, v => edit(x => ({ ...x, role: v, rest: v === "look" || v === "drl" ? "light" : x.rest,
-        rx: v === "look" ? x.rx : 0, nb: TAIL_ROLES.includes(v) ? x.nb : false })), { id: "sec-roles" }).el);
+      chips(ROLES.map(r => [r.key, r.name]), s.role, v => edit(x => ({ ...x, role: v, rest: v === "look" || v === "drl" || v === "none" ? "light" : x.rest,
+        rx: v === "look" ? x.rx : 0, nb: TAIL_ROLES.includes(v) ? x.nb : false, rev: v === "none" ? false : x.rev })), { id: "sec-roles" }).el);
+    if (isDark(s)) kids.push(note("These LEDs stay off whatever the bike is doing: no look, no bike effect, no signal. Use it for LEDs that are tucked away or that you don't want lit.", null));
     if (SIGNAL_ROLES.includes(s.role)) {
       kids.push(el("div", { class: "label" }, "When it is not signaling"), chips(SECTION_RESTS, s.rest, v => edit(x => ({ ...x, rest: v })), { id: "sec-rest" }).el);
     }
@@ -181,7 +188,7 @@ export function renderSections(body, ref) {
         seg([[0, "Runs toward the end"], [1, "Runs toward the start"]], s.rev ? 1 : 0, v => edit(x => ({ ...x, rev: !!Number(v) })), { id: "sec-rev" }).el);
     }
     kids.push(el("div", { class: "btns" },
-      button("Split in two", { id: "sec-split", disabled: s.n < 2, onClick: splitSection }),
+      button(isDark(s) ? "Light its second half" : "Split in two", { id: "sec-split", disabled: s.n < 2, onClick: splitSection }),
       button("Merge with the next section", { id: "sec-merge", disabled: sel >= c.sections.length - 1, onClick: mergeSection })));
     card.append(...kids);
   }
@@ -190,7 +197,8 @@ export function renderSections(body, ref) {
     const s = c.sections[sel], h = Math.floor(s.n / 2);
     if (h < 1) return;
     const secs = c.sections.map(x => ({ ...x }));
-    secs.splice(sel, 1, { ...s, n: h }, { ...s, n: s.n - h });
+    // Two Dark halves would be the same section again: a Dark section gives its second half back as a look section.
+    secs.splice(sel, 1, { ...s, n: h }, isDark(s) ? { ...ONE_SECTION(s.n - h)[0] } : { ...s, n: s.n - h });
     commit(secs, { live: false });
   }
   function mergeSection() {

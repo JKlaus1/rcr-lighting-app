@@ -1,7 +1,7 @@
 // Offline cache for the RCR Lighting app. Network first (so an updated app wins),
 // cache as the fallback (so the app opens in a garage with no signal).
 // Bump CACHE on every publish. test/sw.test.mjs fails when a file of the app is missing from FILES.
-const CACHE = "rcr-lighting-v32";
+const CACHE = "rcr-lighting-v33";
 const APP = ["bike", "bikeview", "bikeview-3d", "bikeview-flat", "bikeview-math", "bikeview-place", "core", "fx",
   "fxdata", "lights", "link", "main", "matrix", "ride", "sheet", "sheet-look",
   "sheet-placement", "sheet-sections", "sheet-wiring", "store", "system", "system-backup", "system-controller", "system-diag",

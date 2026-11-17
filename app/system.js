@@ -1,9 +1,9 @@
 // System tab (spec 3.6): a list of pages; a page opens in place under a back row. The pages with a lot in them live in
 // system-pods.js, system-power.js, system-controller.js, system-backup.js and system-diag.js; this file holds the list,
 // the two small pages (Signals, Handlebar button) and the console collector that starts with the first visit.
-import { S, on, op } from "./store.js";
+import { S, on, op, fwAtLeast } from "./store.js";
 import { el, clear, button, panel, note, row, icon, hex, unhex } from "./ui.js";
-import { TURN_STYLES, BTN_ACTIONS } from "./fxdata.js";
+import { turnStyles, BTN_ACTIONS } from "./fxdata.js";
 import { newPage, hint } from "./system-kit.js";
 import { buildPods } from "./system-pods.js";
 import { buildPower } from "./system-power.js";
@@ -79,7 +79,7 @@ function buildSignals(host) {
     panel("Turn signals",
       colorField,
       P.select("Rear turn color", [["amber", "Same as the turn signal color"], ["red", "Red"]], s => s.turn.color, v => ({ turn: { color: v } }), "sys-turn-color"),
-      P.select("Turn style", TURN_STYLES.filter(t => t[0] !== "global"), s => s.turn.style, v => ({ turn: { style: v } }), "sys-turn-style"),
+      P.select("Turn style", turnStyles(fwAtLeast(0, 5, 1), false), s => s.turn.style, v => ({ turn: { style: v } }), "sys-turn-style"),
       P.slider("Flash rate", s => s.blink.fpm, { min: 60, max: 120, unit: "/min", id: "sys-blink-fpm" }, v => ({ blink: { fpm: v } })),
       P.slider("On time", s => s.blink.duty, { min: 30, max: 75, unit: "%", id: "sys-blink-duty" }, v => ({ blink: { duty: v } })),
       P.toggle("Stock flasher still fitted", s => s.turn.follow, v => ({ turn: { follow: v } }),

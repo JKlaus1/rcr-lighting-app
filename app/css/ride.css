@@ -56,6 +56,10 @@
   color: #0f1317; font-weight: 700; font-size: 13px; overflow: hidden; white-space: nowrap; box-shadow: inset 0 0 0 1px rgb(0 0 0 / .25); }
 .secbtn[aria-pressed="true"] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--page), 0 0 0 4px var(--ink); z-index: 1; }
 .secbtn.tight .cnt { visibility: hidden; }
+/* a Dark section: LEDs that stay off. Hatched, so it reads as "nothing here" and not as a black light. */
+.secbtn.dark { background-image: repeating-linear-gradient(135deg, transparent 0 6px, rgba(140, 146, 156, .5) 6px 8px);
+  box-shadow: inset 0 0 0 1px var(--edge); }
+.secbtn.dark .cnt { color: #c9ced6; }
 .sechandle { position: absolute; top: -4px; bottom: -4px; width: 28px; margin-left: -14px; padding: 0; border: 0; background: none; z-index: 2; cursor: ew-resize; touch-action: none; }
 .sechandle .grip { position: absolute; left: 50%; top: 50%; width: 10px; height: 34px; margin: -17px 0 0 -5px; border-radius: 5px;
   background: var(--page); border: 2px solid var(--ink); }
