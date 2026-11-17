@@ -19,7 +19,10 @@ const P3 = p => [p.x, p.y, p.z];
 export function createTool(ctx) {
   const { tool, light } = ctx;
   const n = Math.max(1, light.n | 0);
-  const maxPts = Math.max(2, Math.min(96, (ctx.opts && ctx.opts.maxPts) || 12));
+  // The most path points the result may hold: what the caller says the output has room for (96 per output at most),
+  // never more than one per LED. A closed loop repeats its first point at the end, so taps stop one short of that.
+  const maxPts = Math.max(2, Math.min(96, n, (ctx.opts && ctx.opts.maxPts) || 96));
+  const maxTaps = Math.max(2, maxPts - 1);
   const realLen = barLength(n, light.den);
   let st = initial(true);
   const undo = [];
@@ -41,7 +44,7 @@ export function createTool(ctx) {
       const pts = ex.map(P3);
       let loop = false;
       if (pts.length > 2 && len(sub(pts[0], pts[pts.length - 1])) < 1) { pts.pop(); loop = true; }
-      return { pts, loop, whole: pts.length > maxPts };
+      return { pts, loop, whole: pts.length + (loop ? 1 : 0) > maxPts };
     }
     // matrix
     const s = { center: null, facing: "front", centered: true, lean: 0 };
@@ -59,7 +62,7 @@ export function createTool(ctx) {
   const W = () => Math.max(1, Number(ctx.opts && ctx.opts.width) || 200);
   const Hh = () => Math.max(1, Number(ctx.opts && ctx.opts.height) || 100);
   const snap = () => JSON.parse(JSON.stringify(st));
-  function change(fn) { undo.push(snap()); if (undo.length > 60) undo.shift(); fn(); sync(); ctx.changed(); }
+  function change(fn) { undo.push(snap()); if (undo.length > 200) undo.shift(); fn(); sync(); ctx.changed(); }
   const sideY = () => (side === "left" ? -ctx.halfWidth : side === "right" ? ctx.halfWidth : 0);
   const barLen = () => (st.real ? realLen : st.ends ? Math.max(1, len(sub(st.ends[1], st.ends[0]))) : realLen);
   const hasShape = () => (tool === "bar" ? !!st.ends : tool === "curve" ? st.pts.length > 0 : !!st.center);
@@ -106,7 +109,7 @@ export function createTool(ctx) {
         st.ends = barEnds({ mid: h.p.slice(), axis: st.axis, length: barLen(), flip: st.flip, centered: st.centered });
       });
     } else if (tool === "curve") {
-      if (st.whole || st.pts.length >= maxPts) return;
+      if (st.whole || st.pts.length >= maxTaps) return;
       const h = pickFor(sx, sy, st.pts.length ? st.pts[st.pts.length - 1] : null);
       if (!h) return;
       change(() => st.pts.push(h.p.slice()));
@@ -248,8 +251,8 @@ export function createTool(ctx) {
     let t = hasShape() ? ADJUST : PROMPT[tool];
     if (tool === "curve" && !st.whole) {
       const k = st.pts.length;
-      t = k === 0 ? PROMPT.curve : k >= maxPts ? `${k} points, the most for this light. Drag a handle to adjust, or Done.`
-        : k === 1 ? "Tap the next point along the light." : `Tap the next point (${k} of up to ${maxPts}), drag a handle, or Done.`;
+      t = k === 0 ? PROMPT.curve : k >= maxTaps ? `${k} points, the most this output has room for. Drag a handle to adjust, or Done.`
+        : k === 1 ? "Tap the next point along the light." : `Tap the next point (${k} of up to ${maxTaps}), drag a handle, or Done.`;
     }
     msg.textContent = t;
   }

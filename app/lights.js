@@ -283,6 +283,14 @@ export function withGeom(strip, k, pts) {
   b.pts = geomPts(pts, b.n);
   return fromBlocks(strip, blocks);
 }
+// How many path points light k may hold: the output's limit (96, shared by all its lights) less what the other
+// lights on the output use, and never more than one point per LED.
+export function ptsRoom(strip, k) {
+  const L = lightsOf(strip)[k];
+  if (!L) return 0;
+  const all = ((strip.geom && strip.geom.pt) || []).length, own = geomOf(strip, k).length;
+  return Math.max(0, Math.min(L.n, LIMITS.pts - (all - own)));
+}
 export function orderOf(strip, k) {
   const b = lightBlock(toBlocks(strip), k);
   const z = b && b.ord.find(z => z[0] === 0 && z[1] === b.n);

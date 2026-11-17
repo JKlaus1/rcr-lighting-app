@@ -78,3 +78,8 @@ span.bk-chip { cursor: default; }
 .pl-den { padding: 0; border-top: 0; }
 .pl-shape { margin: 0; font-weight: 600; }
 @media (max-width: 340px) { .pl-pt { grid-template-columns: 1fr; } }
+/* Placement: a long list of points folds behind one line */
+.pl-all { display: grid; gap: 8px; }
+.pl-all > summary { cursor: pointer; padding: 12px; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); font-weight: 600; }
+.pl-all[open] > summary { margin-bottom: 8px; }
+.pl-all > .pl-pt { margin-bottom: 8px; }

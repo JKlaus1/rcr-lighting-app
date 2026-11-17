@@ -5,7 +5,7 @@
 import * as store from "./store.js";
 import { S, on } from "./store.js";
 import { el, clear, button, ledStrip, LED_GAIN, fmtIn } from "./ui.js";
-import { allLights, geomOf, isLampOut, sectionsOf } from "./lights.js";
+import { allLights, geomOf, isLampOut, sectionsOf, ptsRoom, LIMITS } from "./lights.js";
 import { dotSizes, interpLeds, nearestLed, labelsShown, isTap, tidyPt, add, sub, mul } from "./bikeview-math.js";
 import { create3d } from "./bikeview-3d.js";
 import { createFlat, setContextFactory, contextOf } from "./bikeview-flat.js";
@@ -13,7 +13,8 @@ import { createTool } from "./bikeview-place.js";
 
 export { setContextFactory };
 const PER = 800, OUTS = 4, N = PER * OUTS;
-const MAX_HANDLES = 12;
+const MAX_HANDLES = LIMITS.pts;   // every path point of a light gets a handle (a matrix gets one for the whole panel)
+const MANY_HANDLES = 12;         // more than this on screen: the handles are drawn small so neighbors stay apart
 const VIEW_BTNS = [["3d", "3D"], ["side", "Side"], ["front", "Front"], ["rear", "Rear"], ["top", "Top"]];
 const isJsdom = () => typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent || "");
 const raf = f => (typeof requestAnimationFrame === "function" ? requestAnimationFrame(f) : setTimeout(f, 16));
@@ -297,6 +298,7 @@ function mount(stageEl, { onPick, onMove } = {}) {
   }
   function paintHandles() {
     handleList = T ? T.tool.handles() : editHandles();
+    handlesEl.classList.toggle("many", handleList.length > MANY_HANDLES);
     while (handlesEl.children.length > handleList.length) handlesEl.lastChild.remove();
     handleList.forEach((h, i) => {
       let e = handlesEl.children[i];
@@ -326,19 +328,24 @@ function mount(stageEl, { onPick, onMove } = {}) {
     if (!h) return;
     try { e.setPointerCapture(ev.pointerId); } catch (er) { /* jsdom */ }
     R.setOrbit(false);
-    drag = { id: h.id, last: h.p.slice(), el: e, start: h.p.slice() };
-    if (T) T.tool.dragStart();
-    e.classList.add("drag");
+    // Not a drag yet: a finger never sits perfectly still, so the handle only starts to move after 6 px of travel.
+    drag = { id: h.id, last: h.p.slice(), el: e, start: h.p.slice(), x0: ev.clientX, y0: ev.clientY, t0: Date.now(), moved: false };
     const move = mv => dragMove(mv);
-    const up = () => {
+    const up = uv => {
       e.removeEventListener("pointermove", move); e.removeEventListener("pointerup", up); e.removeEventListener("pointercancel", up);
-      dragEnd();
+      dragEnd(uv);
     };
     e.addEventListener("pointermove", move); e.addEventListener("pointerup", up); e.addEventListener("pointercancel", up);
   }
   function localXY(ev) { const r = root.getBoundingClientRect(); return [ev.clientX - r.left, ev.clientY - r.top]; }
   function dragMove(ev) {
     if (!drag || !R) return;
+    if (!drag.moved) {
+      if (Math.hypot(ev.clientX - drag.x0, ev.clientY - drag.y0) < 6) return;
+      drag.moved = true;
+      if (T) T.tool.dragStart();
+      drag.el.classList.add("drag");
+    }
     const [x, y] = localXY(ev);
     const hit = R.pick(x, y, { plane: { p: drag.last, n: R.camDir() }, y: R.kind === "flat" ? drag.last[1] : undefined });
     if (!hit) return;
@@ -354,12 +361,22 @@ function mount(stageEl, { onPick, onMove } = {}) {
     override = { out: L.out, k: L.k, pts };
     compose(); paintHandles();
   }
-  function dragEnd() {
+  function dragEnd(ev) {
     if (!drag) return;
-    drag.el.classList.remove("drag");
+    const d = drag;
+    d.el.classList.remove("drag");
     drag = null;
     readout.hidden = true;
     if (R) R.setOrbit(true);
+    if (!d.moved) {
+      // A tap on a handle, not a drag. While a curve is being drawn a handle must not swallow the tap: points along
+      // a string sit closer together than a fingertip, so the tap adds the next point (unless it is on the point itself).
+      if (T && T.tool && T.tool.tool === "curve" && ev && ev.type === "pointerup" && Date.now() - d.t0 < 400) {
+        const r = d.el.getBoundingClientRect();
+        if (Math.hypot(ev.clientX - (r.left + r.width / 2), ev.clientY - (r.top + r.height / 2)) > 5) tapAt(...localXY(ev));
+      }
+      return;
+    }
     if (T) { T.tool.dragEnd(); paintHandles(); requestRender(); return; }
     if (override && sel) {
       const pts = override.pts.map(tidyPt), ref = { out: override.out, k: override.k };
@@ -472,6 +489,11 @@ function mount(stageEl, { onPick, onMove } = {}) {
         shape = { design: s && s.design, frame: s && s.frame, points: typeof mx.designPoints === "function" ? mx.designPoints : null };
       } catch (e) { shape = null; }
       if (placeToken !== token || dead) return null;
+    }
+    // A curve may use every path point the output still has room for (96 per output, shared by its lights).
+    if (tool === "curve" && !(opts && opts.maxPts)) {
+      const st = S.settings && S.settings.strips[L.out];
+      opts = { ...(opts || {}), maxPts: st ? ptsRoom(st, L.k) : LIMITS.pts };
     }
     return new Promise(res => {
       const ctx = {

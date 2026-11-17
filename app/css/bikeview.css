@@ -44,6 +44,10 @@
 .bv-handle { position: absolute; left: 0; top: 0; width: 26px; height: 26px; padding: 0; border-radius: 50%; border: 2px solid #ffa41b; background: rgba(15, 19, 23, 0.72);
   color: #ffa41b; font: 700 12px/1 var(--sans); display: flex; align-items: center; justify-content: center; pointer-events: auto; touch-action: none; cursor: grab; z-index: 2; }
 .bv-handle::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; }
+/* a light with many points: small handles with a small touch pad, so neighbors along the path do not cover each other */
+.bv-handles.many .bv-handle:not(.move) { width: 14px; height: 14px; font-size: 0; background: rgba(15, 19, 23, 0.85); }
+.bv-handles.many .bv-handle:not(.move)::before { inset: -7px; }
+.bv-handles.many .bv-handle:not(.move):first-child { width: 20px; height: 20px; font-size: 11px; }
 .bv-handle.move { border-style: dashed; background: rgba(255, 164, 27, 0.18); }
 .bv-handle.move::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #ffa41b; }
 .bv-handle.drag { cursor: grabbing; background: #ffa41b; color: #1b1300; }

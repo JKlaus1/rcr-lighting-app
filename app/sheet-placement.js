@@ -3,7 +3,7 @@
 // Bike axes in mm: x back from the front axle, y left (-) / right (+), z up from the ground.
 import { S, op } from "./store.js";
 import { el, clear, button, armed, chips, seg, selectRow, note, toIn, toMm, fmtIn, perFoot, clamp } from "./ui.js";
-import { lightsOf, allLights, geomOf, LIMITS } from "./lights.js";
+import { lightsOf, allLights, geomOf, ptsRoom, LIMITS } from "./lights.js";
 import { seams } from "./wizard.js";
 import { bikeView } from "./main.js";
 import { openLight } from "./sheet.js";
@@ -41,7 +41,7 @@ const AXES = [["x", "Back", "Back from the front axle, in inches"], ["y", "Left 
 export function renderPlacement(body, ref) {
   const root = el("div", { class: "pl-root", id: "tab-placement" });
   body.append(root);
-  let placing = false, run = 0, status = "", shape = "bar", mirrorFrom = "", mf = null, shapeWait = false;
+  let placing = false, run = 0, status = "", shape = "bar", mirrorFrom = "", mf = null, shapeWait = false, listOpen = false;
   const strip = () => S.settings.strips[ref.out];
   const light = () => lightsOf(strip())[ref.k];
   const pts = () => geomOf(strip(), ref.k);
@@ -62,13 +62,23 @@ export function renderPlacement(body, ref) {
         note("Where a light sits is what lets one effect flow across the whole bike, front to rear or side to side."));
     }
     if (list.length) box.append(note("Inches. Back is measured from the front axle, left is negative and right positive, height from the ground."));
+    // A drawn string can have dozens of points: past 8 the rows fold away behind one line, so the buttons below stay in reach.
+    let rows = box;
+    if (list.length > 8) {
+      rows = el("details", { class: "pl-all", id: "plAll" }, el("summary", {}, `${list.length} points along the light. Show them`));
+      rows.open = listOpen;
+      rows.addEventListener("toggle", () => { listOpen = rows.open; });
+      box.append(rows);
+    }
     list.forEach((p, i) => {
       const row = el("div", { class: "pl-pt", "data-pt": i }, el("b", { class: "pl-led" }, `LED ${p.px + 1}`));
       for (const [ax, label, full] of AXES) row.append(numField(label, p[ax], `pl-${i}-${ax}`, mm => setPts(list.map((q, j) => (j === i ? { ...q, [ax]: mm } : q))), full));
       row.append(button("Remove", { small: true, kind: "ghost", id: `plDel-${i}`, onClick: () => setPts(list.filter((_, j) => j !== i)) }));
-      box.append(row);
+      rows.append(row);
     });
-    if (list.length < LIMITS.pts) {
+    const room = ptsRoom(strip(), ref.k);
+    if (list.length && list.length >= room) box.append(note(room >= L.n ? "Every LED has a point." : `This output's ${LIMITS.pts} path points are all in use (its lights share them).`));
+    if (list.length < room) {
       const used = new Set(list.map(p => p.px));
       const first = [0, L.n - 1, Math.floor(L.n / 2)].find(v => !used.has(v) && v >= 0 && v < L.n);
       const inp = el("input", { type: "number", min: 1, max: L.n, step: 1, value: first == null ? "" : first + 1, id: "plAddLed", inputMode: "numeric", "aria-label": "LED number" });
