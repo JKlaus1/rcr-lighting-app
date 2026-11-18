@@ -5,6 +5,7 @@
 import { S, op, send } from "./store.js";
 import { el, clear, button, chips, seg, toggleRow, note } from "./ui.js";
 import { lightsOf, sectionsOf, withSections, templateSections, mergeDark, isDark, LIMITS } from "./lights.js";
+import { renderAreas } from "./sheet-areas.js";
 import { ROLES, ROLE_BY, TAIL_ROLES, TURN_ROLES, SIGNAL_ROLES, SECTION_RESTS, RX_BITS } from "./fxdata.js";
 
 const FIND_MS = 3000;
@@ -145,7 +146,9 @@ export function renderSections(body, ref) {
     el("div", { class: "label" }, "Layout"), tplBox, intro, bar, splitCtl, hint, msg, card,
     note("Sections are saved with each look."));
   const readBox = el("div", { class: "sec-read", id: "sec-read" });
-  root.append(editBox, readBox);
+  const areasHost = el("div", { class: "ar-host" });
+  let areas = null;   // a matrix's areas (0.6.0), sheet-areas.js
+  root.append(editBox, readBox, areasHost);
 
   function paintTemplates(c) {
     clear(tplBox);
@@ -226,6 +229,7 @@ export function renderSections(body, ref) {
 
   function paint() {
     const c = cur(); if (!c) return;
+    if (c.L.kind === "matrix" && !areas) areas = renderAreas(areasHost, ref); else if (areas) areas.update();
     if (c.clean !== shownClean) { shownClean = c.clean; editBox.hidden = !c.clean; readBox.hidden = c.clean; if (c.clean) paintTemplates(c); }
     if (!c.clean) { paintRead(c); return; }
     sel = Math.max(0, Math.min(sel, c.sections.length - 1));
@@ -240,6 +244,6 @@ export function renderSections(body, ref) {
 
   return {
     update() { paint(); },
-    destroy() { findOff(); clearTimeout(fitTimer); root.remove(); },
+    destroy() { findOff(); clearTimeout(fitTimer); if (areas) areas.destroy(); root.remove(); },
   };
 }

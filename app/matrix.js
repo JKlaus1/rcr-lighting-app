@@ -8,6 +8,7 @@ import { S } from "./store.js";
 import { el, clear, button, armed, seg, chips, panel, note, numRow, slider, toast, sheet, toIn } from "./ui.js";
 import { ORDERS } from "./fxdata.js";
 import { saveFile } from "./system-backup.js";
+import * as PB from "./panelbend.js";
 
 // ---- pure helpers on a design ----------------------------------------------------------------------------------------
 // A strip takes two of its output's 96 path points (its two ends), so 48 strips is the most one output can hold; fewer
@@ -43,7 +44,10 @@ export function designZones(d, outputOrder) {
 }
 // frame = { o, u, v }: o the lower-left corner (seen from the front) in bike mm, u the unit vector across, v the unit vector up.
 // A back-face strip sits `thick` behind the front face: away from the viewer of the front face, i.e. against u × v.
-export function designPoints(d, frame) {
+// opts (0.6.0): { cells: true } gives each point its column c and row r on the panel (in LED pitches, from the leftmost LED column
+// and the top row); { bend } puts the strips on the panel's curve (panelbend.js). Without opts the points are the flat four-number ones.
+export function designPoints(d, frame, opts) {
+  if (opts && (opts.cells || opts.bend)) return PB.points(d, frame, opts.bend || null, { cells: !!opts.cells });
   const { o, u, v } = frame;
   let nx = u[1] * v[2] - u[2] * v[1], ny = u[2] * v[0] - u[0] * v[2], nz = u[0] * v[1] - u[1] * v[0];
   const len = Math.hypot(nx, ny, nz) || 1; nx /= len; ny /= len; nz /= len;
@@ -66,9 +70,15 @@ export function validDesign(d) {
 // ---- storage on this device -------------------------------------------------------------------------------------------
 const KEY = id => "rcr.shape." + id;
 export function loadShape(lightId) {
-  try { const t = localStorage.getItem(KEY(lightId)); if (!t) return null; const j = JSON.parse(t); return j && validDesign(j.design) ? { design: j.design, frame: j.frame || null } : null; } catch (e) { return null; }
+  try {
+    const t = localStorage.getItem(KEY(lightId)); if (!t) return null; const j = JSON.parse(t);
+    if (!j || !validDesign(j.design)) return null;
+    const r = { design: j.design, frame: j.frame || null };
+    if (j.bend && PB.validBend(j.bend)) r.bend = j.bend;   // how the panel is curved (panelbend.js); absent: flat
+    return r;
+  } catch (e) { return null; }
 }
-export function saveShape(lightId, data) { try { localStorage.setItem(KEY(lightId), JSON.stringify({ design: data.design, frame: data.frame || null })); } catch (e) { /* storage full or off */ } }
+export function saveShape(lightId, data) { try { localStorage.setItem(KEY(lightId), JSON.stringify({ design: data.design, frame: data.frame || null, ...(data.bend ? { bend: data.bend } : {}) })); } catch (e) { /* storage full or off */ } }
 
 // ---- the grid model (builder) ---------------------------------------------------------------------------------------------
 // Positions are integers in quarter steps of the LED pitch on one grid seen looking at the front face (x right, y down); the Back view is

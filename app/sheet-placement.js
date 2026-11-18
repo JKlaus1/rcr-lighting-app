@@ -2,7 +2,7 @@
 // mirroring, the LEDs of each drawn segment, LED spacing, for a matrix its shape and frame, and for a strip its shape by
 // size (barshape.js).
 // Bike axes in mm: x back from the front axle, y left (-) / right (+), z up from the ground.
-import { S, op, send } from "./store.js";
+import { S, op, send, fwAtLeast } from "./store.js";
 import { el, clear, button, armed, chips, seg, selectRow, toggleRow, note, toast, toIn, toMm, fmtIn, perFoot, clamp } from "./ui.js";
 import { lightsOf, allLights, geomOf, ptsRoom, LIMITS } from "./lights.js";
 import { segmentsOf, setPointLed, setSegmentCount, followsDrawing, spreadPx } from "./bikeview-math.js";
@@ -10,6 +10,8 @@ import { seams } from "./wizard.js";
 import { bikeView } from "./main.js";
 import { openLight } from "./sheet.js";
 import * as BAR from "./barshape.js";
+import * as PB from "./panelbend.js";
+import { curveBox } from "./panelcurve.js";
 
 const rd = (v, d = 0) => { const m = 10 ** d; return Math.round(v * m) / m; };
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -44,7 +46,7 @@ const AXES = [["x", "Back", "Back from the front axle, in inches"], ["y", "Left 
 export function renderPlacement(body, ref) {
   const root = el("div", { class: "pl-root", id: "tab-placement" });
   body.append(root);
-  let placing = false, run = 0, status = "", shape = "bar", mirrorFrom = "", mf = null, shapeWait = false, listOpen = false;
+  let curveMsg = "", placing = false, run = 0, status = "", shape = "bar", mirrorFrom = "", mf = null, shapeWait = false, listOpen = false;
   // the segment list: the one being worked on (-1 none), whether it is lit on the bike, what `find` shows now, its note
   let segSel = -1, segLit = true, segShown = "", segTimer = 0, segOpen = false, segMsg = "", segFocus = "", segBusy = false, rebuilding = false;
   const strip = () => S.settings.strips[ref.out];
@@ -55,8 +57,11 @@ export function renderPlacement(body, ref) {
   // Path points this light may hold with no regard to its LED count: the output's 96 less what its other lights use.
   const ptsFree = () => LIMITS.pts - ((((strip().geom && strip().geom.pt) || []).length) - pts().length);
   // A matrix's shape onto the bike: two path points for each strip. -> "" or why they do not fit.
+  // On a controller with 0.6.0 each point carries its column and row (cells), and the panel's curve is applied (panelbend.js).
+  const cellsOn = () => fwAtLeast(0, 6, 0);
   function setMatrix(design, frame) {
-    const list = mx().designPoints(design, frame), room = ptsFree();
+    const saved = mx().loadShape(light().id), bend = cellsOn() && saved && saved.bend && !PB.checkDesign(design) && !PB.fitBend(saved.bend, PB.widthOf(design)) ? saved.bend : null;
+    const list = cellsOn() ? mx().designPoints(design, frame, { cells: true, bend }) : mx().designPoints(design, frame), room = ptsFree();
     if (list.length > room) return `This shape has ${design.strips.length} strips and needs ${list.length} path points; the output has ${room} left (its lights share ${LIMITS.pts}). It is saved but not on the bike.`;
     setPts(list);
     return "";
@@ -114,9 +119,9 @@ export function renderPlacement(body, ref) {
     const L = light(), v = bikeView();
     if (!v) { status = "The bike view is not available on this screen."; draw(); return; }
     const tool = toolFor(L), me = { out: ref.out, k: ref.k };
-    let size = null, design = null;
+    let size = null, design = null, saved = null;
     if (tool === "matrix") {
-      const saved = mx().loadShape(L.id);
+      saved = mx().loadShape(L.id);
       design = saved && saved.design;
       if (!design) { status = "This matrix has no saved shape on this device. Build the shape first."; draw(); return; }
       size = mx().designSize(design);
@@ -129,7 +134,7 @@ export function renderPlacement(body, ref) {
     if (mine !== run) return;   // cancelled, or the tab was left
     placing = false;
     if (tool === "matrix" && res && res.frame) {
-      mx().saveShape(L.id, { design, frame: res.frame });
+      mx().saveShape(L.id, { design, frame: res.frame, ...(saved && saved.bend ? { bend: saved.bend } : {}) });
       mf = null; status = setMatrix(design, res.frame);
     } else if (Array.isArray(res) && res.length) {
       setPts(res.map(p => ({ px: p.px, x: p.x, y: p.y, z: p.z })).filter(p => [p.px, p.x, p.y, p.z].every(Number.isFinite)));
@@ -390,7 +395,8 @@ export function renderPlacement(body, ref) {
     if (!mf) mf = saved.frame ? fieldsFromFrame(saved.frame, size) : { x: 0, y: 0, z: 600, facing: "front", lean: 0 };
     const apply = () => {
       const frame = frameFromFields(mf, size);
-      mx().saveShape(L.id, { design, frame });
+      const was = mx().loadShape(L.id);
+      mx().saveShape(L.id, { design, frame, ...(was && was.bend ? { bend: was.bend } : {}) });
       const why = setMatrix(design, frame);
       if (why) toast(why, "warn");
     };
@@ -406,7 +412,28 @@ export function renderPlacement(body, ref) {
       seg(FACING_NAMES, mf.facing, v => { mf.facing = v; apply(); }, { id: "plFacing" }).el,
       el("div", { class: "pl-pt" }, el("label", { class: "pl-f" }, el("span", {}, "Lean back (degrees)"), lean)),
       note(`The panel is ${fmtIn(size.width)} wide and ${fmtIn(size.height)} high. Lean tilts the top away from whoever looks at it.`));
+    if (!cellsOn()) { box.append(note("Rows and columns, curving the panel and areas need the 0.6.0 controller update (System › Controller).", "warn")); return box; }
+    // A panel placed before 0.6.0 has no rows and columns on the controller: send them when this device has the shape.
+    if (saved.frame && pts().length && pts().some(p => p.c == null)) {
+      box.append(el("p", { class: "note warn", id: "plNoCells" }, "The controller does not have this panel's rows and columns yet. Areas and a curve need them."),
+        button("Send the rows and columns", { id: "plSendCells", kind: "primary", onClick: () => { status = setMatrix(design, saved.frame); mf = null; draw(); } }));
+    } else if (!saved.frame) box.append(note("Place the panel on the bike to curve it and to give it areas."));
+    else box.append(curveBox({ design, bend: saved.bend || null, width: PB.widthOf(design), why: curveMsg, onChange: onCurve }));
     return box;
+  }
+  // The curve of the panel changed (null = flat). Stored with the shape on this device; the bent points go to the bike at once.
+  function onCurve(next) {
+    const L = light(), saved = mx().loadShape(L.id);
+    if (!saved || !saved.frame) return "Place the panel first.";
+    const why = next ? PB.fitBend(next, PB.widthOf(saved.design)) : "";
+    curveMsg = why;
+    if (!why) {
+      mx().saveShape(L.id, { design: saved.design, frame: saved.frame, ...(next ? { bend: next } : {}) });
+      const full = setMatrix(saved.design, saved.frame);
+      if (full) toast(full, "warn");
+    }
+    draw();
+    return why;
   }
   function editShape(design) {
     const L = light();
@@ -427,8 +454,10 @@ export function renderPlacement(body, ref) {
           if (next.length) st.ord = next; else delete st.ord;
           return st;
         });
-        mx().saveShape(L.id, { design: d, frame: frame || null });
-        mf = null;
+        // the curve stays when the new shape still takes it (every strip straight up and down, the curve at least as long as the panel)
+        const keep = saved && saved.bend && !PB.checkDesign(d) && !PB.fitBend(saved.bend, PB.widthOf(d)) ? saved.bend : null;
+        mx().saveShape(L.id, { design: d, frame: frame || null, ...(keep ? { bend: keep } : {}) });
+        mf = null; curveMsg = "";
         if (frame) { const why = setMatrix(d, frame); if (why) toast(why, "warn"); }
         draw();
       },

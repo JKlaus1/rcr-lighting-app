@@ -167,6 +167,7 @@ export function refresh() { send("get"); send("preset list"); }
 // Backup › Restore: each look is rebuilt on the bike and saved into its slot, then the settings themselves.
 // looks: 8 entries, each null or a look's JSON (text or object, as `preset get N` returns it).
 export function restore(settingsObject, looks) {
+  if (!fwAtLeast(0, 6, 0)) settingsObject = L.withoutV060(settingsObject);   // areas, cells and Arrows are for 0.6.0 and newer
   if (Array.isArray(looks)) {
     const scratch = createController();
     looks.forEach((lk, n) => {
@@ -219,6 +220,7 @@ export const op = {
     // -> the new light's index k on that output
     add(i, light, sections, { order, geom } = {}) {
       const id = light.id || L.newLightId(S.settings);
+      if (geom && !fwAtLeast(0, 6, 0)) geom = L.withoutCells(geom);   // cells are for 0.6.0 and newer
       op.strip(i, st => L.addLight(st, { ...light, id }, sections, { order, geom }));
       const k = L.lightsOf(stripOf(i)).findIndex(l => l.id === id);
       return k;
@@ -236,8 +238,15 @@ export const op = {
     },
     // key: a run of quick changes (a count stepped up and up) is shown at once and sent as one, after `ms` of quiet
     setGeom(i, k, pts, { key, ms = 250 } = {}) {
+      if (!fwAtLeast(0, 6, 0)) pts = L.withoutCells(pts);   // a point's column and row (c, r) go only to a controller on 0.6.0 or newer
       if (!key) { op.strip(i, st => L.withGeom(st, k, pts)); return; }
       stripSoon(i, "geo:" + key + ":" + i, L.withGeom(stripOf(i), k, pts), ms);
+    },
+    // A panel's areas (0.6.0): [{ c0, r0, c1, r1, role, rev, vert, nb }] in drawing order. -> false, and nothing sent, on an older controller.
+    setAreas(i, k, areas) {
+      if (!fwAtLeast(0, 6, 0)) return false;
+      op.strip(i, st => L.withAreas(st, k, areas));
+      return true;
     },
     setOrder(i, k, order) { op.strip(i, st => L.withOrder(st, k, order)); },
   },

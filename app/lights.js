@@ -117,37 +117,41 @@ function toBlocks(strip) {
     cur = l.s + l.n;
   }
   if (px > cur) blocks.push({ light: null, n: px - cur, at: cur });
-  for (const b of blocks) { b.segs = []; b.pts = []; b.ord = []; b.panel = null; }
+  for (const b of blocks) { b.segs = []; b.pts = []; b.ord = []; b.panel = null; b.areas = []; }
   const find = p => blocks.find(b => p >= b.at && p < b.at + b.n);
   for (const g of strip.seg || []) {
     const b = find(g[0] | 0); if (!b) continue;
     const c = g.slice(); c[0] = (g[0] | 0) - b.at; b.segs.push(c);
   }
   for (const q of (strip.geom && strip.geom.pt) || []) {
-    const b = find(q[0] | 0); if (b) b.pts.push([q[0] - b.at, q[1], q[2], q[3]]);
+    const b = find(q[0] | 0); if (b) b.pts.push([q[0] - b.at, ...q.slice(1)]);   // [px, x, y, z] or [px, x, y, z, c, r]
   }
   for (const z of strip.ord || []) {   // a zone across two blocks is cut in two
     let s = z[0] | 0; const e = Math.min(px, s + (z[1] | 0));
     while (s < e) { const b = find(s); if (!b) break; const end = Math.min(e, b.at + b.n); b.ord.push([s - b.at, end - s, z[2]]); s = end; }
+  }
+  for (const a of strip.areas || []) {   // [light index, c0, r0, c1, r1, role, opts?]
+    const b = blocks.find(x => x.light && x.light.k === (a[0] | 0)); if (b) b.areas.push(a.slice(1));
   }
   const pan = strip.geom && strip.geom.panel;
   if (pan && pan.length > 5 && pan[0] > 0) { const b = find(pan[5] | 0); if (b) { b.panel = pan.slice(); b.panel[5] -= b.at; } }
   return blocks;
 }
 function fromBlocks(strip, blocks) {
-  const st = clone(strip), seg = [], lights = [], pt = [], ord = [];
+  const st = clone(strip), seg = [], lights = [], pt = [], ord = [], areas = [];
   let at = 0, panel = null;
   for (const b of blocks) {
     for (const g of b.segs) { const c = g.slice(); c[0] = g[0] + at; c[1] = Math.min(g[1] | 0, b.n - g[0]); if (c[1] > 0) seg.push(c); }
-    for (const q of b.pts) if (q[0] >= 0 && q[0] < b.n) pt.push([q[0] + at, q[1], q[2], q[3]]);
+    for (const q of b.pts) if (q[0] >= 0 && q[0] < b.n) pt.push([q[0] + at, ...q.slice(1)]);
     for (const z of b.ord) { const n = Math.min(z[1], b.n - z[0]); if (n > 0) ord.push([z[0] + at, n, z[2]]); }
     if (b.panel && b.panel[5] + b.panel[0] * b.panel[1] <= b.n) { panel = b.panel.slice(); panel[5] += at; }
-    if (b.light) { const e = clone(b.entry); e[0] = at; e[1] = b.n; lights.push(e); }
+    if (b.light) { const e = clone(b.entry); e[0] = at; e[1] = b.n; for (const a of b.areas || []) areas.push([lights.length, ...clone(a)]); lights.push(e); }
     at += b.n;
   }
   st.px = at; st.seg = seg;
   if (lights.length) st.lights = lights; else delete st.lights;
   if (ord.length) st.ord = ord; else delete st.ord;
+  if (areas.length) st.areas = areas; else delete st.areas;
   const geom = {};
   if (pt.length) geom.pt = pt;
   if (panel) geom.panel = panel;
@@ -232,6 +236,70 @@ export function templateSections(kind, n, { mid, feed = "right", variant } = {})
   return look;
 }
 
+// ---- areas (0.6.0) ---------------------------------------------------------------------------------------
+// An area is a block of a panel's columns x rows (0-based, inclusive, the light's own, counted from its leftmost column and
+// its top row) with a job, drawn over the panel's look after the output's sections. The controller keeps them per output:
+// strips[i].areas = [[l, c0, r0, c1, r1, "role", {rev?, vert?, nb?}?], ...], l the index of the light on the output. It does
+// not re-index l when lights change, so the blocks above carry each light's areas along and fromBlocks numbers them again.
+// The app's form: { c0, r0, c1, r1, role, rev, vert, nb }. rev: the animation runs the other way (right to left, or up with
+// vert); vert: it runs down the rows instead of across the columns; nb: a tail job that never brightens on the brake.
+export const AREA_MAX = 8;
+export const AREA_ROLES = ["brake", "tail", "turn_l", "turn_r", "tail_turn_l", "tail_turn_r", "drl"];
+function normAreaEntry(g) {
+  const o = isObj(g[6]) ? g[6] : {}, role = g[5], a = [g[1] | 0, g[2] | 0, g[3] | 0, g[4] | 0];
+  return [g[0] | 0, Math.min(a[0], a[2]), Math.min(a[1], a[3]), Math.max(a[0], a[2]), Math.max(a[1], a[3]), role,
+    { rev: !!o.rev, vert: !!o.vert, nb: TAIL_ROLES.includes(role) && !!o.nb }];
+}
+// the firmware's form: the seventh element only when a flag is set, and only the flags that are true
+function areaEntry(n) {
+  const g = n.slice(0, 6), o = {};
+  if (n[6].rev) o.rev = true;
+  if (n[6].vert) o.vert = true;
+  if (n[6].nb) o.nb = true;
+  if (Object.keys(o).length) g.push(o);
+  return g;
+}
+const areaObj = g => { const n = normAreaEntry([0, ...g]); return { c0: n[1], r0: n[2], c1: n[3], r1: n[4], role: n[5], rev: n[6].rev, vert: n[6].vert, nb: n[6].nb }; };
+export function areasOf(strip, k) {
+  const b = lightBlock(toBlocks(strip), k);
+  return b ? b.areas.map(areaObj) : [];
+}
+export const areaCount = strip => ((strip && strip.areas) || []).length;
+// Replaces light k's areas. Areas of the other lights stay as they are, in their own order.
+export function withAreas(strip, k, areas) {
+  const blocks = toBlocks(strip), b = lightBlock(blocks, k);
+  if (!b) return clone(strip);
+  b.areas = (areas || []).filter(a => AREA_ROLES.includes(a.role)).map(a => areaEntry(normAreaEntry([0, a.c0, a.r0, a.c1, a.r1, a.role, { rev: a.rev, vert: a.vert, nb: a.nb }])).slice(1));
+  return fromBlocks(strip, blocks);
+}
+// The cell of every pixel of light k as the controller works it out (spec 1): the rounded linear interpolation by pixel index between
+// the last path point at or before it and the first at or after it, when both carry cells; before the first and after the last
+// point the nearest point's cell; none when a point has no cell. -> [[c, r] | null, ...] with c, r counted from the light's
+// leftmost column and top row (the light's own columns and rows, which is what areas use), and the grid's size.
+export function cellGrid(strip, k) {
+  const b = lightBlock(toBlocks(strip), k);
+  if (!b) return { n: 0, cells: [], cols: 0, rows: 0, has: () => false, count: 0 };
+  const pts = b.pts.slice().sort((x, y) => x[0] - y[0]), raw = [];
+  for (let p = 0; p < b.n; p++) {
+    let A = null, B = null;
+    for (const q of pts) { if (q[0] <= p) A = q; if (q[0] >= p && !B) B = q; }
+    if (!A) A = B; if (!B) B = A;
+    if (!A || A.length < 6 || B.length < 6) { raw.push(null); continue; }
+    const t = B[0] === A[0] ? 0 : (p - A[0]) / (B[0] - A[0]);
+    raw.push([Math.round(A[4] + (B[4] - A[4]) * t), Math.round(A[5] + (B[5] - A[5]) * t)]);
+  }
+  const have = raw.filter(Boolean);
+  if (!have.length) return { n: b.n, cells: raw, cols: 0, rows: 0, has: () => false, count: 0 };
+  const c0 = Math.min(...have.map(q => q[0])), r0 = Math.min(...have.map(q => q[1]));
+  const cells = raw.map(q => (q ? [q[0] - c0, q[1] - r0] : null)), set = new Set(cells.filter(Boolean).map(q => q[0] + "," + q[1]));
+  return { n: b.n, cells, cols: Math.max(...cells.filter(Boolean).map(q => q[0])) + 1, rows: Math.max(...cells.filter(Boolean).map(q => q[1])) + 1,
+    has: (c, r) => set.has(c + "," + r), count: set.size };
+}
+// Does any section or area of the strip do this job (roles: segment role keys)? Areas count like sections.
+export function hasRole(strip, roles) {
+  return (strip.seg || []).some(g => roles.includes(g[2])) || (strip.areas || []).some(a => roles.includes(a[5]));
+}
+
 // ---- adding, removing, moving, resizing --------------------------------------------------------------
 const chipFields = c => ({ chip: c.key, timing: c.timing, rgbw: c.rgbw, lpp: c.lpp, sum: c.sum, px_ma: c.px_ma });
 // opts.order: a color order for the whole light ("RGB"), or zones within it [[start, n, order], ...] (a matrix).
@@ -245,7 +313,7 @@ export function addLight(strip, light, sections, { order, geom } = {}) {
   const chip = L.chip && L.chip !== "same" ? CHIP_BY[L.chip] : null;
   if (chip && !blocks.some(b => b.light)) { Object.assign(st, chipFields(chip)); L.chip = "same"; }   // the first light sets the output's type
   else if (chip) { if (chip.key === st.chip) L.chip = "same"; else if (!L.ma && chip.px_ma !== st.px_ma) L.ma = chip.px_ma; }
-  const b = { light: L, entry: lightEntry({ ...L, s: 0 }, false), n, segs: [], pts: [], ord: [], panel: null };
+  const b = { light: L, entry: lightEntry({ ...L, s: 0 }, false), n, segs: [], pts: [], ord: [], panel: null, areas: [] };
   let at = 0;
   for (const sec of (sections && sections.length ? sections : templateSections(L.kind, n))) { if (!isDark(sec)) b.segs.push(segOfSection(at, sec)); at += sec.n | 0; }
   b.pts = geomPts(geom, n);
@@ -279,7 +347,7 @@ export function resizeLight(strip, k, n) {
   // The light's ends stay where they are on the bike: a path point on the old last LED moves to the new last LED.
   const end = b.pts.find(q => q[0] === old - 1);
   b.pts = b.pts.filter(q => q !== end && q[0] < (end ? b.n - 1 : b.n));
-  if (end) b.pts.push([b.n - 1, end[1], end[2], end[3]]);
+  if (end) b.pts.push([b.n - 1, ...end.slice(1)]);
   return fromBlocks(strip, blocks);
 }
 
@@ -289,14 +357,19 @@ function geomPts(pts, n) {
   for (const p of (pts || []).slice().sort((a, b) => a.px - b.px)) {
     const px = Math.max(0, Math.min(n - 1, Math.round(p.px)));
     if (out.length && px <= out[out.length - 1][0]) continue;   // the firmware wants strictly ascending points
-    out.push([px, Math.round(p.x), Math.round(p.y), Math.round(p.z)]);
+    const q = [px, Math.round(p.x), Math.round(p.y), Math.round(p.z)];
+    if (isCell(p.c) && isCell(p.r)) q.push(p.c, p.r);   // a cell: the point's column and row on a panel (0.6.0)
+    out.push(q);
   }
   return out;
 }
+const isCell = v => Number.isInteger(v) && v >= 0 && v <= 254;
 export function geomOf(strip, k) {
   const b = lightBlock(toBlocks(strip), k);
-  return b ? b.pts.map(q => ({ px: q[0], x: q[1], y: q[2], z: q[3] })) : [];
+  return b ? b.pts.map(q => (q.length >= 6 ? { px: q[0], x: q[1], y: q[2], z: q[3], c: q[4], r: q[5] } : { px: q[0], x: q[1], y: q[2], z: q[3] })) : [];
 }
+// The same points without their cells: what a controller older than 0.6.0 is sent.
+export const withoutCells = pts => (pts || []).map(({ c, r, ...p }) => p);
 export function withGeom(strip, k, pts) {
   const blocks = toBlocks(strip), b = lightBlock(blocks, k);
   if (!b) return clone(strip);
@@ -368,7 +441,7 @@ export function normStrip(st) {
   for (const k of STRIP_SCALARS) if (k in st) sc[k] = st[k];
   return { ...sc, px: st.px | 0, look: normLook(st.look), look2: st.look2 ? normLook({ ...LOOK2_BASE, ...st.look2 }) : null,
     seg: (st.seg || []).map(normSeg), lights: lightsOf(st).map(({ k, ...L }) => L),
-    pt: ((st.geom && st.geom.pt) || []).map(q => q.slice(0, 4)), panel: (st.geom && st.geom.panel && st.geom.panel[0] ? st.geom.panel : null),
+    pt: ((st.geom && st.geom.pt) || []).map(q => q.slice(0, 6)), areas: (st.areas || []).map(normAreaEntry), panel: (st.geom && st.geom.panel && st.geom.panel[0] ? st.geom.panel : null),
     ord: (st.ord || []).map(z => [z[0], z[1], String(z[2]).toUpperCase()]) };
 }
 const LOOK2_BASE = { mode: "bulbs", rgb: [255, 147, 41], speed: 5, rev: false, master: false };
@@ -441,6 +514,8 @@ export function stripPatches(i, before, after) {
   out.push(...staged(i, "segi", "nseg", B.seg.map(s => JSON.stringify(s)), A.seg.map(s => JSON.stringify(s)), (after.seg || []).map(segOut)));
   out.push(...staged(i, "gpt", "ngpt", B.pt.map(q => JSON.stringify(q)), A.pt.map(q => JSON.stringify(q)), A.pt));
   out.push(...staged(i, "ordi", "nord", B.ord.map(z => JSON.stringify(z)), A.ord.map(z => JSON.stringify(z)), A.ord));
+  // areas name lights by index and replace the whole list at once: after the lights are in place
+  if (!jeq(A.areas, B.areas)) out.push(wrap(i, { areas: (after.areas || []).map(a => areaEntry(normAreaEntry(a))) }));
   if (!jeq(A.panel, B.panel)) out.push(wrap(i, { panel: A.panel || [0, 0] }));
   if (A.px < B.px) out.push(wrap(i, { px: A.px }));
   // validate() raises cap_ma to the safety worst case and never lowers it: a half-sent layout (new lights, old
@@ -484,5 +559,19 @@ export function settingsPatches(before, after) {
   if (Object.keys(top).length) out.push(...splitPatch(top));
   ((after && after.strips) || []).forEach((st, i) => out.push(...stripPatches(i, before && before.strips && before.strips[i], st)));
   return out;
+}
+// Settings saved from a 0.6.0 controller, as an older controller may be sent them (Backup › Restore): no areas, no cells, and
+// the turn style Arrows becomes "flash" (the bike's) or "global" (a light's or output's own).
+export function withoutV060(settings) {
+  const o = clone(settings);
+  if (o && o.turn && o.turn.style === "arrow") o.turn.style = "flash";
+  for (const st of (o && o.strips) || []) {
+    if (!st) continue;
+    delete st.areas;
+    if (st.turn_style === "arrow") st.turn_style = "global";
+    if (st.geom && st.geom.pt) st.geom.pt = st.geom.pt.map(q => q.slice(0, 4));
+    for (const e of st.lights || []) if (isObj(e[4]) && e[4].ts === "arrow") e[4].ts = "global";
+  }
+  return o;
 }
 export { KINDS };

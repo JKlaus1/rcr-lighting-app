@@ -2,13 +2,14 @@
 // Everything is live through op.light.patch; slider drags and color drags are coalesced by key.
 import { S, on, op, mirror, fwAtLeast } from "./store.js";
 import { el, clear, seg, slider, toggleRow, selectRow, panel, note, button, ledStrip } from "./ui.js";
-import { lightsOf, sectionsOf } from "./lights.js";
+import { lightsOf, sectionsOf, areasOf } from "./lights.js";
 import { RESTS, turnStyles, TURN_ROLES } from "./fxdata.js";
 import { fxEditor } from "./fx.js";
 import { openBikeEffect } from "./sheet.js";
 
 const lightOf = ref => { const st = S.settings && S.settings.strips[ref.out]; return st ? lightsOf(st)[ref.k] || null : null; };
-const hasTurn = ref => { const st = S.settings.strips[ref.out]; return sectionsOf(st, ref.k).sections.some(s => TURN_ROLES.includes(s.role)); };
+// a turn section, or a turn area of a panel (0.6.0): either one takes the light's turn signal style
+const hasTurn = ref => { const st = S.settings.strips[ref.out]; return sectionsOf(st, ref.k).sections.some(s => TURN_ROLES.includes(s.role)) || areasOf(st, ref.k).some(a => TURN_ROLES.includes(a.role)); };
 
 export function renderLook(body, ref) {
   const root = el("div", { class: "look-tab", id: "tab-look" });
@@ -60,7 +61,7 @@ export function renderLook(body, ref) {
     solo = toggleRow("Keeps its look when the bike effect runs on every light", !!L.solo, v => patch({ solo: v }), { id: "look-solo" });
     kids.push(solo.el);
     if (hasTurn(ref)) {
-      ts = selectRow("Turn signal style", turnStyles(fwAtLeast(0, 5, 1)), L.ts, v => patch({ ts: v }), { id: "look-ts" });
+      ts = selectRow("Turn signal style", turnStyles(fwAtLeast(0, 5, 1), true, fwAtLeast(0, 6, 0)), L.ts, v => patch({ ts: v }), { id: "look-ts" });
       kids.push(ts.el);
     }
     dyn.append(panel(null, ...kids));

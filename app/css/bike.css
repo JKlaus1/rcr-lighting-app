@@ -134,3 +134,32 @@ span.bk-chip { cursor: default; }
 .pl-bar-pic .bs-svg { max-height: 240px; }
 .pl-bar-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 @media (max-width: 340px) { .bs-marks { grid-template-columns: 1fr; } }
+
+/* Curve the panel (Placement tab, 0.6.0) */
+.pl-cv-pic { border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); min-height: 80px; display: grid; place-items: center; padding: 6px; }
+.pl-cv-svg { max-height: 260px; }
+.pl-cv-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pl-cv-row .btn { grid-column: 1 / -1; }
+#plCurveKind { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1.3fr); }
+#plCvBulge { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+/* Areas of a panel (Sections tab, 0.6.0) */
+.ar-root { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+.ar-grid { display: block; width: 100%; height: auto; max-height: min(46vh, 360px); touch-action: none; user-select: none; -webkit-user-select: none; cursor: crosshair;
+  border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); }
+.ar-cell { fill: none; stroke: var(--line); stroke-width: .4; stroke-dasharray: 1.2 1.2; pointer-events: all; }
+.ar-cell.led { fill: var(--field); stroke: var(--edge); stroke-dasharray: none; }
+.ar-area { pointer-events: none; }
+.ar-num { fill: var(--ink); font-family: var(--cond); font-weight: 700; pointer-events: none; paint-order: stroke; stroke: var(--panel); stroke-width: 1.2; }
+.ar-sel { fill: none; stroke: var(--ink); stroke-width: 1.4; stroke-dasharray: 3 2; pointer-events: none; }
+.ar-sel-t { margin: 0; font: 700 17px/1.25 var(--cond); }
+.ar-nums { grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0; border: 0; background: none; }
+@media (max-width: 420px) { .ar-nums { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.ar-card { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1.5px solid var(--edge); border-radius: var(--radius-ctl); background: var(--panel); }
+.ar-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ar-head b { font: 700 17px/1.2 var(--cond); }
+.ar-where { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ar-dot { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--ink); flex: none; }
+.ar-card .seg { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.ar-card .seg button { border-top: 1px solid var(--line); }
+.ar-sel-box { display: flex; flex-direction: column; gap: 8px; }

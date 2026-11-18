@@ -224,6 +224,9 @@ export function clearBar(key) { try { localStorage.removeItem(KEY(key)); } catch
 // ---- units ---------------------------------------------------------------------------------------------------------
 // Inches to a hundredth, or millimeters to a tenth: a bracket drawn in CAD is dimensioned in mm.
 export const UNITS = { in: { per: 25.4, step: 0.01, dec: 2 }, mm: { per: 1, step: 0.1, dec: 1 } };
+// the unit last picked on this device (shared with the curve of a panel, panelcurve.js)
+export function unitPref() { try { const u = localStorage.getItem(UNIT_KEY); if (UNITS[u]) return u; } catch (e) { /* off */ } return "in"; }
+export function setUnitPref(u) { try { localStorage.setItem(UNIT_KEY, u); } catch (e) { /* off */ } }
 export const show = (mm, u) => { const m = 10 ** UNITS[u].dec; return Math.round(mm / UNITS[u].per * m) / m; };
 export const sized = (mm, u) => `${show(mm, u)} ${u}`;
 // the gap between two LEDs wants one more digit: 0.273 in, 6.94 mm
