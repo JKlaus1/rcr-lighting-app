@@ -189,6 +189,27 @@ export function restore(settingsObject, looks) {
 const stripOf = i => S.settings && S.settings.strips[i];
 const wrapStrip = (i, o) => ({ strips: [...Array(i).fill(null), o] });
 const stripBase = {};   // coalesced section edits: the strip the controller still holds, per key
+// A drag or a run of quick changes to output i: shown at once (the mirror takes it), and the difference from what the
+// controller holds is sent after `ms` of quiet. id names the run; anything sent meanwhile flushes it first (tx).
+function stripSoon(i, id, after, ms) {
+  if (!stripBase[id]) stripBase[id] = structuredClone(stripOf(i));
+  for (const p of L.stripPatches(i, stripOf(i), after)) mirror.patch(JSON.stringify(p));
+  publishSettings();
+  const w = waiting[id] || (waiting[id] = { texts: [], timer: 0 });
+  clearTimeout(w.timer);
+  w.flush = () => {
+    clearTimeout(w.timer); delete waiting[id];
+    const base = stripBase[id]; delete stripBase[id];
+    const ps = L.stripPatches(i, base, stripOf(i));
+    if (!ps.length) return;
+    const useTx = link && ps.length > 1 && fwAtLeast(0, 5, 0);
+    if (useTx) send("tx begin");
+    ps.forEach((p, n) => sendSet(JSON.stringify(p), { mine: null, quiet: n < ps.length - 1 }));
+    if (useTx) send("tx commit");
+  };
+  w.texts = [];
+  w.timer = setTimeout(w.flush, ms);
+}
 export const op = {
   strip(i, fn) {
     const before = stripOf(i); if (!before) return;
@@ -211,28 +232,13 @@ export const op = {
     },
     setSections(i, k, sections, { key, ms = 250 } = {}) {
       if (!key) { op.strip(i, st => L.withSections(st, k, sections)); return; }
-      // a drag: show it at once, send the difference from what the controller holds after `ms` of quiet
-      const id = "sec:" + key + ":" + i;
-      if (!stripBase[id]) stripBase[id] = structuredClone(stripOf(i));
-      const after = L.withSections(stripOf(i), k, sections);
-      for (const p of L.stripPatches(i, stripOf(i), after)) mirror.patch(JSON.stringify(p));
-      publishSettings();
-      const w = waiting[id] || (waiting[id] = { texts: [], timer: 0 });
-      clearTimeout(w.timer);
-      w.flush = () => {
-        clearTimeout(w.timer); delete waiting[id];
-        const base = stripBase[id]; delete stripBase[id];
-        const ps = L.stripPatches(i, base, stripOf(i));
-        if (!ps.length) return;
-        const useTx = link && ps.length > 1 && fwAtLeast(0, 5, 0);
-        if (useTx) send("tx begin");
-        ps.forEach((p, n) => sendSet(JSON.stringify(p), { mine: null, quiet: n < ps.length - 1 }));
-        if (useTx) send("tx commit");
-      };
-      w.texts = [];
-      w.timer = setTimeout(w.flush, ms);
+      stripSoon(i, "sec:" + key + ":" + i, L.withSections(stripOf(i), k, sections), ms);
     },
-    setGeom(i, k, pts) { op.strip(i, st => L.withGeom(st, k, pts)); },
+    // key: a run of quick changes (a count stepped up and up) is shown at once and sent as one, after `ms` of quiet
+    setGeom(i, k, pts, { key, ms = 250 } = {}) {
+      if (!key) { op.strip(i, st => L.withGeom(st, k, pts)); return; }
+      stripSoon(i, "geo:" + key + ":" + i, L.withGeom(stripOf(i), k, pts), ms);
+    },
     setOrder(i, k, order) { op.strip(i, st => L.withOrder(st, k, order)); },
   },
   accent(fields, opts) { patch({ accent: fields }, opts); },

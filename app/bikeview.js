@@ -25,7 +25,7 @@ export function mountBikeView(stageEl, hooks = {}) {
   try { return mount(stageEl, hooks); }
   catch (e) {
     console.error("bike view:", e);
-    return { mode: "hidden", setMode() {}, select() {}, place() { return Promise.resolve(null); }, cancelPlace() {}, destroy() {},
+    return { mode: "hidden", setMode() {}, select() {}, mark() {}, place() { return Promise.resolve(null); }, cancelPlace() {}, destroy() {},
       debug: () => ({ kind: null, mode: "hidden", leds: 0, placed: 0, unplaced: 0, selected: null, placing: null, screen: () => null, ready: Promise.resolve() }) };
   }
 }
@@ -38,6 +38,7 @@ function mount(stageEl, { onPick, onMove } = {}) {
   const sxy = new Float32Array(N * 2).fill(NaN);    // screen x,y of every drawn LED after the last render
   let lights = [];          // [{ out, k, s, n, name, kind, den, id, pts, placed }]
   let override = null;      // { out, k, pts }: a light drawn at a tentative place (a drag, a tool)
+  let marked = null;        // { out, k, a, b }: a run of a light's LEDs (a to b, from 0) to point out, e.g. one drawn segment
   let mode = "ride", sel = null, R = null, T = null, dead = false, tall = false;
   let renderH = 0, frameOff = null, geomDirty = true;
   let readyRes; const ready = new Promise(r => { readyRes = r; });
@@ -226,6 +227,18 @@ function mount(stageEl, { onPick, onMove } = {}) {
       g.globalCompositeOperation = "destination-out"; g.strokeStyle = "#000"; g.lineWidth = w; strokePath(g, pts);
       g.restore();
       if (!(mode === "edit" && L.placed)) marker1(g, pts, w);
+    }
+    // a marked run of LEDs: the same ring in white, with a dot on its first LED
+    const M = !T && marked && lightOf(marked);
+    if (M && V.size[slot(M)] > 0) {
+      const all = polylineOf(M), a = Math.max(0, Math.min(M.n - 1, marked.a)), b = Math.max(a, Math.min(M.n - 1, marked.b));
+      const pts = all.slice(a, b + 1), w = outlineWidth(all);
+      g.save();
+      g.strokeStyle = "#ffffff"; g.lineWidth = w + 5; strokePath(g, pts);
+      g.globalCompositeOperation = "destination-out"; g.strokeStyle = "#000"; g.lineWidth = w; strokePath(g, pts);
+      g.restore();
+      const p0 = pts.find(Boolean);
+      if (p0) { g.save(); g.fillStyle = "#ffffff"; g.beginPath(); g.arc(p0[0], p0[1], Math.max(3, w / 2 - 3), 0, 7); g.fill(); g.restore(); }
     }
     if (T) T.tool.decor(g, p => R.project(p));
   }
@@ -547,6 +560,19 @@ function mount(stageEl, { onPick, onMove } = {}) {
       if (sel && !T) focusSel();
       requestRender();
     },
+    // Point out LEDs a to b (from 0, within the light) of a light; mark(null) clears it. The view turns to show them.
+    mark(ref, a, b) {
+      const L = ref && lightOf(ref);
+      marked = L && Number.isFinite(a) && Number.isFinite(b) ? { out: ref.out, k: ref.k, a: Math.round(a), b: Math.round(b) } : null;
+      root.dataset.marked = marked ? `${marked.out}:${marked.k}:${marked.a}:${marked.b}` : "";
+      if (marked && L && R && !T && V.size[slot(L)] > 0) {
+        const pts = [], lo = Math.max(0, Math.min(L.n - 1, marked.a)), hi = Math.max(lo, Math.min(L.n - 1, marked.b));
+        for (let i = lo; i <= hi; i += Math.max(1, Math.floor((hi - lo) / 8))) { const j = slot(L, i); pts.push([V.pos[j * 3], V.pos[j * 3 + 1], V.pos[j * 3 + 2]]); }
+        const j = slot(L, hi); pts.push([V.pos[j * 3], V.pos[j * 3 + 1], V.pos[j * 3 + 2]]);
+        if (pts.every(q => q[0] === q[0])) R.ensureVisible(pts);
+      }
+      requestRender();
+    },
     place(ref, tool, opts) { return place(ref, tool, opts); },
     // Stop a running placing tool; its promise resolves null. (The Placement tab's own Cancel, beside the view on a PC.)
     cancelPlace() { placeToken = null; endTool(null); },
@@ -571,7 +597,7 @@ function mount(stageEl, { onPick, onMove } = {}) {
       return {
         kind: R ? R.kind : null, mode, leds,
         placed: lights.filter(L => L.placed).length, unplaced: dockItems.length,
-        selected: sel ? { ...sel } : null, placing: T ? T.tool.tool : null,
+        selected: sel ? { ...sel } : null, marked: marked ? { ...marked } : null, placing: T ? T.tool.tool : null,
         tool: T ? T.tool.state() : null,
         screen(ref, px = 0) {
           const L = lightOf(ref);

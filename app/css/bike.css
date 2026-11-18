@@ -83,6 +83,18 @@ span.bk-chip { cursor: default; }
 .pl-all > summary { cursor: pointer; padding: 12px; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); font-weight: 600; }
 .pl-all[open] > summary { margin-bottom: 8px; }
 .pl-all > .pl-pt { margin-bottom: 8px; }
+/* the segment list: one card per stretch between two drawn points; the one being worked on is edged in amber */
+.pl-seg { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 2px 10px; padding: 2px 12px 8px; border: 1.5px solid var(--line); border-radius: var(--radius-ctl); background: var(--panel); align-items: end; }
+.pl-seg.on { border-color: var(--amber); box-shadow: inset 4px 0 0 var(--amber); }
+.pl-seg-h { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; padding: 0; border: 0; background: none; color: var(--ink); text-align: left; cursor: pointer; }
+.pl-seg-h b { font: 700 17px/1.2 var(--cond); }
+.pl-seg-h span { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pl-seg .pl-f input[type=number] { width: 100%; min-width: 0; padding: 6px 4px; text-align: center; font-variant-numeric: tabular-nums; }
+.pl-step { display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; gap: 4px; }
+.pl-step .btn { min-width: 44px; padding: 0; font-size: 20px; line-height: 1; }
+.pl-seg-d { grid-column: 1 / -1; font-size: 12px; color: var(--muted); padding-top: 3px; }
+.pl-all > .pl-seg { margin-bottom: 8px; }
+#plSegs > .toggle { border-top: 0; min-height: 52px; padding-left: 0; padding-right: 0; }
 
 /* ---- a light's shape by its dimensions (barshape.js): the builder and the picture on the Placement tab ---- */
 .bs { gap: 14px; }

@@ -3,7 +3,7 @@
 // back for the tentative LED positions, the handles and the overlay drawing. Nothing is written to the bike here.
 import { el, button, chips, slider } from "./ui.js";
 import {
-  barLength, barEnds, dragBarEnd, barAxisOf, barResult, spreadPx, matrixFrame, matrixCorners, matrixCenter, gridPoints,
+  barLength, barEnds, dragBarEnd, barAxisOf, barResult, spreadPx, followsDrawing, matrixFrame, matrixCorners, matrixCenter, gridPoints,
   facingOf, tidyPt, add, sub, mul, len, FACINGS,
 } from "./bikeview-math.js";
 
@@ -42,9 +42,14 @@ export function createTool(ctx) {
     }
     if (tool === "curve") {
       const pts = ex.map(P3);
+      // LED numbers that were set by hand (the Placement tab's segment list) stay with their points: px holds the
+      // number each point keeps, null for a point whose number comes from the drawn lengths. A light whose numbers
+      // are the drawing's own keeps none, so moving a point spreads its LEDs along the new line as before.
+      const keep = ex.length > 1 && !followsDrawing(ex, n);
+      const px = ex.map(q => (keep ? q.px : null));
       let loop = false;
-      if (pts.length > 2 && len(sub(pts[0], pts[pts.length - 1])) < 1) { pts.pop(); loop = true; }
-      return { pts, loop, whole: pts.length + (loop ? 1 : 0) > maxPts };
+      if (pts.length > 2 && len(sub(pts[0], pts[pts.length - 1])) < 1) { pts.pop(); px.pop(); loop = true; }
+      return { pts, px, loop, whole: pts.length + (loop ? 1 : 0) > maxPts };
     }
     // matrix
     const s = { center: null, facing: "front", centered: true, lean: 0 };
@@ -81,7 +86,10 @@ export function createTool(ctx) {
   }
   function result() {
     if (tool === "bar") return st.ends && len(sub(st.ends[1], st.ends[0])) >= 1 ? barResult(st.ends[0], st.ends[1], n) : null;
-    if (tool === "curve") return spreadPx(st.loop && st.pts.length > 1 ? [...st.pts, st.pts[0]] : st.pts, n);
+    if (tool === "curve") {
+      const loop = st.loop && st.pts.length > 1;
+      return spreadPx(loop ? [...st.pts, st.pts[0]] : st.pts, n, loop ? [...st.px, null] : st.px);
+    }
     const f = frame();
     return f ? { frame: { o: f.o, u: f.u, v: f.v } } : null;
   }
@@ -112,7 +120,7 @@ export function createTool(ctx) {
       if (st.whole || st.pts.length >= maxTaps) return;
       const h = pickFor(sx, sy, st.pts.length ? st.pts[st.pts.length - 1] : null);
       if (!h) return;
-      change(() => st.pts.push(h.p.slice()));
+      change(() => { st.pts.push(h.p.slice()); st.px.push(null); });
     } else {
       const h = pickFor(sx, sy, null);
       if (!h) return;

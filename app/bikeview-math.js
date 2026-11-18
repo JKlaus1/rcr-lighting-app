@@ -130,22 +130,89 @@ export const barResult = (a, b, n) => [tidyPt({ px: 0, x: a[0], y: a[1], z: a[2]
 // ---- the curve tool ------------------------------------------------------------------------------------------
 // Points tapped from the first LED to the last -> path points with px spread by the length along the path:
 // first 0, last n - 1, whole numbers, strictly increasing (a point that would repeat a px is dropped; the last stays).
-export function spreadPx(points, n) {
-  const p = points.map(P);
+// fixed (optional, one entry per point): the LED number a point keeps, or null for a point that is spread by length
+// between its fixed neighbors. A fixed number that leaves no LED for its neighbors is spread as well: a number at or
+// behind the fixed one before it, and, when the last point is not fixed, a number on the light's last LED.
+export function spreadPx(points, n, fixed) {
+  // Lengths are taken between the points as they are kept (whole millimeters inside the box), so the numbers a drawing
+  // gets are exactly the ones its stored points give again (followsDrawing).
+  const p = points.map(q => { const t = tidyPt(P(q)); return [t.x, t.y, t.z]; });
   if (p.length < 2 || n < 2) return null;
   const cum = [0];
   for (let i = 1; i < p.length; i++) cum.push(cum[i - 1] + dist(p[i], p[i - 1]));
-  const total = cum[cum.length - 1];
-  if (!(total > 0)) return null;
-  const out = [];
-  for (let i = 0; i < p.length; i++) {
-    const last = i === p.length - 1;
-    const px = last ? n - 1 : Math.round(cum[i] / total * (n - 1));
-    if (last) while (out.length && out[out.length - 1].px >= px) out.pop();
-    else if (out.length && out[out.length - 1].px >= px) continue;
-    out.push(tidyPt(O(p[i], px)));
+  const K = p.length - 1;
+  if (!(cum[K] > 0)) return null;
+  const fx = i => { const v = fixed ? fixed[i] : null; return v == null || !Number.isFinite(Number(v)) ? null : Math.max(0, Math.min(n - 1, Math.round(Number(v)))); };
+  // the anchors: the fixed points that fit, the first point (LED 1 unless fixed) and the last (the last LED unless fixed)
+  const anc = [];
+  for (let i = 0; i <= K; i++) {
+    let px = fx(i);
+    const free = px == null;
+    if (free && i > 0 && i < K) continue;
+    if (free) px = i === 0 ? 0 : n - 1;
+    if (i === K && free) while (anc.length > 1 && anc[anc.length - 1].px >= px) anc.pop();
+    if (anc.length && anc[anc.length - 1].px >= px) { if (i === K) return null; continue; }
+    anc.push({ i, px });
   }
-  return out.length >= 2 && out[0].px === 0 ? out : null;
+  if (anc.length < 2 || anc[anc.length - 1].i !== K) return null;
+  const out = [];
+  for (let a = 0; a + 1 < anc.length; a++) {
+    const A = anc[a], B = anc[a + 1], span = cum[B.i] - cum[A.i];
+    out.push(tidyPt(O(p[A.i], A.px)));
+    for (let i = A.i + 1; i < B.i; i++) {
+      if (!(span > 0)) continue;
+      const px = A.px + Math.round((cum[i] - cum[A.i]) / span * (B.px - A.px));
+      if (px <= out[out.length - 1].px || px >= B.px) continue;
+      out.push(tidyPt(O(p[i], px)));
+    }
+  }
+  const Z = anc[anc.length - 1];
+  out.push(tidyPt(O(p[Z.i], Z.px)));
+  return out.length >= 2 ? out : null;
+}
+
+// ---- the segments of a drawn light: the stretch from one path point to the next ---------------------------------
+// pts: a light's path points [{ px, x, y, z }], ascending; n: its LEDs. Segment i runs from point i to point i + 1 and
+// holds the LEDs from point i's up to the one before point i + 1's; the last segment holds its end point's LED as well.
+// -> [{ i, a (first LED, from 0), count, len (mm as drawn), last }]
+export function segmentsOf(pts, n) {
+  const out = [];
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const last = i === pts.length - 2;
+    out.push({ i, a: pts[i].px, count: pts[i + 1].px - pts[i].px + (last ? 1 : 0), len: dist(P(pts[i]), P(pts[i + 1])), last });
+  }
+  return out;
+}
+// The LED number of point i set to px: only that point moves, so the segment before it and the one after it trade
+// LEDs. Kept between its neighbors' numbers. -> the new points
+export function setPointLed(pts, n, i, px) {
+  if (!(i >= 0 && i < pts.length)) return pts.map(q => ({ ...q }));
+  const lo = i > 0 ? pts[i - 1].px + 1 : 0, hi = i < pts.length - 1 ? pts[i + 1].px - 1 : n - 1;
+  const v = Math.max(lo, Math.min(hi, Math.round(Number(px)) || 0));
+  return pts.map((q, j) => (j === i ? { ...q, px: v } : { ...q }));
+}
+// The LED count of segment j set to count. The segments after it keep their counts and move along the light; the last
+// point stays on its LED, so the last segment takes up the difference, and when that is used up the ones before it give
+// way, last first, down to one LED each. On the last segment the count moves its own first LED instead. -> the new points
+export function setSegmentCount(pts, n, j, count) {
+  const out = pts.map(q => ({ ...q })), K = out.length - 1;
+  if (!(j >= 0 && j < K)) return out;
+  let c = Math.round(Number(count)) || 0;
+  if (j === K - 1) {   // the last segment: its end stays, its start moves
+    const lo = j > 0 ? out[j - 1].px + 1 : 0;
+    out[j].px = Math.max(lo, Math.min(out[K].px - 1, out[K].px + 1 - c));
+    return out;
+  }
+  c = Math.max(1, Math.min(out[K].px - (K - 1 - j) - out[j].px, c));
+  const d = out[j].px + c - out[j + 1].px;
+  for (let i = j + 1; i < K; i++) out[i].px += d;
+  for (let i = K - 1; i > j; i--) out[i].px = Math.min(out[i].px, out[i + 1].px - 1);
+  return out;
+}
+// Whether the LED numbers are the ones the drawing gives by its lengths alone (nothing set by hand since).
+export function followsDrawing(pts, n) {
+  const s = spreadPx(pts, n);
+  return !!s && s.length === pts.length && s.every((q, i) => q.px === pts[i].px);
 }
 
 // ---- the matrix tool ----------------------------------------------------------------------------------------

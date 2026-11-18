@@ -1,9 +1,11 @@
 // The light sheet's Placement tab (spec 3.3): where the light sits on the bike (path points in inches), the placing tool,
-// mirroring, LED spacing, for a matrix its shape and frame, and for a strip its shape by size (barshape.js).
+// mirroring, the LEDs of each drawn segment, LED spacing, for a matrix its shape and frame, and for a strip its shape by
+// size (barshape.js).
 // Bike axes in mm: x back from the front axle, y left (-) / right (+), z up from the ground.
-import { S, op } from "./store.js";
-import { el, clear, button, armed, chips, seg, selectRow, note, toast, toIn, toMm, fmtIn, perFoot, clamp } from "./ui.js";
+import { S, op, send } from "./store.js";
+import { el, clear, button, armed, chips, seg, selectRow, toggleRow, note, toast, toIn, toMm, fmtIn, perFoot, clamp } from "./ui.js";
 import { lightsOf, allLights, geomOf, ptsRoom, LIMITS } from "./lights.js";
+import { segmentsOf, setPointLed, setSegmentCount, followsDrawing, spreadPx } from "./bikeview-math.js";
 import { seams } from "./wizard.js";
 import { bikeView } from "./main.js";
 import { openLight } from "./sheet.js";
@@ -43,6 +45,8 @@ export function renderPlacement(body, ref) {
   const root = el("div", { class: "pl-root", id: "tab-placement" });
   body.append(root);
   let placing = false, run = 0, status = "", shape = "bar", mirrorFrom = "", mf = null, shapeWait = false, listOpen = false;
+  // the segment list: the one being worked on (-1 none), whether it is lit on the bike, what `find` shows now, its note
+  let segSel = -1, segLit = true, segShown = "", segTimer = 0, segOpen = false, segMsg = "", segFocus = "", segBusy = false, rebuilding = false;
   const strip = () => S.settings.strips[ref.out];
   const light = () => lightsOf(strip())[ref.k];
   const pts = () => geomOf(strip(), ref.k);
@@ -109,6 +113,7 @@ export function renderPlacement(body, ref) {
       size = mx().designSize(design);
     }
     const mine = ++run;
+    segHide(); segMsg = "";
     placing = true; status = ""; draw();
     let res = null;
     try { res = tool === "matrix" ? await v.place(me, "matrix", size) : await v.place(me, tool); } catch (e) { res = null; }
@@ -155,6 +160,107 @@ export function renderPlacement(body, ref) {
     } else box.append(note("Mirror from another light is offered once another light is placed."));
     if (list.length) { const c = button("Clear placement", { kind: "danger", id: "plClear" }); armed(c, "Tap again to clear", () => { setPts([]); status = ""; }); box.append(c); }
     if (status) box.append(el("p", { class: "note", id: "plStatus" }, status));
+    return box;
+  }
+
+  // ---- segments: the LEDs between one drawn point and the next ------------------------------------------------
+  // Drawing a light spreads its LEDs along the line by the drawn lengths, and the model is never exactly the bike. Here
+  // each segment's first LED or LED count is set to what the bike really has; only the points' LED numbers change.
+  // The segment being worked on is ringed on the model and lit white on the bike (`find`), for SEG_MS after a touch.
+  const SEG_MS = 60000, SEG_FOLD = 8;
+  const segsOn = () => { const L = light(); return !!L && L.kind !== "matrix" && pts().length >= 3 && !barLive(); };
+  const segOf = j => segmentsOf(pts(), light().n)[j] || null;
+  function segDark() { clearTimeout(segTimer); segTimer = 0; if (segShown) { segShown = ""; send("find off"); } }
+  // on the model the ring runs the whole drawn stretch, from the segment's point to the next one
+  function segMark(j) { const v = bikeView(), list = S.settings && S.settings.strips[ref.out] ? pts() : [], on = j >= 0 && j + 1 < list.length; if (v && typeof v.mark === "function") v.mark(on ? { out: ref.out, k: ref.k } : null, on ? list[j].px : 0, on ? list[j + 1].px : 0); }
+  // touched: a tap, a step or a typed number (the bike is lit anew); otherwise only a change of range sends anything
+  function segShow(j, touched) {
+    const L = light(), g = L && segsOn() ? segOf(j) : null;
+    if (!g) { segHide(); return; }
+    segSel = j; segMark(j);
+    if (!segLit) { segDark(); return; }
+    const key = `${ref.out + 1} ${L.s + g.a} ${g.count}`;
+    if (touched || key !== segShown) { segShown = key; send(`find ${key} 255 255 255`); }
+    clearTimeout(segTimer); segTimer = setTimeout(segDark, SEG_MS);
+  }
+  function segHide() { segSel = -1; segMark(-1); segDark(); }
+  // next: the points with their new LED numbers. focus: the field to stand in afterwards.
+  function segCommit(next, j, { focus = "", msg = "", later = false } = {}) {
+    const cur = pts(), changed = next.length !== cur.length || next.some((q, i) => q.px !== cur[i].px);
+    segMsg = msg; segFocus = focus;
+    // The list is rebuilt here, once, not by the store's update on the way. A typed number commits while the focus is
+    // moving on to the next field (Tab, a tap elsewhere): a rebuild at that moment would take the field it is headed
+    // for away, so that one waits until the focus has arrived and then puts it back where it is.
+    segBusy = true;
+    try { if (changed) op.light.setGeom(ref.out, ref.k, next, { key: "seg" + ref.k }); segShow(j, true); }
+    finally { if (!later) segBusy = false; }
+    if (later) setTimeout(() => { segBusy = false; if (root.isConnected) redraw(); }, 0); else redraw();
+  }
+  const typed = v => (String(v).trim() === "" ? NaN : Math.round(Number(v)));   // an emptied field changes nothing
+  function segFirst(j, value, opts) {
+    const L = light(), list = pts(), want = typed(value) - 1;
+    if (!Number.isFinite(want)) { segCommit(list, j, opts); return; }
+    const next = setPointLed(list, L.n, j, want), got = next[j].px;
+    const lo = j > 0 ? list[j - 1].px + 2 : 1, hi = list[j + 1].px;
+    segCommit(next, j, { ...opts, msg: got !== want ? `Segment ${j + 1} can start at LED ${lo}${hi > lo ? ` to ${hi}` : ""}: the segments on both sides keep at least one LED.` : "" });
+  }
+  function segCount(j, value, opts) {
+    const L = light(), list = pts(), want = typed(value);
+    if (!Number.isFinite(want)) { segCommit(list, j, opts); return; }
+    const next = setSegmentCount(list, L.n, j, want), got = segmentsOf(next, L.n)[j].count;
+    segCommit(next, j, { ...opts, msg: got !== want ? `Segment ${j + 1} can hold ${got} LEDs at ${want > got ? "most" : "least"}: every other segment keeps at least one.` : "" });
+  }
+  function segRow(g, total) {
+    const j = g.i, on = j === segSel, fId = `plSegF-${j}`, nId = `plSegN-${j}`;
+    const head = el("button", { type: "button", class: "pl-seg-h", id: `plSeg-${j}`, "aria-pressed": String(on),
+      onclick: () => { segMsg = ""; if (segSel === j) segHide(); else segShow(j, true); redraw(); } },
+      el("b", {}, `Segment ${j + 1}`), el("span", {}, `LEDs ${g.a + 1} to ${g.a + g.count}`));
+    head.tabIndex = -1;   // Tab goes from field to field down the list; a field that takes the focus points its segment out too
+    const field = (id, label, value, min, max, commit) => {
+      const inp = el("input", { type: "number", min, max, step: 1, value, id, inputMode: "numeric", "aria-label": `Segment ${j + 1}, ${label}` });
+      inp.addEventListener("focus", () => { try { inp.select(); } catch (e) { /* not selectable */ } if (segSel !== j) { segShow(j, false); marks(); } });
+      // (a field that is taken away while it holds the focus fires change as well: not a commit)
+      inp.addEventListener("change", () => { if (!rebuilding) commit(inp.value, { later: true }); });
+      // Enter goes down the list: the same field of the next segment
+      inp.addEventListener("keydown", ev => { if (ev.key !== "Enter") return; ev.preventDefault(); const nx = id.replace(/\d+$/, String(j + 1)); commit(inp.value, { focus: j + 1 < total ? nx : id }); });
+      return inp;
+    };
+    const first = field(fId, "first LED", g.a + 1, 1, light().n, (v, o) => segFirst(j, v, o));
+    const count = field(nId, "number of LEDs", g.count, 1, light().n, (v, o) => segCount(j, v, o));
+    const step = (d, id, label) => { const b = button(d < 0 ? "−" : "+", { small: true, id, title: label, onClick: () => segCount(j, segOf(j).count + d, { focus: id }) }); b.setAttribute("aria-label", `Segment ${j + 1}, ${label}`); b.tabIndex = -1; return b; };
+    const per = g.count > 0 ? g.len / g.count : 0;
+    return el("div", { class: ["pl-seg", on && "on"], "data-seg": j }, head,
+      el("label", { class: "pl-f" }, el("span", {}, "First LED"), first),
+      el("div", { class: "pl-f" }, el("span", {}, g.last ? "LEDs (to the end)" : "LEDs"), el("span", { class: "pl-step" }, step(-1, `plSegM-${j}`, "one LED fewer"), count, step(1, `plSegP-${j}`, "one LED more"))),
+      el("small", { class: "pl-seg-d" }, `Drawn ${fmtIn(g.len)} long · ${(per / 25.4).toFixed(2)} in per LED`));
+  }
+  // the selected row's look without a rebuild (a field took the focus)
+  function marks() { root.querySelectorAll(".pl-seg").forEach(r => { const on = Number(r.dataset.seg) === segSel; r.classList.toggle("on", on); const h = r.querySelector(".pl-seg-h"); if (h) h.setAttribute("aria-pressed", String(on)); }); }
+  function segBox() {
+    const L = light(), list = pts(), segs = segmentsOf(list, L.n);
+    if (segSel >= segs.length) segSel = -1;
+    const box = el("div", { class: "wr-sec", id: "plSegs" }, el("div", { class: "label" }, "LEDs in each segment"));
+    box.append(note("A segment runs from one drawn point to the next. Where the model and the bike differ, set a segment's first LED or its number of LEDs. A new count moves the later segments along the light; the last one takes what is left."));
+    box.append(toggleRow("Light it on the bike", segLit, v => { segLit = v; if (segSel >= 0) segShow(segSel, true); else segDark(); },
+      { id: "plSegLit", hint: "The segment you are on lights up white on the bike and is ringed on the model" }).el);
+    // Numbers other than the drawing's own stay with their points when the light is drawn again or a point is moved.
+    if (!followsDrawing(list, L.n)) {
+      const back = button("Spread them by the drawing again", { small: true, id: "plSegReset" });
+      armed(back, "Tap again: the numbers set here go", () => { const s2 = spreadPx(list, L.n); if (s2) { segMsg = ""; segHide(); setPts(s2); redraw(); } });
+      box.append(el("p", { class: "note", id: "plSegState" }, "Some LED numbers are not the ones the drawn lengths give. They stay with their points when a point is moved."),
+        el("div", { class: "pl-bar-row" }, back));
+    }
+    if (list[0].px > 0) box.append(note(`LEDs 1 to ${list[0].px} come before the first point. They are drawn on it.`, "warn"));
+    if (list[list.length - 1].px < L.n - 1) box.append(note(`LEDs ${list[list.length - 1].px + 2} to ${L.n} come after the last point. They are drawn on it.`, "warn"));
+    if (segMsg) box.append(el("p", { class: "note warn", id: "plSegMsg" }, segMsg));
+    let rows = box;
+    if (segs.length > SEG_FOLD) {
+      rows = el("details", { class: "pl-all", id: "plSegAll" }, el("summary", {}, `${segs.length} segments. Show them`));
+      rows.open = segOpen || segSel >= 0;
+      rows.addEventListener("toggle", () => { segOpen = rows.open; });
+      box.append(rows);
+    }
+    for (const g of segs) rows.append(segRow(g, segs.length));
     return box;
   }
 
@@ -328,7 +434,8 @@ export function renderPlacement(body, ref) {
   function redraw() {
     const sc = root.closest(".sheet-body"), top = sc ? sc.scrollTop : 0;
     const act = document.activeElement, id = act && root.contains(act) ? act.id : "";
-    clear(root);
+    rebuilding = true;
+    try { clear(root); } finally { rebuilding = false; }
     if (!S.settings || !light()) return;
     const L = light();
     // A strip's shape box sits above the placing buttons once a shape is drawn, below them as an offer until then.
@@ -336,22 +443,24 @@ export function renderPlacement(body, ref) {
     root.append(pointsBox());
     if (drawn) root.append(barBox());
     root.append(actionsBox());
+    if (segsOn()) root.append(segBox()); else if (segSel >= 0 || segShown) segHide();
     if (strip1 && !drawn) root.append(barBox());
     root.append(denBox());
     if (L.kind === "matrix") root.append(matrixBox());
     if (sc) sc.scrollTop = top;
-    const again = id ? document.getElementById(id) : null;
-    if (again && root.contains(again) && !again.disabled) again.focus({ preventScroll: true });
+    const want = segFocus || id; segFocus = "";
+    const again = want ? document.getElementById(want) : null;
+    if (again && root.contains(again) && !again.disabled) again.focus({ preventScroll: want === id });
   }
   draw();
   return {
     update() {
-      if (!S.settings) return;
+      if (!S.settings || segBusy) return;
       const a = document.activeElement;
       if (a && root.contains(a) && a.tagName === "INPUT") return;   // keep the field being typed in
       if (placing) return;
       draw();
     },
-    destroy() { run++; if (placing) { const v = bikeView(); if (v && typeof v.cancelPlace === "function") v.cancelPlace(); } root.remove(); },
+    destroy() { run++; if (placing) { const v = bikeView(); if (v && typeof v.cancelPlace === "function") v.cancelPlace(); } segHide(); root.remove(); },
   };
 }
