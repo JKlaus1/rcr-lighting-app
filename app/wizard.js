@@ -305,7 +305,9 @@ function countMatrix(w, body) {
     w.shapeOpen = true; let heard = false;
     wait.hidden = false; wait.textContent = "Opening the shape builder…";
     const returned = () => { heard = true; w.shapeOpen = false; if (W === w) { ensureSheet(w); render(w); } };
-    seams.matrix.openShape(null, { design: w.design || undefined,
+    // two path points for each strip, out of the 96 the output's lights share
+    const st0 = stripOf(w.out), free = LIMITS.pts - (((st0 && st0.geom && st0.geom.pt) || []).length);
+    seams.matrix.openShape(null, { design: w.design || undefined, maxStrips: Math.floor(free / 2),
       onDone: design => { if (design) { w.design = design; w.n = mx.designLeds(design); w.den = design.den || 0; w.mid = null; } returned(); },
       onCancel: returned });
     setTimeout(() => { if (!heard && w.sh && w.sh.el.isConnected) wait.textContent = "If nothing opened, the shape builder is not available in this version."; }, 2000);

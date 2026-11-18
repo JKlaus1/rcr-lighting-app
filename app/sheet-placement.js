@@ -52,6 +52,15 @@ export function renderPlacement(body, ref) {
   const pts = () => geomOf(strip(), ref.k);
   const setPts = list => op.light.setGeom(ref.out, ref.k, list);
   const mx = () => seams.matrix;
+  // Path points this light may hold with no regard to its LED count: the output's 96 less what its other lights use.
+  const ptsFree = () => LIMITS.pts - ((((strip().geom && strip().geom.pt) || []).length) - pts().length);
+  // A matrix's shape onto the bike: two path points for each strip. -> "" or why they do not fit.
+  function setMatrix(design, frame) {
+    const list = mx().designPoints(design, frame), room = ptsFree();
+    if (list.length > room) return `This shape has ${design.strips.length} strips and needs ${list.length} path points; the output has ${room} left (its lights share ${LIMITS.pts}). It is saved but not on the bike.`;
+    setPts(list);
+    return "";
+  }
 
   // ---- the points ----
   function numField(label, valMm, id, onCommit, full) {
@@ -120,9 +129,8 @@ export function renderPlacement(body, ref) {
     if (mine !== run) return;   // cancelled, or the tab was left
     placing = false;
     if (tool === "matrix" && res && res.frame) {
-      setPts(mx().designPoints(design, res.frame));
       mx().saveShape(L.id, { design, frame: res.frame });
-      mf = null; status = "";
+      mf = null; status = setMatrix(design, res.frame);
     } else if (Array.isArray(res) && res.length) {
       setPts(res.map(p => ({ px: p.px, x: p.x, y: p.y, z: p.z })).filter(p => [p.px, p.x, p.y, p.z].every(Number.isFinite)));
       status = "";
@@ -382,8 +390,9 @@ export function renderPlacement(body, ref) {
     if (!mf) mf = saved.frame ? fieldsFromFrame(saved.frame, size) : { x: 0, y: 0, z: 600, facing: "front", lean: 0 };
     const apply = () => {
       const frame = frameFromFields(mf, size);
-      setPts(mx().designPoints(design, frame));
       mx().saveShape(L.id, { design, frame });
+      const why = setMatrix(design, frame);
+      if (why) toast(why, "warn");
     };
     const field = (label, key, id) => {
       const inp = el("input", { type: "number", step: 0.1, value: toIn(mf[key]), id, inputMode: "decimal", "aria-label": label });
@@ -405,7 +414,7 @@ export function renderPlacement(body, ref) {
     const done = () => { heard = true; shapeWait = false; };
     // The shape builder takes the sheet's place, which closes this tab: afterwards the light's sheet comes back on Placement.
     const draw = () => { if (root.isConnected) redraw(); else if (S.settings && light()) openLight({ out: ref.out, k: ref.k }, "placement"); };
-    mx().openShape({ out: ref.out, k: ref.k }, { design: design || undefined,
+    mx().openShape({ out: ref.out, k: ref.k }, { design: design || undefined, maxStrips: Math.floor(ptsFree() / 2),
       onDone: d => {
         done();
         if (!d || !S.settings || !light()) { draw(); return; }
@@ -420,7 +429,7 @@ export function renderPlacement(body, ref) {
         });
         mx().saveShape(L.id, { design: d, frame: frame || null });
         mf = null;
-        if (frame) setPts(mx().designPoints(d, frame));
+        if (frame) { const why = setMatrix(d, frame); if (why) toast(why, "warn"); }
         draw();
       },
       onCancel: () => { done(); draw(); } });

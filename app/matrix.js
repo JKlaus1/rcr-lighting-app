@@ -10,7 +10,11 @@ import { ORDERS } from "./fxdata.js";
 import { saveFile } from "./system-backup.js";
 
 // ---- pure helpers on a design ----------------------------------------------------------------------------------------
-export const MAX_STRIPS = 24, MAX_LEDS = 800;
+// A strip takes two of its output's 96 path points (its two ends), so 48 strips is the most one output can hold; fewer
+// when other lights on the output use points too (the caller passes that as maxStrips). It was 24 while an output had 48 points.
+export const MAX_STRIPS = 48, MAX_LEDS = 800;
+const capOf = M => Math.max(1, Math.min(MAX_STRIPS, M.maxStrips || MAX_STRIPS));
+const capWhy = M => (capOf(M) < MAX_STRIPS ? `This output has room for ${capOf(M)} strips: its lights share 96 path points, two for each strip.` : `At most ${MAX_STRIPS} strips on one output (96 path points, two for each strip).`);
 const r2 = v => Math.round(v * 100) / 100;
 export const designLeds = d => ((d && d.strips) || []).reduce((a, s) => a + (s.n | 0), 0);
 // The box the strips fill: half an LED pitch past each end, half the strip width to each side.
@@ -100,7 +104,7 @@ export function orderOf(M) {
 export function layStrip(M, face, x, y, dx, dy, n) {
   if (!(n >= 2)) return { err: "A strip needs at least 2 LEDs." };
   if (x < 0 || y < 0) return { err: "That start is outside the grid." };
-  if (M.strips.length >= MAX_STRIPS) return { err: `At most ${MAX_STRIPS} strips on one output. This matrix has ${M.strips.length}.` };
+  if (M.strips.length >= capOf(M)) return { err: `${capWhy(M)} This matrix has ${M.strips.length}.` };
   if (totalOf(M) + n > MAX_LEDS) return { err: `At most ${MAX_LEDS} LEDs on one output: ${totalOf(M)} so far, this strip adds ${n}.` };
   const t = { id: M.nextId, x, y, dx, dy, n, side: face, order: "" };
   const e = endOf(t);
@@ -111,6 +115,43 @@ export function layStrip(M, face, x, y, dx, dy, n) {
   if (M.feed == null) M.feed = t.id;
   return { t };
 }
+// A whole panel in one go: cols x rows LEDs with its top left LED at grid cell (col0, row0), as strips that run up and down
+// (run "v": one per column) or across (run "h": one per row), laid in wiring order from the corner the first LED is in
+// ("tl", "tr", "bl", "br") and wired one after the other. zig: every other strip runs the other way (the usual panel);
+// otherwise all run the same way. Appended to a model whose strips are all wired; the feed of an empty model.
+// Nothing is laid unless all of it fits. -> { n: strips laid, note } or { err }
+export function fillGrid(M, face, col0, row0, cols, rows, { run = "v", corner = "tl", zig = true } = {}) {
+  cols = Math.round(cols) || 0; rows = Math.round(rows) || 0; col0 = Math.round(col0) || 0; row0 = Math.round(row0) || 0;
+  const count = run === "v" ? cols : rows, len = run === "v" ? rows : cols;
+  if (cols < 1 || rows < 1) return { err: "A panel needs at least one LED each way." };
+  if (len < 2) return { err: `Strips that run ${run === "v" ? "up and down" : "across"} would be one LED long here. Let them run the other way.` };
+  if (M.strips.length + count > capOf(M)) return { err: `${capWhy(M)} This panel is ${count} strips` + (M.strips.length ? `, and the matrix has ${M.strips.length} already.` : ".") };
+  if (totalOf(M) + cols * rows > MAX_LEDS) return { err: `At most ${MAX_LEDS} LEDs on one output: ${totalOf(M)} so far, this panel adds ${cols * rows}.` };
+  const T = JSON.parse(JSON.stringify(M)), top = corner[0] === "t", left = corner[1] === "l";
+  let note = "";
+  const pitch = pitchOf(T);
+  if (T.width > pitch + 0.3) {   // side by side at one LED pitch: the strips must not be wider than that
+    const w = Math.floor(pitch);
+    if (w < 3 || T.strips.length) return { err: `Strips ${inchless(pitch)} mm apart cannot be ${T.width} mm wide. Lower the strip width under Grid first.` };
+    T.width = w; note = ` Strip width set to ${w} mm to fit the spacing.`;
+  }
+  const before = orderOf(T), chained = before.length === T.strips.length && before.length > 0;
+  let prev = chained ? before[before.length - 1].t.id : null;
+  for (let i = 0; i < count; i++) {
+    const fwd = zig ? i % 2 === 0 : true;   // forward = away from the corner the first LED is in
+    let x, y, dx = 0, dy = 0;
+    if (run === "v") { x = col0 + (left ? i : cols - 1 - i); const down = top ? fwd : !fwd; y = down ? row0 : row0 + rows - 1; dy = down ? 1 : -1; }
+    else { y = row0 + (top ? i : rows - 1 - i); const right = left ? fwd : !fwd; x = right ? col0 : col0 + cols - 1; dx = right ? 1 : -1; }
+    const r = layStrip(T, face, x * 4, y * 4, dx, dy, len);
+    if (r.err) return { err: r.err };
+    if (prev != null) T.wires.push({ a: prev, b: r.t.id });
+    prev = r.t.id;
+  }
+  for (const k of Object.keys(M)) delete M[k];
+  Object.assign(M, T);
+  return { n: count, note };
+}
+const inchless = v => (Math.round(v * 10) / 10).toString();
 // Wire the data from the end of strip a to the start of strip b. -> the reason it is refused, or ""
 export function wireStrips(M, a, b) {
   if (b === M.feed) return "The feed strip comes first, so nothing wires into it. Move the feed with Set feed.";
@@ -133,6 +174,7 @@ export function checkModel(M) {
   const loose = M.strips.length - orderOf(M).length;
   if (loose) return `${loose} ${loose === 1 ? "strip is" : "strips are"} not wired in yet. Use Wire: pick the strip the data leaves, then the strip it goes to.`;
   if (totalOf(M) > MAX_LEDS) return `Over the ${MAX_LEDS}-LED limit for one output.`;
+  if (M.strips.length > capOf(M)) return `${capWhy(M)} This matrix has ${M.strips.length}.`;
   return "";
 }
 // The model -> a design (wired strips only, in wiring order).
@@ -179,10 +221,13 @@ const DENS = [30, 60, 96, 144];
 const dirText = t => (t.dx > 0 ? "across, left to right" : t.dx < 0 ? "across, right to left" : t.dy > 0 ? "down" : "up");
 const inch = mm => toIn(mm).toFixed(1) + " in";
 
-// openShape(ref, { design, onDone, onCancel, outputOrder }): the builder opens in the sheet area (wide on a PC).
-// ref ({ out, k }) is only used to read the output's color order; a new light passes null.
-export function openShape(ref, { design, onDone, onCancel, outputOrder } = {}) {
+// openShape(ref, { design, onDone, onCancel, outputOrder, maxStrips }): the builder opens in the sheet area (wide on a PC).
+// ref ({ out, k }) is only used to read the output's color order; a new light passes null. maxStrips: how many strips
+// the output has path points for (two each), when that is fewer than MAX_STRIPS.
+export function openShape(ref, { design, onDone, onCancel, outputOrder, maxStrips } = {}) {
   const M = design && validDesign(design) ? fromDesign(design) : newModel(60);
+  const cap = Number.isFinite(maxStrips) ? Math.max(1, Math.floor(maxStrips)) : 0;   // an output with no points left still shows one strip, and says why
+  if (cap) M.maxStrips = cap;
   const U = { tool: "lay", pend: null, view: "f", msg: "", bad: false, sel: null, cell: 0 };
   let finished = false;
   const outOrder = () => outputOrder || (ref && S.settings && S.settings.strips[ref.out] && S.settings.strips[ref.out].order) || "GRB";
@@ -268,6 +313,27 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder } = {}) {
     fCol.el, fRow.el, el("div", { class: "field" }, el("span", { class: "lbl" }, el("b", {}, "Direction")), fDir.el), fLen.el,
     el("div", { class: "field" }, layBtn, el("div", { class: "hint" }, "Column and row count LEDs from the top left of the grid. New strips go on the face shown.")));
 
+  // -- a whole panel at once --
+  const gCols = numRow("LEDs across", 32, { min: 1, max: 64, step: 1, id: "mx-fill-cols" }), gRows = numRow("LEDs up and down", 8, { min: 1, max: 64, step: 1, id: "mx-fill-rows" });
+  const G = { run: "v", corner: "bl", zig: true };   // the usual ready-made panel: fed at a bottom corner, snaking column by column
+  const gRun = chips([["v", "Up and down"], ["h", "Across"]], G.run, v => { G.run = v; }, { id: "mx-fill-run" });
+  const gCorner = chips([["tl", "Top left"], ["tr", "Top right"], ["bl", "Bottom left"], ["br", "Bottom right"]], G.corner, v => { G.corner = v; }, { id: "mx-fill-corner" });
+  const gZig = chips([["zig", "Back and forth"], ["same", "All the same way"]], "zig", v => { G.zig = v === "zig"; }, { id: "mx-fill-zig" });
+  const fillBtn = button("Fill the panel", { kind: "primary", id: "mx-fill-go", onClick: () => {
+    const face = U.view === "b" ? "b" : "f", was = M.strips.length;
+    const r = fillGrid(M, face, Math.round(Number(fCol.input.value) || 0), Math.round(Number(fRow.input.value) || 0), Number(gCols.input.value), Number(gRows.input.value), G);
+    U.msg = ""; U.pend = null;
+    if (r.err) say(r.err); else { say(`${r.n} strips laid and wired` + (was ? ` after the ${was} that were there` : "") + `: ${totalOf(M)} LEDs in all.${r.note}`, false); widthS.set(M.width); }
+    paint();
+  } });
+  const fillCard = el("div", { class: "panel mx-lay", id: "mx-fill-card" }, el("div", { class: "ptitle" }, "Fill a whole panel"),
+    el("div", { class: "pad" }, note("For a ready-made panel, or any block of strips side by side: every strip is laid and wired in one go. Set LEDs per meter under Grid to the panel's spacing first (10 mm between LEDs is 100 per meter). The strips run the way the data goes: on an 8 by 32 panel wired the short way that is 32 strips of 8.")),
+    gCols.el, gRows.el,
+    el("div", { class: "field" }, el("span", { class: "lbl" }, el("b", {}, "The strips run")), gRun.el),
+    el("div", { class: "field" }, el("span", { class: "lbl" }, el("b", {}, "The first LED is at the")), gCorner.el),
+    el("div", { class: "field" }, el("span", { class: "lbl" }, el("b", {}, "From strip to strip")), gZig.el),
+    el("div", { class: "field" }, fillBtn, el("div", { class: "hint" }, "The panel's top left LED goes on the start column and row typed above. Corners are as you see the grid: the front face from the front.")));
+
   // -- color order of the picked strip --
   const ordCard = el("div", { class: "panel", id: "mx-ord-card", hidden: true });
   function paintOrder() {
@@ -296,6 +362,7 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder } = {}) {
         const d = j && (j.design || j);
         if (!validDesign(d)) { say("That file is not a matrix shape."); paint(); return; }
         const m2 = fromDesign(d); for (const k of Object.keys(M)) delete M[k]; Object.assign(M, m2);
+        if (cap) M.maxStrips = cap;
         densChips.set(M.den); densNum.set(M.den); widthS.set(M.width); thickN.set(M.thick); snapSeg.set(M.snap);
         U.pend = null; say("Shape loaded.", false); paint();
       };
@@ -326,7 +393,7 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder } = {}) {
   const sideCol = el("div", { class: "mx-side" },
     panel("LED order", list),
     status, msg, stats,
-    layCard, ordCard, gridCard,
+    layCard, fillCard, ordCard, gridCard,
     panel("Grid size", colsN.el, rowsN.el),
     el("div", { class: "btns two" }, saveBtn, loadLabel),
     el("div", { class: "btns two" }, clearW, clearA),
@@ -397,7 +464,7 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder } = {}) {
     hintT.textContent = cur[1] + ". ";
     hintX.textContent = U.tool === "lay" && U.pend ? "Start point set (orange ring). Now click toward the end: left, right, up or down. Click the start again to cancel."
       : U.tool === "wire" && U.pend ? "The wire starts at the far end of the picked strip. Now pick the strip it goes to. Pick the same strip again to cancel." : cur[2];
-    layCard.hidden = U.tool !== "lay";
+    layCard.hidden = fillCard.hidden = U.tool !== "lay";
     drawGrid(); paintList(); paintOrder();
     const why = checkModel(M), total = totalOf(M), wired = orderOf(M).reduce((a, o) => a + o.t.n, 0);
     status.textContent = !M.strips.length ? "Empty grid. Lay a strip: click where it starts and where it ends, or type it below." : why || `All wired. The LEDs count 0 to ${total - 1} in the order listed.`;
@@ -406,7 +473,7 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder } = {}) {
     const nf = M.strips.filter(t => t.side === "f").length;
     const sz = designSize(toDesignLoose(M));
     clear(stats);
-    [["Strips", `${M.strips.length} (${nf} front, ${M.strips.length - nf} back)`], [`LEDs (limit ${MAX_LEDS})`, `${total}` + (wired !== total ? `, ${wired} wired` : "")],
+    [[`Strips (limit ${capOf(M)})`, `${M.strips.length} (${nf} front, ${M.strips.length - nf} back)`], [`LEDs (limit ${MAX_LEDS})`, `${total}` + (wired !== total ? `, ${wired} wired` : "")],
       ["Lit area", M.strips.length ? `${inch(sz.width)} × ${inch(sz.height)}` : "0.0 in × 0.0 in"]].forEach(([k, v]) => stats.append(el("div", {}, el("span", { class: "note" }, k), el("b", {}, v))));
     sh.setSub(`${M.strips.length} ${M.strips.length === 1 ? "strip" : "strips"} · ${total} LEDs`);
     doneBtn.disabled = !!why;
