@@ -44,6 +44,11 @@
 .show-one { display: flex; align-items: center; gap: 8px; min-height: 40px; font-size: 14px; }
 .show-one input { width: 20px; height: 20px; accent-color: var(--ink); }
 .fx-show, .fx-pal { display: flex; flex-direction: column; gap: 10px; }
+/* Scrolling text (0.6.1): the field takes the width of the editor, its lines sit close under it */
+.fx-text { display: flex; flex-direction: column; gap: 6px; }
+.fx-text .field { gap: 4px; padding-top: 0; padding-bottom: 0; }
+.fx-text input.text { width: 100%; max-width: none; box-sizing: border-box; }
+.fx-text .note { margin: 0; }
 
 /* ---- the Look tab ---------------------------------------------------------------------------------- */
 .look-rest { display: flex; flex-direction: column; gap: 8px; }

@@ -168,6 +168,14 @@ export function refresh() { send("get"); send("preset list"); }
 // looks: 8 entries, each null or a look's JSON (text or object, as `preset get N` returns it).
 export function restore(settingsObject, looks) {
   if (!fwAtLeast(0, 6, 0)) settingsObject = L.withoutV060(settingsObject);   // areas, cells and Arrows are for 0.6.0 and newer
+  if (!fwAtLeast(0, 6, 1)) {   // text on a panel is for 0.6.1 and newer: no text, the Scrolling text effect becomes Solid (also in the saved looks)
+    settingsObject = L.withoutV061(settingsObject);
+    if (Array.isArray(looks)) looks = looks.map(lk => {
+      if (!lk) return lk;
+      const clean = L.withoutV061(typeof lk === "string" ? JSON.parse(lk) : lk);
+      return typeof lk === "string" ? JSON.stringify(clean) : clean;
+    });
+  }
   if (Array.isArray(looks)) {
     const scratch = createController();
     looks.forEach((lk, n) => {
@@ -249,6 +257,11 @@ export const op = {
       return true;
     },
     setOrder(i, k, order) { op.strip(i, st => L.withOrder(st, k, order)); },
+  },
+  // The text of an output's panel lights (0.6.1). Typing is coalesced: the mirror shows it at once, the line goes after `ms` of quiet.
+  text: {
+    set(i, text, { ms = 350 } = {}) { if (!fwAtLeast(0, 6, 1)) return false; patch(wrapStrip(i, { text }), { key: "text:" + i, ms }); return true; },
+    scroll(i, on) { if (!fwAtLeast(0, 6, 1)) return false; patch(wrapStrip(i, { text_scroll: !!on })); return true; },
   },
   accent(fields, opts) { patch({ accent: fields }, opts); },
   drl(fields) { patch({ drl: fields }); },

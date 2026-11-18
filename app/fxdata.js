@@ -37,6 +37,12 @@ export const EFFECTS = [
   E("show", "Auto show", "Light strings", { p: 1 }),
 ];
 export const EFFECT_BY = Object.fromEntries(EFFECTS.map(e => [e.key, e]));
+// Scrolling text (firmware 0.6.1): the effect of a light that has cells. It is not in EFFECTS: only a controller on 0.6.1 or newer
+// knows its name, and only a light with cells is offered it (fx.js adds it to the Patterns group then). Its look uses the color and,
+// when colors are picked, one color per letter in turn (the palette); the text itself belongs to the output (strips[i].text).
+export const TEXT_EFFECT = E("text", "Scrolling text", "Patterns", { c: 1, p: 1, d: 1 });
+EFFECT_BY.text = TEXT_EFFECT;
+export const TEXT_MAX = 63;
 export const EFFECT_GROUPS = ["Effects", "Patterns", "Light strings"];
 export const effectName = key => (EFFECT_BY[key] || { name: key || "" }).name;
 // bit n of a look's `show` = this effect takes part in Auto show (0 = all of them)

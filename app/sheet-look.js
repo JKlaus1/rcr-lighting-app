@@ -2,7 +2,7 @@
 // Everything is live through op.light.patch; slider drags and color drags are coalesced by key.
 import { S, on, op, mirror, fwAtLeast } from "./store.js";
 import { el, clear, seg, slider, toggleRow, selectRow, panel, note, button, ledStrip } from "./ui.js";
-import { lightsOf, sectionsOf, areasOf } from "./lights.js";
+import { lightsOf, sectionsOf, areasOf, cellGrid, textSharers } from "./lights.js";
 import { RESTS, turnStyles, TURN_ROLES } from "./fxdata.js";
 import { fxEditor } from "./fx.js";
 import { openBikeEffect } from "./sheet.js";
@@ -43,6 +43,13 @@ export function renderLook(body, ref) {
         preview: false,
         get: () => (lightOf(ref) || L).look,
         set: (fields, o) => patch({ look: fields }, o && o.key ? { key: key(o.key), ms: o.ms } : undefined),
+        // Scrolling text: a light that has cells, on a controller that knows it (0.6.1). The text belongs to the output.
+        text: {
+          avail: () => fwAtLeast(0, 6, 1) && cellGrid(S.settings.strips[ref.out], ref.k).count > 0,
+          get: () => { const st = S.settings.strips[ref.out]; return { text: st.text || "", scroll: !!st.text_scroll, cols: cellGrid(st, ref.k).cols, shared: textSharers(S.settings, ref.out, ref.k).map(x => x.name) }; },
+          setText: v => op.text.set(ref.out, v),
+          setScroll: v => op.text.scroll(ref.out, v),
+        },
       });
       dyn.append(box);
     } else if (L.rest === "bike") {

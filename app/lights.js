@@ -5,7 +5,7 @@
 // turn_style, look, look2?, ord?, seg, lights?, geom?: { pt, panel? } }. A light is a run of the output's pixels.
 // A segment belongs to the light that holds its first pixel; path points and color-order zones belong to the light
 // whose range holds them. Operations that move or resize lights take those along (the "blocks" below).
-import { CHIP_BY, KIND_BY, KINDS, LOOK_EXTRA_DEFAULTS, TAIL_ROLES } from "./fxdata.js";
+import { CHIP_BY, KIND_BY, KINDS, LOOK_EXTRA_DEFAULTS, TAIL_ROLES, TEXT_MAX } from "./fxdata.js";
 
 export const LIMITS = { lights: 8, px: 800, segs: 16, pts: 96, name: 16 };
 export const SET_LIMIT = 479;   // longest `set <json>` line, so the line and its newline fit one BLE write
@@ -295,6 +295,30 @@ export function cellGrid(strip, k) {
   return { n: b.n, cells, cols: Math.max(...cells.filter(Boolean).map(q => q[0])) + 1, rows: Math.max(...cells.filter(Boolean).map(q => q[1])) + 1,
     has: (c, r) => set.has(c + "," + r), count: set.size };
 }
+// ---- text on a panel (0.6.1) ----------------------------------------------------------------------------
+// One text per output (strips[i].text, up to 63 printable ASCII characters, strips[i].text_scroll), drawn by the Scrolling text effect on
+// every light of the output that has cells. A character outside 32..126 becomes "?" (one per character, an emoji counts as one).
+export function cleanText(t) {
+  const chars = Array.from(String(t == null ? "" : t));
+  let replaced = false;
+  const out = chars.slice(0, TEXT_MAX).map(ch => { const c = ch.codePointAt(0); if (c >= 32 && c <= 126) return ch; replaced = true; return "?"; });
+  return { text: out.join(""), replaced, cut: chars.length > TEXT_MAX };
+}
+// What the text needs: 6 columns a character, the blank column after the last one is not drawn, so n characters show 6n - 1 columns.
+// It stands still, centered, when it fits and "Always scroll" is off (the firmware's rule: W - 1 <= columns).
+export function textFit(text, scroll, cols) {
+  const len = Array.from(String(text || "")).length, width = len ? len * 6 - 1 : 0;
+  const fits = cols > 0 && width <= cols;
+  return { len, width, fits, cols, scrolls: len > 0 && (!fits || !!scroll) };
+}
+// The effect a light shows at rest: its own look, or the bike effect it follows; "" when it shows neither.
+const effectOfLight = (settings, L) => (L.rest === "own" ? L.look.mode : L.rest === "bike" ? (settings.accent && settings.accent.mode) || "" : "");
+// The other lights of output `out` that have cells and show the Scrolling text effect: they draw the output's one text too.
+export function textSharers(settings, out, k) {
+  const st = settings && settings.strips && settings.strips[out];
+  if (!st) return [];
+  return lightsOf(st).filter(l => l.k !== k && effectOfLight(settings, l) === "text" && cellGrid(st, l.k).count > 0).map(l => ({ k: l.k, name: l.name || "Unnamed light" }));
+}
 // Does any section or area of the strip do this job (roles: segment role keys)? Areas count like sections.
 export function hasRole(strip, roles) {
   return (strip.seg || []).some(g => roles.includes(g[2])) || (strip.areas || []).some(a => roles.includes(a[5]));
@@ -439,7 +463,7 @@ export function normStrip(st) {
   if (!st) return null;
   const sc = {};
   for (const k of STRIP_SCALARS) if (k in st) sc[k] = st[k];
-  return { ...sc, px: st.px | 0, look: normLook(st.look), look2: st.look2 ? normLook({ ...LOOK2_BASE, ...st.look2 }) : null,
+  return { ...sc, text: st.text || "", text_scroll: !!st.text_scroll, px: st.px | 0, look: normLook(st.look), look2: st.look2 ? normLook({ ...LOOK2_BASE, ...st.look2 }) : null,
     seg: (st.seg || []).map(normSeg), lights: lightsOf(st).map(({ k, ...L }) => L),
     pt: ((st.geom && st.geom.pt) || []).map(q => q.slice(0, 6)), areas: (st.areas || []).map(normAreaEntry), panel: (st.geom && st.geom.panel && st.geom.panel[0] ? st.geom.panel : null),
     ord: (st.ord || []).map(z => [z[0], z[1], String(z[2]).toUpperCase()]) };
@@ -487,6 +511,8 @@ export function stripPatches(i, before, after) {
   }
   const sc = {};
   for (const k of STRIP_SCALARS) if (k in A && !jeq(A[k], eff[k])) sc[k] = A[k];
+  if (A.text !== B.text) sc.text = A.text;   // 0.6.1: the output's text and whether it always scrolls (left out when empty / false)
+  if (A.text_scroll !== B.text_scroll) sc.text_scroll = A.text_scroll;
   const ld = lookDiff(B.look, A.look); if (ld) sc.look = ld;
   if (A.look2 && !jeq(A.look2, B.look2)) sc.look2 = lookDiff(B.look2 || LOOK2_BASE, A.look2) || {};
   if (Object.keys(sc).length) {   // one line when it fits, else one per key
@@ -572,6 +598,20 @@ export function withoutV060(settings) {
     if (st.geom && st.geom.pt) st.geom.pt = st.geom.pt.map(q => q.slice(0, 4));
     for (const e of st.lights || []) if (isObj(e[4]) && e[4].ts === "arrow") e[4].ts = "global";
   }
+  return o;
+}
+// Settings saved from a 0.6.1 controller, as an older one may be sent them: no text, and the Scrolling text effect becomes Solid.
+// Also used on a saved look's JSON (any object with a `mode`).
+export function withoutV061(settings) {
+  const o = clone(settings);
+  const walk = v => {
+    if (Array.isArray(v)) { v.forEach(walk); return; }
+    if (!isObj(v)) return;
+    if (v.mode === "text") v.mode = "solid";
+    if (Array.isArray(v.strips)) for (const st of v.strips) if (isObj(st)) { delete st.text; delete st.text_scroll; }
+    for (const x of Object.values(v)) walk(x);
+  };
+  walk(o);
   return o;
 }
 export { KINDS };
