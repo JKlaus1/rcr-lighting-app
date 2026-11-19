@@ -31,8 +31,14 @@ export class LineAssembler {
 const viewBytes = dv => new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
 
 // ---- Web Bluetooth ------------------------------------------------------------------------------------
+// A write the controller turns down while the link stays up (Chrome: "GATT operation failed for unknown reason").
+// Its Bluetooth stack answers a write with "insufficient resources" when it has no buffer left for the write response
+// (NimBLE ble_att_svr_pkt), and a long reply going out (the settings, `info`) can take every buffer for a moment. A write
+// that was turned down was not taken, so sending the same line again after a pause is safe. Not for a link that is down
+// (the reconnect flow has that) or a refusal that waiting cannot cure (not paired).
+const retryable = e => !/security|notsupported|invalidstate|notallowed|type/i.test((e && e.name) || "");
 export class BleLink {
-  constructor(h) { this.h = h; this.queue = Promise.resolve(); this.enc = new TextEncoder(); }
+  constructor(h) { this.h = h; this.queue = Promise.resolve(); this.enc = new TextEncoder(); this.retried = 0; }
   // Open with Chrome's device chooser (needs the tap that called it).
   async open() {
     this.use(await navigator.bluetooth.requestDevice({ filters: [{ services: [SVC] }], optionalServices: [SVC] }));
@@ -96,16 +102,31 @@ export class BleLink {
     await live.startNotifications();
   }
   name() { return (this.dev && this.dev.name) || "RCR Lighting"; }
+  async write(data) {
+    for (let k = 0; ; k++) {
+      try { await this.cmd.writeValueWithResponse(data); return; }
+      catch (e) {
+        const up = !!(this.dev && this.dev.gatt && this.dev.gatt.connected);
+        if (k >= BleLink.retryMs.length || !up || !retryable(e)) throw e;
+        this.retried++;
+        if (this.h.onRetry) this.h.onRetry(this.retried, e);
+        await new Promise(r => setTimeout(r, BleLink.retryMs[k]));
+      }
+    }
+  }
+  // Lines go out one at a time, in order. When one fails for good, the lines already waiting behind it are not sent
+  // either (the rest of a transaction must not go out without its beginning); each of them rejects.
   send(line) {
     const data = this.enc.encode(line + "\n");
     if (data.length > MAX_WRITE) return Promise.reject(new Error("Command too long for one write"));
-    this.queue = this.queue.then(() => this.cmd.writeValueWithResponse(data));
+    this.queue = this.queue.then(() => this.write(data));
     return this.queue.catch(e => { this.queue = Promise.resolve(); throw e; });
   }
   reconnect() { return this.attach(); }
   close() { if (this.dev && this.dev.gatt.connected) this.dev.gatt.disconnect(); }
 }
 BleLink.why = "";
+BleLink.retryMs = [120, 300, 600, 1000, 1500];   // pauses before sending a turned-down write again (3.5 s in all)
 
 // ---- the demo: a controller simulated on a core instance ------------------------------------------------
 const parseVer = t => { const m = /(\d+)\.(\d+)\.(\d+)/.exec(t || ""); return m ? [+m[1], +m[2], +m[3]] : null; };
@@ -170,6 +191,7 @@ export class DemoLink {
     this.edges = Array(8).fill(0); this.bn = 0; this.blinkStart = 0; this.turning = false;
     this.tx = null;           // { snap, timer } while a transaction is open
     this.lines = [];          // every line received (tests read it)
+    this.test = { failSend: 0, dropReply: 0 };   // tests: turn the next N lines down / lose the next N replies
     this.t0 = Date.now();
   }
   async open() {
@@ -188,7 +210,10 @@ export class DemoLink {
     this.inputs ^= 1 << bit; this.edges[bit]++;
     this.h.onLive(JSON.stringify(this.status()));
   }
-  out(text) { for (const l of String(text).split("\n")) if (l) setTimeout(() => { if (!this.closed) this.h.onOut(l); }, 20); }
+  out(text) {
+    if (this.test.dropReply > 0) { this.test.dropReply--; return; }
+    for (const l of String(text).split("\n")) if (l) setTimeout(() => { if (!this.closed) this.h.onOut(l); }, 20);
+  }
 
   // ---- transactions: between begin and commit the stored settings change, a commit switches over at once ----
   txTouch() {
@@ -203,6 +228,7 @@ export class DemoLink {
   }
 
   send(line) {
+    if (this.test.failSend > 0) { this.test.failSend--; const e = new Error("GATT operation failed for unknown reason."); e.name = "NetworkError"; return Promise.reject(e); }
     this.lines.push(line);
     const t = String(line).trim(), sp = t.indexOf(" ");
     const cmd = sp < 0 ? t : t.slice(0, sp), args = sp < 0 ? "" : t.slice(sp + 1).trim();
@@ -335,9 +361,9 @@ export class DemoLink {
       if (n < 0) return "usage: preset load N   (N = 0..7)";
       if (!this.slots[n]) return `preset ${n} is empty`;
       const notes = this.ctl.presetApply(this.slots[n]);
-      if (notes.startsWith("!")) return `preset ${n} not applied: ${notes.slice(1)}`;
+      if (notes.startsWith("!")) return `preset ${n}: ${notes.slice(1)}`;   // as commands.cpp words it
       this.pre = n; this.dirty = false; this.allRam = null;
-      return `preset ${n} "${nameOf(n)}" applied` + (notes ? " (" + notes + ")" : "") + w();
+      return `preset ${n} "${nameOf(n)}" applied` + (notes ? "\nskipped: " + notes : "") + w();
     }
     if (sub === "del") { const n = slotOf(rest); if (n < 0) return "usage: preset del N   (N = 0..7)"; this.slots[n] = null; if (this.pre === n) this.pre = -1; return `preset ${n} erased`; }
     if (sub === "get") { const n = slotOf(rest); if (n < 0) return "usage: preset get N   (N = 0..7)"; return this.slots[n] || `preset ${n} is empty`; }

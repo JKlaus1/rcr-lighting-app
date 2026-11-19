@@ -47,7 +47,50 @@ function setPhase(phase, text) {
 // The firmware appends its setup warnings ("no brake light configured" ...) to every `set` reply as a final
 // "WARNING: ..." note. Those show as the banner from the live status; only real notes are worth a toast.
 export const realNotes = n => (n || "").replace(/(?:^|;\s*)WARNING: [\s\S]*$/, "").trim();
-const pendingSets = [];   // sent `set` lines waiting for their reply, oldest first: { line, text, mine, quiet }
+const pendingSets = [];   // `set` lines waiting for their reply, oldest first: { line, text, mine, quiet, seq, at (0 until the write went out) }
+// The controller answers in the order it was asked. When the reply to a `get` is here, every `set` sent before that `get`
+// has either been answered or never will be (its reply was lost, or the line did not arrive): those leave the list, and
+// only the ones sent after the `get` go back on top of what it returned. Without this a change whose reply went missing
+// stayed in the list for good and was laid over every later reading of the bike: after loading another look the app
+// kept showing the old value (seen on the bike 2026-11-18, together with writes the controller turned down).
+let seq = 0;
+const gets = [];          // `get` lines waiting for their reply, oldest first: { seq, at }
+export const timing = { staleMs: 4000, getMs: 6000, resyncMs: 5000 };
+export const waitingReplies = () => pendingSets.length;
+let staleTimer = null, staleTries = 0, lastResync = 0, resyncTimer = null, lastUnsent = { text: "", at: 0 };
+let lookAsk = null;       // the look being loaded: { n, at, then } until the controller says "applied" or why not
+function forgetSent() {
+  pendingSets.length = 0; gets.length = 0; lookAsk = null; staleTries = 0;
+  clearTimeout(staleTimer); staleTimer = null; clearTimeout(resyncTimer); resyncTimer = null;
+}
+// Read the bike again soon (a line was not sent, or a change got no answer). Not more often than every resyncMs.
+function resync() {
+  if (!link || S.phase !== "ready" || resyncTimer) return;
+  const wait = Math.max(400, lastResync + timing.resyncMs - Date.now());
+  resyncTimer = setTimeout(() => { resyncTimer = null; if (link && S.phase === "ready") { lastResync = Date.now(); refresh(); } }, wait);
+}
+// A change that went out and has had no answer for staleMs: read the bike again; that reply clears it (gotSettings).
+// The clock runs from the oldest change that is still waiting.
+function watchPending() {
+  clearTimeout(staleTimer); staleTimer = null;
+  const first = pendingSets.find(p => p.at);
+  if (!first) return;
+  staleTimer = setTimeout(() => {
+    staleTimer = null;
+    if (!pendingSets.includes(first)) { watchPending(); return; }
+    if (!link || S.phase !== "ready") return;   // a link that drops clears the list (forgetSent)
+    const now = Date.now();
+    if (++staleTries > 3) {
+      note("The controller is not answering changes. Tap Disconnect, then Connect.", "bad");
+      pendingSets.length = 0; staleTries = 0;
+      return;
+    }
+    emit("out", `# no answer to "${first.line.slice(0, 60)}" after ${Math.round((now - first.at) / 100) / 10} s: reading the bike again`, "in");
+    for (const p of pendingSets) if (p.at) p.at = now;   // one more staleMs for the reading to come back
+    lastResync = now; refresh();
+    watchPending();
+  }, Math.max(20, first.at + timing.staleMs - Date.now()));
+}
 const handlers = {
   onOut(line) {
     emit("out", line, "in");
@@ -62,16 +105,39 @@ const handlers = {
       }
     }
     if (/^RCR Lighting/.test(line)) setFw(line);
+    if (/^(?:preset \d|skipped: )/.test(line)) gotLookLine(line);
     if (/^tx aborted/.test(line) && !txAborting) { refresh(); note("The controller dropped a change that took too long; the app read the bike again", "warn"); }
     txAborting = false;
   },
   onLive(line) { let j; try { j = JSON.parse(line); } catch (e) { return; } gotStatus(j); },
   onDrop() { dropped(); },
+  // BleLink: the controller turned a write down and the line is going out again (System › Diagnostics › Console shows it)
+  onRetry(n, e) { emit("out", `# the controller turned a write down (${e.message}); sending it again (${n} so far)`, "in"); },
 };
+// What the controller says to `preset N` (commands.cpp): `preset N "name" applied`, then `skipped: ...` when parts of
+// the look did not fit; or `preset N is empty`; or `preset N: reason`. `preset get N` also answers "is empty" (the
+// backup asks every slot), so these only count while a look is being loaded.
+function gotLookLine(line) {
+  let m;
+  if ((m = /^preset (\d): save failed/.exec(line))) { note(`Look ${+m[1] + 1} could not be saved: the controller's storage refused it`, "bad"); return; }
+  if ((m = /^skipped: (.+)$/.exec(line))) { note("Parts of the look were not applied: " + m[1], "warn"); return; }
+  const ask = lookAsk;
+  if (!ask || !(m = /^preset (\d)(?: "(.*)" applied| is empty|: (.+))$/.exec(line)) || +m[1] !== ask.n) return;
+  lookAsk = null;
+  if (/ applied$/.test(line)) { if (ask.then) ask.then(); return; }
+  note(`Look ${ask.n + 1} was not loaded: ${m[3] || "its slot is empty on the controller"}`, "bad");
+  send("preset list");
+}
 function gotSettings(text) {
+  const now = Date.now();
+  while (gets.length > 1 && now - gets[0].at > timing.getMs) gets.shift();   // a `get` whose reply never came
+  const g = gets.shift();
   const keep = mirror.getText();
   const n = mirror.load(text);
   if (n.startsWith("!")) { mirror.load(keep); note("The controller's settings could not be read: " + n.slice(1), "bad"); return; }
+  // a `set` sent before this `get` and still unanswered will never be answered: what the controller has is in `text`
+  if (g) for (let i = pendingSets.length - 1; i >= 0; i--) if (pendingSets[i].seq < g.seq) pendingSets.splice(i, 1);
+  staleTries = 0; watchPending();
   // lines sent after that `get` are already in the mirror's future: put them back on top
   for (const p of pendingSets) mirror.patch(p.text);
   for (const w of Object.values(waiting)) for (const t of w.texts) mirror.patch(t);
@@ -85,6 +151,7 @@ function gotLooks(j) {
 }
 function gotReply(j) {
   const p = pendingSets.shift();
+  staleTries = 0; watchPending();
   const theirs = j.ok ? realNotes(j.notes) : (j.notes || "error");
   if (!p) { if (!j.ok || theirs) note((j.ok ? "" : "Not applied: ") + theirs, j.ok ? "warn" : "bad"); return; }
   const mine = p.mine == null ? null : realNotes(p.mine);
@@ -109,10 +176,21 @@ function setFw(line) {
 }
 
 // ---- sending ----------------------------------------------------------------------------------------
+// Resolves true when the line went out, false when it did not (said once, and the bike is read again).
 export function send(line) {
-  if (!link) return Promise.resolve();
+  if (!link) return Promise.resolve(true);
   emit("out", line, "me");
-  return link.send(line).catch(e => note("Not sent: " + e.message, "bad"));
+  let g = null;
+  if (line === "get") gets.push(g = { seq: ++seq, at: Date.now() });
+  return link.send(line).then(() => true, e => {
+    if (g) { const i = gets.indexOf(g); if (i >= 0) gets.splice(i, 1); }
+    const text = "Not sent: " + e.message, now = Date.now();
+    emit("out", `# not sent: ${line.slice(0, 60)} (${e.message})`, "in");
+    if (text !== lastUnsent.text || now - lastUnsent.at > 2000) note(text, "bad");   // the lines waiting behind a failed one fail with it
+    lastUnsent = { text, at: now };
+    resync();
+    return false;
+  });
 }
 const setLine = text => "set " + text;
 const tooLong = line => new TextEncoder().encode(line).length > Math.min(L.SET_LIMIT, MAX_WRITE - 1);
@@ -125,8 +203,13 @@ function sendSet(text, { quiet, mine } = {}) {
     if (mine.startsWith("!")) { note("Not applied: " + mine.slice(1), "bad", line); return false; }
   }
   if (!link) return true;
-  pendingSets.push({ line, text, mine, quiet });
-  send(line);
+  const p = { line, text, mine, quiet, seq: ++seq, at: 0 };
+  pendingSets.push(p);
+  send(line).then(sent => {
+    if (sent) { p.at = Date.now(); watchPending(); return; }
+    const i = pendingSets.indexOf(p);   // never sent: no reply will come, and the next reading of the bike undoes it here
+    if (i >= 0) pendingSets.splice(i, 1);
+  });
   return true;
 }
 // Coalesced drags: key -> { texts (applied to the mirror, newest last), timer, flush }
@@ -162,7 +245,8 @@ export function tx(patchList, { quietNotes = true } = {}) {
   if (useTx) send("tx commit");
   publishSettings();
 }
-export function refresh() { send("get"); send("preset list"); }
+// The settings are the long reply: asked for last, so no line of ours follows it onto the link while it is going out.
+export function refresh() { send("preset list"); send("get"); }
 
 // Backup › Restore: each look is rebuilt on the bike and saved into its slot, then the settings themselves.
 // looks: 8 entries, each null or a look's JSON (text or object, as `preset get N` returns it).
@@ -267,7 +351,24 @@ export const op = {
   drl(fields) { patch({ drl: fields }); },
   set(obj, opts) { patch(obj, opts); },
   looks: {
-    apply(n) { flushAll(); send(`preset ${n}`); refresh(); },
+    // then: run once the controller has said the look is applied (rename saves it under its new name only then)
+    apply(n, then) {
+      flushAll();
+      const ask = lookAsk = { n, at: Date.now(), then };
+      setTimeout(() => { if (lookAsk === ask) { lookAsk = null; if (then) note(`Look ${n + 1} was not loaded, so it was not renamed`, "bad"); } }, timing.getMs);
+      send(`preset ${n}`).then(sent => {
+        if (sent || lookAsk !== ask) return;
+        lookAsk = null;
+        if (then) note(`Look ${n + 1} was not loaded, so it was not renamed`, "bad");
+      });
+      refresh();
+    },
+    // Rename = save under a new name. A look that is not active is loaded first, and saved only once the controller
+    // has said it is loaded: saving after a load that did not happen would overwrite the look with the active one.
+    rename(n, name) {
+      if (n === S.looks.pre) { this.save(n, name); return; }
+      this.apply(n, () => this.save(n, name));
+    },
     save(n, name) { flushAll(); send(`preset save ${n}${name ? " " + String(name).replace(/[^\x20-\x7e]/g, "?").slice(0, 24) : ""}`); send("preset list"); },
     del(n) { send(`preset del ${n}`); send("preset list"); },
   },
@@ -349,7 +450,7 @@ export function stopAutoWait() {
   setPhase("idle", "Not connected");
 }
 function dropped() {
-  pendingSets.length = 0;
+  forgetSent();
   emit("drop");
   if (S.demo || userClosed) return;
   if (expectDrop) { expectDrop = false; recon.quick = 0; scheduleReconnect(0); return; }   // restart / update: not a pairing refusal
@@ -383,7 +484,7 @@ function linkUp() {
 function wantSettings() {
   clearTimeout(settingsWatch.timer);
   settingsWatch.tries = 0; settingsWatch.got = false;
-  send("info"); send("get"); send("preset list");
+  send("info"); refresh();
   const check = () => {
     if (!link || S.demo || settingsWatch.got) return;
     if (++settingsWatch.tries > 3) { note("The controller's settings did not come through. Tap Reconnect, or update the firmware.", "bad"); return; }
@@ -409,7 +510,7 @@ export async function connect(kind, opts = {}) {
   if (!auto) stopAutoWait();
   if (link) return;
   S.connErr = ""; S.demo = demo; userClosed = false; cancelReconnect();
-  S.fw = null; S.settings = null; S.status = null; S.warn = ""; pendingSets.length = 0;
+  S.fw = null; S.settings = null; S.status = null; S.warn = ""; forgetSent();
   const mine = link = demo ? new DemoLink(handlers, { fw: opts.fw }) : new BleLink(handlers);
   try {
     if (auto) {
@@ -446,7 +547,7 @@ export function disconnect() {
   if (link) link.close();
   link = null;
   for (const k of Object.keys(waiting)) { clearTimeout(waiting[k].timer); delete waiting[k]; }
-  pendingSets.length = 0;
+  forgetSent();
   Object.assign(S, { demo: false, name: "", fw: null, settings: null, status: null, warn: "", looks: { pre: -1, prem: 0, slots: Array(8).fill(null) },
     sim: { running: null, brake: null, left: null, right: null, haz: null }, connErr: "" });
   setPhase("idle", "Not connected");

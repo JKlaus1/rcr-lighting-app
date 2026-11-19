@@ -148,8 +148,7 @@ export function mountRide(panelEl) {
       const go = () => {
         const n = inp.value.replace(/[^\x20-\x7e]/g, "").trim();
         if (!n) return;
-        if (i !== S.looks.pre) op.looks.apply(i);
-        op.looks.save(i, n);
+        op.looks.rename(i, n);
       };
       inp.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
       clear(r).append(inp, button("Save", { small: true, kind: "primary", id: "manage-rename-save-" + i, onClick: go }), button("Cancel", { small: true, onClick: paint }));
