@@ -600,6 +600,37 @@ export function withoutV060(settings) {
   }
   return o;
 }
+// Settings (or a saved look's JSON: the same keys) from a 0.6.2 controller, as an older one may be sent them: no Scrolling arrows
+// (they become Arrows on 0.6.0 / 0.6.1, the bike's Flash / a light's or output's Same as the bike below that: pass `fw060`) and no
+// turn.speed. A preset holds turn_style / turn_speed at its top level and each output's / light's style under strips.
+export function withoutV062(settings, fw060 = true) {
+  const o = clone(settings);
+  const bike = fw060 ? "arrow" : "flash", own = fw060 ? "arrow" : "global";
+  if (!isObj(o)) return o;
+  if (o.turn) { if (o.turn.style === "scroll") o.turn.style = bike; delete o.turn.speed; }
+  if (o.turn_style === "scroll") o.turn_style = bike;
+  delete o.turn_speed;
+  for (const st of o.strips || []) {
+    if (!isObj(st)) continue;
+    if (st.turn_style === "scroll") st.turn_style = own;
+    for (const e of st.lights || []) if (isObj(e[4]) && e[4].ts === "scroll") e[4].ts = own;
+    for (const e of st.lt || []) if (isObj(e) && e.ts === "scroll") e.ts = own;
+  }
+  return o;
+}
+// The turn style a light shows: its own, else its output's, else the bike's.
+export function turnStyleOf(settings, out, k) {
+  const st = settings && settings.strips && settings.strips[out], L = st && lightsOf(st)[k];
+  if (L && L.ts && L.ts !== "global") return L.ts;
+  if (st && st.turn_style && st.turn_style !== "global") return st.turn_style;
+  return (settings && settings.turn && settings.turn.style) || "flash";
+}
+// Is Scrolling arrows chosen anywhere: for the bike, an output or a light?
+export function usesScroll(settings) {
+  if (!settings) return false;
+  if (settings.turn && settings.turn.style === "scroll") return true;
+  return (settings.strips || []).some(st => st && (st.turn_style === "scroll" || lightsOf(st).some(L => L.ts === "scroll")));
+}
 // Settings saved from a 0.6.1 controller, as an older one may be sent them: no text, and the Scrolling text effect becomes Solid.
 // Also used on a saved look's JSON (any object with a `mode`).
 export function withoutV061(settings) {

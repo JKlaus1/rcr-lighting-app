@@ -251,6 +251,15 @@ export function refresh() { send("preset list"); send("get"); }
 // Backup › Restore: each look is rebuilt on the bike and saved into its slot, then the settings themselves.
 // looks: 8 entries, each null or a look's JSON (text or object, as `preset get N` returns it).
 export function restore(settingsObject, looks) {
+  if (!fwAtLeast(0, 6, 2)) {   // Scrolling arrows and turn.speed are for 0.6.2 and newer (also in the saved looks)
+    const fw060 = fwAtLeast(0, 6, 0);
+    settingsObject = L.withoutV062(settingsObject, fw060);
+    if (Array.isArray(looks)) looks = looks.map(lk => {
+      if (!lk) return lk;
+      const clean = L.withoutV062(typeof lk === "string" ? JSON.parse(lk) : lk, fw060);
+      return typeof lk === "string" ? JSON.stringify(clean) : clean;
+    });
+  }
   if (!fwAtLeast(0, 6, 0)) settingsObject = L.withoutV060(settingsObject);   // areas, cells and Arrows are for 0.6.0 and newer
   if (!fwAtLeast(0, 6, 1)) {   // text on a panel is for 0.6.1 and newer: no text, the Scrolling text effect becomes Solid (also in the saved looks)
     settingsObject = L.withoutV061(settingsObject);

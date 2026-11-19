@@ -132,10 +132,13 @@ export const RX_BITS = { brake: 1, left: 2, right: 4 };
 export const SPANS = [["light", "Each light on its own"], ["x", "Front to rear"], ["y", "Left to right"], ["z", "Bottom to top"], ["wire", "Along the wiring"]];
 export const RESTS = [["bike", "Bike effect"], ["own", "Its own look"], ["off", "Off"]];
 // "global" is a light's or an output's "same as the bike"; the bike-wide `turn.style` takes the other four.
-export const TURN_STYLES = [["global", "Same as the bike"], ["flash", "Flash"], ["sweep", "Sequential fill"], ["drain", "Sequential empty"], ["arrow", "Arrows"], ["comet", "Comet"], ["wipe", "Wipe"]];
+export const TURN_STYLES = [["global", "Same as the bike"], ["flash", "Flash"], ["sweep", "Sequential fill"], ["drain", "Sequential empty"], ["arrow", "Arrows"], ["scroll", "Scrolling arrows (no flash)"], ["comet", "Comet"], ["wipe", "Wipe"]];
 // "drain" came with controller firmware 0.5.1: an older controller is not offered it. fw051 = fwAtLeast(0, 5, 1).
 // "arrow" came with 0.6.0 (fw060 = fwAtLeast(0, 6, 0)); an older controller does not know it and is never sent it.
-export const turnStyles = (fw051, withGlobal = true, fw060 = false) => TURN_STYLES.filter(t => (withGlobal || t[0] !== "global") && (fw051 || t[0] !== "drain") && (fw060 || t[0] !== "arrow"));
+// "scroll" came with 0.6.2 (fw062 = fwAtLeast(0, 6, 2)): arrows that keep moving through the off-time of the flash, at turn.speed.
+export const turnStyles = (fw051, withGlobal = true, fw060 = false, fw062 = false) => TURN_STYLES.filter(t => (withGlobal || t[0] !== "global") && (fw051 || t[0] !== "drain") && (fw060 || t[0] !== "arrow") && (fw062 || t[0] !== "scroll"));
+export const SCROLL_NOTE = "The arrows keep moving while the signal is on and do not go dark between flashes. The other turn lights keep flashing.";
+export const SCROLL_SPEED_NOTE = "One speed for every scrolling arrow on the bike.";
 export const BTN_ACTIONS = [["none", "Nothing"], ["accent_toggle", "Accent lights on/off"], ["accent_next", "Next bike effect"],
   ["hazard", "Hazards on/off"], ["aux_toggle", "Extra lights on/off"], ["preset_next", "Next look"], ["strobe_toggle", "Strobe on/off"],
   ["accent_all", "Bike effect on every light"]];

@@ -2,9 +2,10 @@
 // Everything is live through op.light.patch; slider drags and color drags are coalesced by key.
 import { S, on, op, mirror, fwAtLeast } from "./store.js";
 import { el, clear, seg, slider, toggleRow, selectRow, panel, note, button, ledStrip } from "./ui.js";
-import { lightsOf, sectionsOf, areasOf, cellGrid, textSharers } from "./lights.js";
-import { RESTS, turnStyles, TURN_ROLES } from "./fxdata.js";
+import { lightsOf, sectionsOf, areasOf, cellGrid, textSharers, turnStyleOf } from "./lights.js";
+import { RESTS, turnStyles, TURN_ROLES, SCROLL_NOTE, SCROLL_SPEED_NOTE } from "./fxdata.js";
 import { fxEditor } from "./fx.js";
+import { hint } from "./system-kit.js";
 import { openBikeEffect } from "./sheet.js";
 
 const lightOf = ref => { const st = S.settings && S.settings.strips[ref.out]; return st ? lightsOf(st)[ref.k] || null : null; };
@@ -31,7 +32,7 @@ export function renderLook(body, ref) {
 
   const dyn = el("div", { class: "look-dyn" });
   root.append(dyn);
-  let shape = "", editor = null, pct = null, master = null, solo = null, ts = null;
+  let shape = "", editor = null, pct = null, master = null, solo = null, ts = null, tsExtra = null, speed = null;
 
   // what is below the switch depends on the rest choice and on whether the light has a turn section
   function build(L) {
@@ -59,7 +60,7 @@ export function renderLook(body, ref) {
       dyn.append(note("Dark unless it is braking, signaling or showing the DRL.", null));
     }
     pct = slider("Brightness", L.pct, { min: 0, max: 100, step: 1, unit: "%", id: "look-pct", onInput: v => patch({ pct: v }, { key: key("pct"), ms: 150 }) });
-    master = solo = ts = null;
+    master = solo = ts = tsExtra = speed = null;
     const kids = [pct.el];
     if (L.rest === "own") {
       master = toggleRow("Stays on when Accent lights are off", !L.look.master, v => patch({ look: { master: !v } }), { id: "look-master" });
@@ -68,8 +69,15 @@ export function renderLook(body, ref) {
     solo = toggleRow("Keeps its look when the bike effect runs on every light", !!L.solo, v => patch({ solo: v }), { id: "look-solo" });
     kids.push(solo.el);
     if (hasTurn(ref)) {
-      ts = selectRow("Turn signal style", turnStyles(fwAtLeast(0, 5, 1), true, fwAtLeast(0, 6, 0)), L.ts, v => patch({ ts: v }), { id: "look-ts" });
+      ts = selectRow("Turn signal style", turnStyles(fwAtLeast(0, 5, 1), true, fwAtLeast(0, 6, 0), fwAtLeast(0, 6, 2)), L.ts, v => patch({ ts: v }), { id: "look-ts" });
       kids.push(ts.el);
+      if (fwAtLeast(0, 6, 2)) {   // Scrolling arrows: the line, and the one speed of the bike (turn.speed; missing = 5)
+        speed = slider("Arrow speed", S.settings.turn.speed ?? 5, { min: 1, max: 10, step: 1, id: "look-arrow-speed",
+          onInput: v => op.set({ turn: { speed: v } }, { key: "sys:turn.speed", ms: 150 }) });
+        tsExtra = el("div", { class: "look-ts-scroll", id: "look-ts-scroll" }, hint(SCROLL_NOTE), speed.el, hint(SCROLL_SPEED_NOTE));
+        tsExtra.hidden = turnStyleOf(S.settings, ref.out, ref.k) !== "scroll";
+        kids.push(tsExtra);
+      }
     }
     dyn.append(panel(null, ...kids));
   }
@@ -85,6 +93,7 @@ export function renderLook(body, ref) {
     if (master) master.set(!L.look.master);
     solo.set(!!L.solo);
     if (ts) ts.set(L.ts);
+    if (tsExtra) { tsExtra.hidden = turnStyleOf(S.settings, ref.out, ref.k) !== "scroll"; speed.set(S.settings.turn.speed ?? 5); }
   }
   shape = shapeOf(L0);
   build(L0);

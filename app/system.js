@@ -3,7 +3,8 @@
 // the two small pages (Signals, Handlebar button) and the console collector that starts with the first visit.
 import { S, on, op, fwAtLeast } from "./store.js";
 import { el, clear, button, panel, note, row, icon, hex, unhex } from "./ui.js";
-import { turnStyles, BTN_ACTIONS } from "./fxdata.js";
+import { turnStyles, BTN_ACTIONS, SCROLL_NOTE, SCROLL_SPEED_NOTE } from "./fxdata.js";
+import { usesScroll } from "./lights.js";
 import { newPage, hint } from "./system-kit.js";
 import { buildPods } from "./system-pods.js";
 import { buildPower } from "./system-power.js";
@@ -75,11 +76,20 @@ function buildSignals(host) {
   const colorField = el("div", { class: "field" }, el("span", { class: "lbl" }, el("b", {}, "Turn signal color")),
     el("div", { class: "sys-color" }, colorInp, amber),
     el("div", { class: "hint" }, "Front and rear turn signals and the front marker. Amber puts back the default 255 / 96 / 0."));
+  // Scrolling arrows (0.6.2): the line under the bike's style, and the one speed (turn.speed, missing = 5) when any style is scroll
+  const scrollNote = hint(SCROLL_NOTE), scrollBox = el("div", { id: "sys-scroll-box" },
+    P.slider("Arrow speed", s => s.turn.speed ?? 5, { min: 1, max: 10, id: "sys-turn-speed" }, v => ({ turn: { speed: v } })),
+    hint(SCROLL_SPEED_NOTE));
+  scrollNote.id = "sys-scroll-note";
+  P.onUpdate(() => { scrollNote.hidden = S.settings.turn.style !== "scroll"; scrollBox.hidden = !usesScroll(S.settings); });
+  const withScroll = fwAtLeast(0, 6, 2);
+  scrollNote.hidden = S.settings.turn.style !== "scroll"; scrollBox.hidden = !usesScroll(S.settings);
   host.append(
     panel("Turn signals",
       colorField,
       P.select("Rear turn color", [["amber", "Same as the turn signal color"], ["red", "Red"]], s => s.turn.color, v => ({ turn: { color: v } }), "sys-turn-color"),
-      P.select("Turn style", turnStyles(fwAtLeast(0, 5, 1), false, fwAtLeast(0, 6, 0)), s => s.turn.style, v => ({ turn: { style: v } }), "sys-turn-style"),
+      P.select("Turn style", turnStyles(fwAtLeast(0, 5, 1), false, fwAtLeast(0, 6, 0), withScroll), s => s.turn.style, v => ({ turn: { style: v } }), "sys-turn-style"),
+      ...(withScroll ? [scrollNote, scrollBox] : []),
       P.slider("Flash rate", s => s.blink.fpm, { min: 60, max: 120, unit: "/min", id: "sys-blink-fpm" }, v => ({ blink: { fpm: v } })),
       P.slider("On time", s => s.blink.duty, { min: 30, max: 75, unit: "%", id: "sys-blink-duty" }, v => ({ blink: { duty: v } })),
       P.toggle("Stock flasher still fitted", s => s.turn.follow, v => ({ turn: { follow: v } }),
