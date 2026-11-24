@@ -4,17 +4,18 @@
 import { initCore } from "./core.js";
 import * as store from "./store.js";
 import { S, on, connect, disconnect, reconnectNow, op } from "./store.js";
-import { el, clear, button, toast, panel, note, setSideHint, currentSheet } from "./ui.js";
+import { el, clear, button, toast, panel, note, setSideHint, currentSheet, sheetDepth, sheetBack, onSheetChange } from "./ui.js";
 import { mountRide } from "./ride.js";
 import { mountBike } from "./bike.js";
 import { mountSystem } from "./system.js";
 import { mountBikeView } from "./bikeview.js";
+import { initBack } from "./back.js";
 import { openLight, closeSheet, onLightChange, currentLight } from "./sheet.js";
 
 export const MIN_FW = [0, 5, 0];
 const TABS = [["ride", "Ride"], ["bike", "Bike"], ["system", "System"]];
 const R = {};                 // the frame's elements
-let mounted = null, mountedKey = "", view = null, offs = [], visHandler = null;
+let mounted = null, mountedKey = "", view = null, offs = [], visHandler = null, back = null, mounting = false;
 const navSubs = new Set();
 
 export const nav = {
@@ -38,18 +39,33 @@ export async function boot({ wasm } = {}) {
   await initCore({ bytes: wasm });
   store.init();
   build();
+  // The phone's back button: sheet, then System page, then the Ride tab, then "press again" (back.js).
+  const sysPage = () => nav.tab === "system" && mounted && mounted.current && mounted.current();
+  back = initBack({
+    inApp, onHome: () => toast("Press back again to leave the app"),
+    trustAll: typeof navigator !== "undefined" && /jsdom/i.test(navigator.userAgent || ""),   // the tests' clicks are made by script
+    layers: () => sheetDepth() + (sysPage() ? 1 : 0) + (nav.tab !== "ride" ? 1 : 0),
+    stepBack: () => {
+      if (sheetBack()) return true;
+      if (sysPage() && mounted.back()) return true;
+      if (nav.tab !== "ride") { nav.go("ride"); return true; }
+      return false;
+    },
+  });
   offs = [
+    onSheetChange(() => back && back.sync()),
     on("phase", render), on("warn", paintBanner), on("settings", () => { if (fwTooOld() !== R.gated || !R.hinted) { R.hinted = !!S.settings; render(); } else paintBanner(); }),
     on("note", (t, kind) => toast(t, kind === "bad" ? "bad" : "warn")),
     onLightChange(ref => { if (view) view.select(ref); }),
   ];
   // For the browser console and scripted checks: rcr.S, rcr.store.op..., rcr.bikeView(), rcr.nav.go("bike").
-  if (typeof window !== "undefined") window.rcr = { S, store, nav, bikeView, openLight, closeSheet };
+  if (typeof window !== "undefined") window.rcr = { S, store, nav, bikeView, openLight, closeSheet, back };
   render();
   start();
 }
 export function shutdown() {
   offs.forEach(f => f()); offs = [];
+  if (back) { back.destroy(); back = null; }
   if (mounted) { try { mounted.destroy(); } catch (e) { /* stub */ } mounted = null; mountedKey = ""; }
   if (view) { try { view.destroy(); } catch (e) { /* stub */ } view = null; }
   try { closeSheet(); } catch (e) { /* none */ }
@@ -79,7 +95,8 @@ function build() {
 }
 
 // ---- what is on screen -------------------------------------------------------------------------------
-function render() {
+function render() { renderNow(); if (back) back.sync(); }
+function renderNow() {
   if (!R.frame) return;
   paintHeader();
   const hint = document.getElementById("sideHint");
@@ -112,7 +129,13 @@ function render() {
   if (R.gated && !sys) mounted = mountGate(R.panel);
   else if (nav.tab === "ride") mounted = mountRide(R.panel);
   else if (nav.tab === "bike") mounted = mountBike(R.panel);
-  else mounted = mountSystem(R.panel, { page: nav.page });
+  else {
+    // onPage keeps nav.page (and the key render() remounts on) on the page that is on screen. While the tab is being
+    // mounted `mounted` is still the tab before it, so the back button's sync waits for render() to call it.
+    mounting = true;
+    try { mounted = mountSystem(R.panel, { page: nav.page, onPage: p => { nav.page = p || null; mountedKey = nav.tab + ":" + (nav.page || ""); if (back && !mounting) back.sync(); } }); }
+    finally { mounting = false; }
+  }
 }
 function paintHeader() {
   const ready = S.phase === "ready";

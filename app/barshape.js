@@ -316,7 +316,12 @@ export function openBarShape({ name = "Light", n: n0 = 0, maxLeds = 800, den = 0
   const D = design && validDesign(design) ? { v: 1, pieces: design.pieces.map(p => ({ ...p })), a: design.a, b: design.b } : { v: 1, pieces: [], a: 0, b: 0 };
   let sel = -1, finished = false;
   const pitch = den > 0 ? 1000 / den : 0;
-  const sh = sheet({ title: "Shape of " + (name || "this light"), sub: "", onClose: replaced => { if (!finished && !replaced && onCancel) onCancel(); } });
+  // what the shape was when the builder opened: a back press asks before it throws changes away
+  const snap = () => { try { return JSON.stringify([D, n]); } catch (e) { return null; } };
+  let first = null;
+  const changed = () => { const now = snap(); return now == null || first == null ? D.pieces.length > 0 : now !== first; };
+  const sh = sheet({ title: "Shape of " + (name || "this light"), sub: "", over: true, guard: () => (changed() ? "Press back again to discard the changes to this shape" : ""),
+    onClose: replaced => { if (!finished && !replaced && onCancel) onCancel(); } });
   sh.el.classList.add("bs-sheet");
   const body = sh.body; body.id = "bsRoot"; body.classList.add("bs");
 
@@ -462,5 +467,6 @@ export function openBarShape({ name = "Light", n: n0 = 0, maxLeds = 800, den = 0
     panel("Sizes in", el("div", { class: "pad" }, unitSeg.el)),
     el("div", { class: "bs-end" }, doneBtn, button("Cancel", { kind: "ghost", id: "bsCancel", onClick: () => sh.close() })));
   build();
+  first = snap();
   return { close() { sh.close(); }, design: D };
 }

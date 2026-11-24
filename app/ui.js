@@ -156,7 +156,12 @@ export function toast(msg, kind) {
 
 // ---- the sheet frame: one at a time, in #side ---------------------------------------------------------
 let openSheet = null;
-export function sheet({ title = "", sub = "", tabs, tab, onTab, onClose, actions } = {}) {
+// over: this sheet opens on top of the one it replaces (a builder), so it is one back step deeper. depth() -> how many
+// back steps deep the sheet is when that is not 1 (Add a light: its step); it has to come in here, because the back
+// button reads it the moment the sheet opens. guard() -> a message when the sheet holds work that a back press would
+// throw away (the press then shows the message first).
+export function sheet({ title = "", sub = "", tabs, tab, onTab, onClose, actions, over, depth, guard } = {}) {
+  const under = over && openSheet ? openSheet.depth() : 0;
   if (openSheet) openSheet.close(true);
   const side = document.getElementById("side") || document.body;
   const ttl = el("b", {}, title), subEl = el("small", {}, sub);
@@ -174,7 +179,7 @@ export function sheet({ title = "", sub = "", tabs, tab, onTab, onClose, actions
   if (side.id === "side") clear(side);
   side.append(root); side.classList.add("open");
   const me = {
-    el: root, body,
+    el: root, body, guard, depth: typeof depth === "function" ? depth : () => under + 1,
     setTitle(t) { clear(ttl); append(ttl, [t]); },
     setSub(t) { subEl.textContent = t; },
     setTab(k) { curTab = k; tabBtns.forEach(b => b.setAttribute("aria-pressed", String(b.dataset.tab === k))); },
@@ -184,11 +189,30 @@ export function sheet({ title = "", sub = "", tabs, tab, onTab, onClose, actions
       openSheet = null; root.remove();
       if (!replaced) { side.classList.remove("open"); if (side.id === "side" && sideHint) side.append(sideHint()); }
       if (onClose) onClose(!!replaced);
+      if (!replaced) sheetChanged();   // a replaced sheet is followed by the one that takes its place, which tells
     },
   };
   openSheet = me;
+  sheetChanged();
   return me;
 }
+// Sheets and the phone's back button (back.js): how many back steps the open sheet is deep, and what one press does.
+const sheetSubs = new Set();
+let guardAt = 0;
+export const sheetDepth = () => (openSheet ? openSheet.depth() : 0);
+export function sheetBack() {
+  const s = openSheet;
+  if (!s) return false;
+  let msg = "";
+  try { msg = s.guard ? s.guard() : ""; } catch (e) { msg = ""; }
+  if (msg && Date.now() - guardAt > 3000) { guardAt = Date.now(); toast(msg, "warn"); return true; }
+  // the header arrow itself, not close(): Add a light replaces that button's handler with its own step back
+  const b = s.el.querySelector("#sheetClose");
+  if (b) b.click(); else s.close();
+  return true;
+}
+export function onSheetChange(fn) { sheetSubs.add(fn); return () => sheetSubs.delete(fn); }
+export function sheetChanged() { sheetSubs.forEach(fn => { try { fn(); } catch (e) { console.error(e); } }); }
 let sideHint = null;
 // main.js tells the frame what #side shows when no sheet is open (the PC hint).
 export function setSideHint(fn) { sideHint = fn; }

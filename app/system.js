@@ -23,14 +23,15 @@ export const PAGES = [
 ];
 const PAGE_ALIAS = { headlight: "pods", headlights: "pods", handlebar: "button", live: "diagnostics", console: "diagnostics" };
 
-export function mountSystem(panelEl, { page } = {}) {
+export function mountSystem(panelEl, { page, onPage } = {}) {
   startConsoleLog();
   const root = el("div", { class: "sys", id: "system" });
   panelEl.append(root);
   let cur = null, inst = null, offs = [], pageKey = PAGE_ALIAS[page] || page;
   const destroyPage = () => { if (inst && inst.destroy) { try { inst.destroy(); } catch (e) { console.error(e); } } inst = null; cur = null; };
+  const shown = k => { if (onPage) try { onPage(k); } catch (e) { console.error(e); } };
   function list() {
-    destroyPage(); clear(root);
+    destroyPage(); clear(root); shown(null);
     root.append(el("div", { class: "panel", id: "sysList" }, PAGES.map(([key, name, what]) =>
       row(name, { sub: what, id: "sys-open-" + key, onClick: () => open(key) }))),
       el("div", { class: "note sys-foot" }, "Set-once things live here. Everything about a single light is on that light's sheet."));
@@ -43,7 +44,7 @@ export function mountSystem(panelEl, { page } = {}) {
     root.append(el("div", { class: "sys-back" },
       el("button", { type: "button", class: "iconbtn", id: "sysBack", "aria-label": "Back to System", onclick: list }, icon("back", 22)),
       el("div", { class: "sys-title" }, el("b", {}, def[1]), el("small", {}, def[2]))), body);
-    cur = key;
+    cur = key; shown(key);
     inst = def[3](body) || {};
     if (inst.update) inst.update();
   }
@@ -63,7 +64,7 @@ export function mountSystem(panelEl, { page } = {}) {
     offs.push(on("phase", () => { if (inst && inst.phase) inst.phase(); }));
   }
   if (S.settings) start(); else waitForSettings();
-  return { destroy() { offs.forEach(f => f()); offs = []; destroyPage(); root.remove(); }, open, current: () => cur };
+  return { destroy() { offs.forEach(f => f()); offs = []; destroyPage(); root.remove(); }, open, current: () => cur, back() { if (!cur) return false; list(); return true; } };
 }
 
 // ---- Signals ----------------------------------------------------------------------------------------------------

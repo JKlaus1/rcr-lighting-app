@@ -1,5 +1,5 @@
 // The Bike tab (spec 3.5): the outputs and what is chained on each, the lamp plug, Add a light, and Try it.
-import { S, on, op, setSim } from "./store.js";
+import { S, on, op, setSim, fwAtLeast } from "./store.js";
 import { el, clear, button, armed, chips, panel, note, icon } from "./ui.js";
 import { lightsOf, usedOf, loadOf, isLampOut, canAdd, LIMITS, refEq } from "./lights.js";
 import { JACKS, OUT_MODES } from "./fxdata.js";
@@ -10,11 +10,14 @@ import { nav, bikeView } from "./main.js";
 
 const amps = ma => (ma / 1000).toFixed(1);
 // The load line under an output (also on the light sheet's Wiring tab). `over` is for the warning color.
-export function loadLine(strip) {
+// all: the controller is on 0.6.3 or newer, where brake and turn come first under a cap and are held at a fixed level
+// when it is tight; before that they were never dimmed and the cap was raised for them.
+export function loadLine(strip, all = fwAtLeast(0, 6, 3)) {
   const ld = loadOf(strip);
   if (!ld.leds) return { text: "Nothing on this output yet.", over: false };
   if (!ld.over) return { text: `Up to ${amps(ld.fullMa)} A at full white, inside the ${amps(ld.capMa)} A cap.`, over: false };
-  return { text: `Full white on everything here would be ${amps(ld.fullMa)} A. The ${amps(ld.capMa)} A cap dims decoration to fit; brake and turn never dim.`, over: true };
+  return { text: `Full white on everything here would be ${amps(ld.fullMa)} A. ` + (all ? `Under the ${amps(ld.capMa)} A cap brake and turn come first; looks and the bike effect share the rest and stay lit.`
+    : `The ${amps(ld.capMa)} A cap dims decoration to fit; brake and turn never dim.`), over: true };
 }
 // The lamp plug's line: the rider's names for its four outputs once any is named (System › Headlight pods).
 const lampPlugText = () => (LAMPS.some(l => ((S.settings && S.settings.lamp_label) || {})[l[0]])

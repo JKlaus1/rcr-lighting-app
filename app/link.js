@@ -403,7 +403,7 @@ export class DemoLink {
     const o = { t: now - this.t0, v: 1, in: this.inputs, raw: this.inputs, head, brk: b(0), l: scene.left ? 1 : 0, r: scene.right ? 1 : 0,
       hz: hz ? 1 : 0, blk: blk ? 1 : 0, aux: this.aux ? 1 : 0, sb: this.strobe ? 1 : 0, duty: en.slice(0, 4).map(e => e ? 1000 : 0),
       en, rt: [0, 0, 0, 0, 0, 0, 0, 0], lk: "........", ch: a.map(v => v > 0 ? "o" : ".").join(""), a: a.map(v => Math.round(v * 100) / 100),
-      sma, tot, bud: tot > budget ? Math.floor(budget / tot * 100) : 100, ssc: [100, 100, 100, 100],
+      sma, tot, bud: tot > budget ? Math.floor(budget / tot * 100) : 100, ...(pct => ({ ssc: pct((a, b) => Math.min(a, b)), sss: pct(a => a), ssa: pct((a, b) => b) }))(f => st.strips.map((x, i) => (x.out === "pixels" && !this.old ? f(this.ctl.safetyPct(i), this.ctl.limitPct(i)) : 100))),
       acc: this.accOn() ? 1 : 0, bench: this.benchOn() ? 1 : 0, ovr: 0, ble: 1, pair: this.pairUntil > now ? 1 : 0, ota: 0,
       edges: this.edges.slice(), dip: [0, 0, 0, 0], dipms: [0, 0, 0, 0], rl: [0, 0, 0, 0],
       pre: this.pre, prem: this.pre >= 0 && this.dirty ? 1 : 0, btn: b(5), bn: this.bn };

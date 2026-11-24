@@ -71,6 +71,10 @@ function wrap(ex) {
     rawMa: i => ex.rcr_raw_ma(h, i),
     limitPct: i => ex.rcr_limit_pct(h, i),
     worstMa: i => ex.rcr_worst_ma(h, i),
+    // 0.6.3: what the last render had the output's brake / tail / turn / DRL LEDs at, and what its cap holds them at
+    // whatever is lit (percent; 100 = full). A core older than 0.6.3 has neither: 100.
+    safetyPct: i => (ex.rcr_safety_pct ? ex.rcr_safety_pct(h, i) : 100),
+    heldPct: i => (ex.rcr_held_pct ? ex.rcr_held_pct(h, i) : 100),
     fullMa: i => ex.rcr_full_ma(h, i),
     lightAt: (i, px) => ex.rcr_light_at(h, i, px),
     destroy() { if (h >= 0) ex.rcr_destroy(h); h = -1; },

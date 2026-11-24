@@ -544,8 +544,9 @@ export function stripPatches(i, before, after) {
   if (!jeq(A.areas, B.areas)) out.push(wrap(i, { areas: (after.areas || []).map(a => areaEntry(normAreaEntry(a))) }));
   if (!jeq(A.panel, B.panel)) out.push(wrap(i, { panel: A.panel || [0, 0] }));
   if (A.px < B.px) out.push(wrap(i, { px: A.px }));
-  // validate() raises cap_ma to the safety worst case and never lowers it: a half-sent layout (new lights, old
-  // segments) can raise it on the way. Ending with the intended cap puts it back (raised again only if really needed).
+  // A controller before 0.6.3 raises cap_ma to the safety worst case and never lowers it: a half-sent layout (new lights,
+  // old segments) can raise it on the way. Ending with the intended cap puts it back (raised again only if really needed).
+  // From 0.6.3 the controller keeps the cap as it is and the line changes nothing.
   if ((lightLines.length || out.some(p => p.strips[i].segi || p.strips[i].nseg != null)) && A.cap_ma != null)
     out.push(wrap(i, { cap_ma: A.cap_ma }));
   return out;

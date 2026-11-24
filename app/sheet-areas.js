@@ -4,7 +4,7 @@
 // every change goes to the controller at once through op.light.setAreas.
 // The panel is drawn as a grid of its columns and rows (as the controller has them: the path points' cells). Drag over it, or
 // tap two corners, to mark a block, then tap the job. Numbers shown are 1-based.
-import { S, op, fwAtLeast } from "./store.js";
+import { S, op, fwAtLeast, mirror } from "./store.js";
 import { el, clear, button, armed, chips, seg, selectRow, toggleRow, note, clamp } from "./ui.js";
 import { lightsOf, areasOf, areaCount, cellGrid, AREA_MAX } from "./lights.js";
 import { ROLE_BY, TAIL_ROLES, TURN_ROLES } from "./fxdata.js";
@@ -39,14 +39,21 @@ export function renderAreas(host, ref) {
   const stripOf = () => S.settings.strips[ref.out];
   const lightOf = () => lightsOf(stripOf())[ref.k];
   const grid = () => cellGrid(stripOf(), ref.k);
-  // The controller raises the output's current cap to the worst case of its brake, tail and turn LEDs at full brightness (it never
-  // dims them): more or bigger areas can raise it. Said here, because the controller's note for it is only "1 value clamped".
+  // More or bigger areas raise what the output's brake, tail and turn LEDs can need at once. From 0.6.3 the controller keeps
+  // the output's current cap as it is and holds those LEDs at a fixed level when they need more than three quarters of
+  // it: said here when that is so. Up to 0.6.2 it raised the cap instead, with only "1 value clamped" as its note.
   let capNote = "";
+  // 0.6.3: read from the bike as it is now, so the line goes away when the cap is raised or the areas shrink.
+  const capText = () => {
+    if (!fwAtLeast(0, 6, 3)) return capNote;
+    const cap = stripOf().cap_ma | 0, worst = mirror ? mirror.worstMa(ref.out) : 0, held = mirror ? mirror.heldPct(ref.out) : 100;
+    return held < 100 ? `The brake, tail and turn LEDs on output ${ref.out + 1} can need up to ${worst} mA, more than three quarters of its ${cap} mA current cap: the cap holds them at about ${held} %. To bring them back to full, raise the cap in System › Power.` : "";
+  };
   const send = list => {
     const before = stripOf().cap_ma | 0;
     if (!op.light.setAreas(ref.out, ref.k, list)) { msg = "Areas need the 0.6.0 controller update."; return; }
     const after = stripOf().cap_ma | 0;
-    if (after > before) capNote = `Output ${ref.out + 1}'s current cap went up from ${before} mA to ${after} mA so that brake, tail and turn LEDs can always light at full brightness. The bike never dims them.`;
+    if (!fwAtLeast(0, 6, 3) && after > before) capNote = `Output ${ref.out + 1}'s current cap went up from ${before} mA to ${after} mA so that brake, tail and turn LEDs can always light at full brightness. The bike never dims them.`;
   };
 
   function addArea(role) {
@@ -190,7 +197,7 @@ export function renderAreas(host, ref) {
     root.append(note("A block of the panel's columns and rows with a job, drawn over the panel's look. Later blocks are drawn over earlier ones. A block with nothing to show leaves the look visible."),
       picture(g, list), selBox(g));
     if (msg) root.append(el("p", { class: "note bad", id: "ar-msg" }, msg));
-    if (capNote) root.append(el("p", { class: "note warn", id: "ar-cap" }, capNote));
+    { const t = capText(); if (t) root.append(el("p", { class: "note warn", id: "ar-cap" }, t)); }
     const total = areaCount(stripOf());
     root.append(el("div", { class: "label" }, `Areas, in drawing order (${total} of ${AREA_MAX} on this output)`));
     if (!list.length) root.append(el("p", { class: "note", id: "ar-none" }, "No areas yet."));

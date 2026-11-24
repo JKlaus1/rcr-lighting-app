@@ -241,7 +241,12 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder, maxStrip
   const U = { tool: "lay", pend: null, view: "f", msg: "", bad: false, sel: null, cell: 0 };
   let finished = false;
   const outOrder = () => outputOrder || (ref && S.settings && S.settings.strips[ref.out] && S.settings.strips[ref.out].order) || "GRB";
-  const sh = sheet({ title: "Matrix shape", sub: "", onClose: replaced => { if (!finished && !replaced && onCancel) onCancel(); } });
+  // what the shape was when the builder opened: a back press asks before it throws changes away
+  const snap = () => { try { return JSON.stringify(M); } catch (e) { return null; } };
+  let first = null;
+  const changed = () => { const now = snap(); return now == null || first == null ? M.strips.length > 0 : now !== first; };
+  const sh = sheet({ title: "Matrix shape", sub: "", over: true, guard: () => (changed() ? "Press back again to discard the changes to this shape" : ""),
+    onClose: replaced => { if (!finished && !replaced && onCancel) onCancel(); } });
   sh.el.classList.add("matrix-sheet");
   const body = sh.body; body.classList.add("mx"); body.id = "mxRoot";
 
@@ -490,6 +495,7 @@ export function openShape(ref, { design, onDone, onCancel, outputOrder, maxStrip
     densChips.set(M.den); densNum.set(M.den); colsN.set(M.cols); rowsN.set(M.rows);
   }
   paint();
+  first = snap();
   return { close() { sh.close(); }, model: M };
 }
 // The size card also counts strips that are not wired yet: a design of every strip, in laying order.

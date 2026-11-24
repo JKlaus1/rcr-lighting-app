@@ -147,7 +147,15 @@ function buildLive(host) {
       if (c.strip != null && S.settings) {
         const sp = S.settings.strips[c.strip];
         if (isLampOut(sp)) extra = " · " + ((OUT_MODES.find(m => m[0] === sp.out) || [0, ""])[1]).toLowerCase();
-        else { rating = sp.cap_ma / 1000; extra = sp.px ? ` · est. ${(((s.sma || [])[c.strip] || 0) / 1000).toFixed(2)} A` : " (unused)"; }
+        else {
+          // est.: the board's own model of what it is sending; cap: the output's current cap; then what the limits (the cap
+          // and the shared budget) have this output's brake / turn / DRL LEDs and its looks at right now (status `sss` and
+          // `ssa`, controller 0.6.3; 100 = not limiting, and then not shown)
+          const at = k => (Array.isArray(s[k]) && s[k][c.strip] != null ? s[k][c.strip] : 100);
+          rating = sp.cap_ma / 1000;
+          extra = sp.px ? ` · est. ${(((s.sma || [])[c.strip] || 0) / 1000).toFixed(2)} A · cap ${(sp.cap_ma / 1000).toFixed(2)} A`
+            + (at("sss") < 100 ? ` · brake/turn at ${at("sss")} %` : "") + (at("ssa") < 100 ? ` · looks at ${at("ssa")} %` : "") : " (unused)";
+        }
       }
       const locked = c.en != null && (s.lk || "")[c.en] === "L", retries = c.en != null ? (s.rt || [])[c.en] : 0;
       const dips = i < 4 && Array.isArray(s.dip) ? (s.dip[i] | 0) : 0;

@@ -4,7 +4,7 @@
 // leaving the flow in any way puts `px` (and, on a free output, the LED type) back. The lights already on the output
 // are never touched by it.
 import { S, on, op, send } from "./store.js";
-import { el, clear, button, chips, selectRow, numRow, slider, panel, note, toast, sheet, icon, clamp } from "./ui.js";
+import { el, clear, button, chips, selectRow, numRow, slider, panel, note, toast, sheet, sheetChanged, icon, clamp } from "./ui.js";
 import { lightsOf, allLights, usedOf, canAdd, templateSections, newLightId, isLampOut, LIMITS } from "./lights.js";
 import { KINDS, KIND_BY, CHIPS, CHIP_BY, chipLabel, kindDefaults, WIZARD_TILES, JACKS, ORDERS, OUT_MODES } from "./fxdata.js";
 import * as MATRIX from "./matrix.js";
@@ -148,7 +148,7 @@ export function startAddLight({ out = 0 } = {}) {
 
 function ensureSheet(w) {
   if (w.sh && w.sh.el.isConnected) return;
-  w.sh = sheet({ title: "Add a light", sub: "", onClose: replaced => {
+  w.sh = sheet({ title: "Add a light", sub: "", depth: () => Math.max(0, stepsOf(w).indexOf(w.step)) + 1, onClose: replaced => {
     if (replaced && w.shapeOpen) { w.sh = null; return; }   // the shape builder took the place: come back when it is done
     endFlow(w);
   } });
@@ -193,6 +193,7 @@ function render(w) {
   if (w.panelPart) { w.panelPart.destroy(); w.panelPart = null; }
   draw(w, w.body);
   w.body.scrollTop = 0;
+  sheetChanged();   // the step may have changed: the back button's depth follows it
 }
 const h = text => el("h3", { class: "wz-h" }, text);
 function footer(w, { nextLabel = "Next", nextOk = true, onNext, nextId = "wzNext" } = {}) {
